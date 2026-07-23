@@ -13,7 +13,7 @@ REM ---------------------------------------------------------------------------
 
 cd /d "%~dp0"
 
-set PHP_BIN=C:\laragon\bin\php\php-8.4.23-Win32-vs17-x64\php.exe
+set PHP_BIN=C:\laragon\bin\php\php-8.4.1\php.exe
 
 if not exist "%PHP_BIN%" (
     echo [GAGAL] PHP tidak ditemukan di:
