@@ -1,0 +1,74 @@
+# ============================================================
+#  .gitignore untuk OpenSID (CodeIgniter 3 + komponen Laravel)
+#  Proyek: Sistem Informasi Desa Nagari Simpang
+# ============================================================
+
+# --- Dependensi (bisa di-generate ulang: composer install) ---
+/vendor/
+/node_modules/
+
+# --- File environment & kunci (RAHASIA, jangan pernah di-push) ---
+.env
+.env.backup
+.env.*.local
+desa/app_key
+auth.json
+
+# --- Konfigurasi database (berisi kredensial) ---
+desa/config/database.php
+desa/config/database.php.hosting-backup
+*.hosting-backup
+
+# --- Upload & data desa (data user, bukan kode; berat ~78MB) ---
+# Struktur folder tetap dipertahankan lewat file index.html
+desa/upload/**
+!desa/upload/**/
+!desa/upload/index.html
+!desa/upload/**/index.html
+
+# Data desa lain yang di-generate saat aplikasi berjalan
+desa/cache/*
+!desa/cache/index.html
+desa/arsip/*
+!desa/arsip/index.html
+desa/logo/*
+!desa/logo/index.html
+desa/pengaturan/*
+!desa/pengaturan/index.html
+desa/anjungan/*
+!desa/anjungan/index.html
+
+# --- Cache & storage Laravel ---
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+/storage/app/public/*
+/storage/*.key
+/bootstrap/cache/*
+!.gitkeep
+
+# --- Log & file sementara ---
+*.log
+error_log
+/backup_inkremental/
+
+# --- Editor / IDE ---
+/.idea/
+/.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.phpunit.result.cache
+.php-cs-fixer.cache
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- File pribadi / catatan lokal (hapus baris ini kalau mau ikut di-push) ---
+.claude/
