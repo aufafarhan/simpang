@@ -72,3 +72,6 @@ $RECYCLE.BIN/
 
 # --- File pribadi / catatan lokal (hapus baris ini kalau mau ikut di-push) ---
 .claude/
+.agents/
+
+docs/

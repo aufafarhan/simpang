@@ -35,6 +35,22 @@
  *
  */
 
+// API v1 publik — untuk frontend Next.js (read-only).
+// Controller di controllers/api/. Lihat docs/TDD-Frontend-Publik-NextJS.md
+Route::group('api/v1', ['namespace' => 'api'], static function (): void {
+    // Profil desa
+    Route::get('desa/profil', 'Desa@profil');
+
+    // Artikel / berita — rute spesifik didahulukan sebelum pola dinamis
+    Route::get('artikel', 'Artikel@index');
+    Route::get('artikel/headline', 'Artikel@headline');
+    Route::get('artikel/{id}/komentar', 'Artikel@komentar');
+    Route::get('artikel/{thn}/{bln}/{hr}/{slug}', 'Artikel@detail');
+
+    // Statistik
+    Route::get('statistik/penduduk', 'Statistik@penduduk');
+});
+
 // Internal API
 Route::group('internal_api', ['namespace' => 'internal_api'], static function (): void {
     // Wilayah

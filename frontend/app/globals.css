@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  /* Palet Navy — Design System Nagari Simpang */
+  --color-navy-900: #0a1f3c; /* header, footer, teks judul */
+  --color-navy-700: #14396b; /* tombol utama, navbar */
+  --color-navy-500: #1e5aa8; /* link, hover, ikon */
+  --color-navy-50: #e8eff7; /* blok section, kartu berita */
+
+  /* Token semantik */
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-border: #e2e8f0;
+
+  /* Font (di-set via next/font di layout.tsx) */
+  --font-sans: var(--font-body), system-ui, Arial, sans-serif;
+  --font-heading: var(--font-heading), var(--font-body), system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+}
+
+/* Aksesibilitas: focus ring jelas (rekomendasi skill — WCAG) */
+:focus-visible {
+  outline: 3px solid var(--color-navy-500);
+  outline-offset: 2px;
+}
+
+/* Hormati preferensi reduce-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
