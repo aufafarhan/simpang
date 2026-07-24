@@ -1,72 +1,103 @@
 import Link from "next/link";
 import ArtikelCard from "@/components/artikel/ArtikelCard";
-import { getArtikel, getHeadline, getProfilDesa } from "@/lib/api";
+import AnnouncementBar from "@/components/beranda/AnnouncementBar";
+import FeaturedNews from "@/components/beranda/FeaturedNews";
+import Hero from "@/components/beranda/Hero";
+import QuickShortcuts from "@/components/beranda/QuickShortcuts";
+import SectionHeading from "@/components/beranda/SectionHeading";
+import StatsBlock from "@/components/beranda/StatsBlock";
+import { AgendaMendatang, JamLayanan } from "@/components/beranda/SidebarWidgets";
+import Aparatur from "@/components/widgets/Aparatur";
+import ArsipArtikel from "@/components/widgets/ArsipArtikel";
+import Galeri from "@/components/widgets/Galeri";
+import Peta from "@/components/widgets/Peta";
+import Icon from "@/components/ui/Icon";
+import { getBeranda, getProfilDesa } from "@/lib/api";
 
 export default async function Beranda() {
-  const [profil, headline, { items }] = await Promise.all([
-    getProfilDesa(),
-    getHeadline(),
-    getArtikel(1),
-  ]);
+  const [profil, beranda] = await Promise.all([getProfilDesa(), getBeranda(1)]);
 
-  const utama = headline[0] ?? items[0];
+  const artikel = beranda?.artikel.items ?? [];
+  const headline = beranda?.headline ?? null;
+  const w = beranda?.widgets;
+  const kepala = w?.aparatur?.[0] ?? null;
 
   return (
-    <div className="mx-auto max-w-6xl px-4">
-      {/* HERO */}
-      <section className="my-6 overflow-hidden rounded-2xl bg-gradient-to-r from-navy-900 to-navy-700 px-6 py-12 text-white sm:px-10">
-        <p className="mb-2 text-sm uppercase tracking-widest opacity-80">
-          Selamat datang di
-        </p>
-        <h1 className="text-3xl font-extrabold sm:text-4xl">{profil.nama_desa}</h1>
-        <p className="mt-3 max-w-xl text-white/90">{profil.tema.judul_web}</p>
-        <div className="mt-6 flex gap-3">
-          <Link
-            href="/profil"
-            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-50"
-          >
-            Profil Desa
-          </Link>
-          <Link
-            href="/statistik"
-            className="rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold hover:bg-white/10"
-          >
-            Lihat Statistik
-          </Link>
-        </div>
-      </section>
+    <>
+      <AnnouncementBar items={beranda?.teks_berjalan ?? []} />
 
-      {/* HEADLINE */}
-      {utama && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-lg font-bold text-slate-900">Sorotan</h2>
-          <Link
-            href={utama.url}
-            className="block rounded-xl border border-slate-200 p-6 transition hover:shadow-md"
-          >
-            <span className="text-xs font-medium text-navy-500">
-              {utama.kategori?.nama}
-            </span>
-            <h3 className="mt-1 text-xl font-bold text-slate-900">{utama.judul}</h3>
-            <p className="mt-2 text-slate-600">{utama.ringkasan}</p>
-          </Link>
-        </section>
-      )}
+      <Hero profil={profil} kepala={kepala} />
 
-      {/* BERITA TERBARU */}
-      <section className="mb-10">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">Berita Terbaru</h2>
-          <Link href="/arsip" className="text-sm font-medium text-navy-500 hover:underline">
-            Lihat semua →
-          </Link>
+      {/* ---------- GRID UTAMA 12 KOLOM ---------- */}
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-16 md:px-6 lg:grid-cols-12 lg:px-8">
+        {/* ================= KOLOM KIRI ================= */}
+        <div className="flex flex-col gap-16 lg:col-span-8">
+          <QuickShortcuts />
+
+          {headline && <FeaturedNews artikel={headline} />}
+
+          {/* Berita terbaru */}
+          <section>
+            <SectionHeading
+              icon="newspaper"
+              aksi={
+                <Link
+                  href="/arsip"
+                  className="flex items-center gap-1 text-sm font-semibold text-secondary transition-colors hover:text-primary"
+                >
+                  Lihat Semua
+                  <Icon name="arrow_forward" size={16} />
+                </Link>
+              }
+            >
+              Berita Terbaru
+            </SectionHeading>
+
+            {artikel.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-outline-variant p-8 text-center text-on-surface-variant">
+                Belum ada berita untuk ditampilkan.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {artikel.map((a) => (
+                  <ArtikelCard key={a.id} artikel={a} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Aparatur & Galeri */}
+          {w && (
+            <section>
+              <SectionHeading icon="groups">Pemerintah Nagari</SectionHeading>
+              <Aparatur data={w.aparatur} />
+            </section>
+          )}
+
+          {w && !!w.galeri?.length && (
+            <section>
+              <SectionHeading icon="photo_library">Galeri Kegiatan</SectionHeading>
+              <Galeri data={w.galeri} />
+            </section>
+          )}
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((a) => (
-            <ArtikelCard key={a.id} artikel={a} />
-          ))}
-        </div>
-      </section>
-    </div>
+
+        {/* ================= SIDEBAR ================= */}
+        <aside className="flex flex-col gap-6 lg:col-span-4">
+          {w && (
+            <>
+              <StatsBlock
+                penduduk={w.statistik_penduduk}
+                pengunjung={w.statistik_pengunjung}
+              />
+              <JamLayanan data={w.jam_kerja} />
+              <AgendaMendatang data={w.agenda} />
+              <Peta peta={profil.peta} namaDesa={profil.nama_desa} />
+              <ArsipArtikel data={w.arsip} />
+            </>
+          )}
+        </aside>
+      </div>
+    </>
   );
 }

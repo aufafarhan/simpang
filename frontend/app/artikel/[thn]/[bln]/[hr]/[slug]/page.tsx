@@ -36,10 +36,10 @@ export default async function DetailArtikel({ params }: { params: Params }) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-8">
       {artikel.kategori && (
-        <span className="text-sm font-medium text-navy-500">{artikel.kategori.nama}</span>
+        <span className="text-sm font-medium text-primary">{artikel.kategori.nama}</span>
       )}
-      <h1 className="mt-1 text-3xl font-extrabold text-slate-900">{artikel.judul}</h1>
-      <div className="mt-2 text-sm text-slate-400">
+      <h1 className="mt-1 text-3xl font-extrabold text-on-surface">{artikel.judul}</h1>
+      <div className="mt-2 text-sm text-outline">
         {new Date(artikel.tanggal).toLocaleDateString("id-ID", {
           day: "numeric",
           month: "long",
@@ -50,14 +50,14 @@ export default async function DetailArtikel({ params }: { params: Params }) {
 
       {/* Isi artikel sudah disanitasi di backend (lihat TDD §7). */}
       <div
-        className="prose mt-6 max-w-none text-slate-700"
+        className="prose mt-6 max-w-none text-on-surface-variant"
         dangerouslySetInnerHTML={{ __html: artikel.isi }}
       />
 
       {artikel.dokumen.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-2 font-bold text-slate-900">Lampiran</h2>
-          <ul className="list-inside list-disc text-sm text-navy-500">
+          <h2 className="mb-2 font-bold text-on-surface">Lampiran</h2>
+          <ul className="list-inside list-disc text-sm text-primary">
             {artikel.dokumen.map((d) => (
               <li key={d.id}>
                 <a href={d.url} className="hover:underline">
@@ -70,7 +70,7 @@ export default async function DetailArtikel({ params }: { params: Params }) {
       )}
 
       <section className="mt-10">
-        <h2 className="mb-4 text-lg font-bold text-slate-900">Komentar</h2>
+        <h2 className="mb-4 text-lg font-bold text-on-surface">Komentar</h2>
         <KomentarThread komentar={komentar} />
       </section>
     </article>

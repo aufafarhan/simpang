@@ -2,15 +2,15 @@ import type { Komentar } from "@/lib/types";
 
 function Item({ k, level = 0 }: { k: Komentar; level?: number }) {
   return (
-    <div className={level > 0 ? "ml-6 border-l border-slate-200 pl-4" : ""}>
-      <div className="rounded-lg bg-slate-50 p-3">
+    <div className={level > 0 ? "ml-6 border-l border-outline-variant pl-4" : ""}>
+      <div className="rounded-lg bg-surface-container-low p-3">
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-800">{k.nama}</span>
-          <span className="text-xs text-slate-400">
+          <span className="text-sm font-semibold text-on-surface">{k.nama}</span>
+          <span className="text-xs text-outline">
             {new Date(k.tanggal).toLocaleDateString("id-ID")}
           </span>
         </div>
-        <p className="text-sm text-slate-600">{k.isi}</p>
+        <p className="text-sm text-on-surface-variant">{k.isi}</p>
       </div>
       {k.children?.length > 0 && (
         <div className="mt-2 space-y-2">
@@ -25,7 +25,7 @@ function Item({ k, level = 0 }: { k: Komentar; level?: number }) {
 
 export default function KomentarThread({ komentar }: { komentar: Komentar[] }) {
   if (komentar.length === 0) {
-    return <p className="text-sm text-slate-500">Belum ada komentar.</p>;
+    return <p className="text-sm text-outline">Belum ada komentar.</p>;
   }
   return (
     <div className="space-y-3">

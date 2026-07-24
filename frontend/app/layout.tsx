@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { Lexend, Source_Sans_3 } from "next/font/google";
+import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getProfilDesa } from "@/lib/api";
 
-// Font sesuai rekomendasi design system: Lexend (judul) + Source Sans 3 (isi).
-const lexend = Lexend({
+// Font sesuai DESIGN.md: Playfair Display (judul, serif) + Plus Jakarta Sans (isi).
+const playfair = Playfair_Display({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
 });
 
-const sourceSans = Source_Sans_3({
+const jakarta = Plus_Jakarta_Sans({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -38,9 +38,16 @@ export default async function RootLayout({
   return (
     <html
       lang="id"
-      className={`${lexend.variable} ${sourceSans.variable} h-full antialiased`}
+      className={`${playfair.variable} ${jakarta.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-white text-slate-800">
+      <head>
+        {/* Ikon Material Symbols — dipakai design system Stitch */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        />
+      </head>
+      <body className="min-h-full flex flex-col bg-background text-on-surface">
         <Header profil={profil} />
         <main className="flex-1 w-full">{children}</main>
         <Footer profil={profil} />

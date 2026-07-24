@@ -20,12 +20,12 @@ export default async function ProfilPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Profil {p.nama_desa}</h1>
-      <dl className="divide-y divide-slate-200 rounded-xl border border-slate-200">
+      <h1 className="mb-6 text-2xl font-bold text-on-surface">Profil {p.nama_desa}</h1>
+      <dl className="divide-y divide-outline-variant rounded-xl border border-outline-variant">
         {baris.map(([k, v]) => (
           <div key={k} className="grid grid-cols-3 gap-4 px-4 py-3">
-            <dt className="font-medium text-slate-500">{k}</dt>
-            <dd className="col-span-2 text-slate-800">{v}</dd>
+            <dt className="font-medium text-outline">{k}</dt>
+            <dd className="col-span-2 text-on-surface">{v}</dd>
           </div>
         ))}
       </dl>

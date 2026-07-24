@@ -2,35 +2,50 @@ import type { ProfilDesa } from "@/lib/types";
 
 export default function Footer({ profil }: { profil: ProfilDesa }) {
   return (
-    <footer className="mt-12 bg-navy-900 text-slate-300">
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:grid-cols-2 md:grid-cols-3">
+    <footer className="mt-16 border-t border-outline-variant bg-surface-container-highest text-on-surface">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 md:grid-cols-3">
         <div>
-          <h3 className="mb-2 font-bold text-white">{profil.nama_desa}</h3>
-          <p className="text-sm">{profil.alamat}</p>
-          <p className="text-sm">
+          <h3 className="mb-2 font-heading text-lg font-bold text-primary">
+            {profil.nama_desa}
+          </h3>
+          <p className="text-sm text-on-surface-variant">{profil.alamat}</p>
+          <p className="text-sm text-on-surface-variant">
             {[profil.kecamatan, profil.kabupaten, profil.provinsi]
               .filter((x) => x && x !== "-")
               .join(", ")}
           </p>
         </div>
+
         <div>
-          <h3 className="mb-2 font-bold text-white">Kontak</h3>
-          <p className="text-sm">Email: {profil.email}</p>
-          {profil.telepon !== "-" && <p className="text-sm">Telp: {profil.telepon}</p>}
+          <h3 className="mb-2 font-heading text-base font-semibold text-on-surface">Kontak</h3>
+          <p className="text-sm text-on-surface-variant">Email: {profil.email}</p>
+          {profil.telepon && profil.telepon !== "-" && (
+            <p className="text-sm text-on-surface-variant">Telp: {profil.telepon}</p>
+          )}
         </div>
+
         <div>
-          <h3 className="mb-2 font-bold text-white">Ikuti Kami</h3>
-          <div className="flex gap-3 text-sm">
+          <h3 className="mb-2 font-heading text-base font-semibold text-on-surface">
+            Ikuti Kami
+          </h3>
+          <div className="flex flex-wrap gap-3 text-sm">
             {profil.sosial_media.map((s) => (
-              <a key={s.nama} href={s.url} className="capitalize hover:text-white">
+              <a
+                key={s.nama}
+                href={s.link ?? s.url ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="capitalize text-on-surface-variant transition hover:text-primary"
+              >
                 {s.nama}
               </a>
             ))}
           </div>
         </div>
       </div>
-      <div className="border-t border-white/10 py-4 text-center text-xs text-slate-400">
-        © {new Date().getFullYear()} {profil.nama_desa}. Dibuat dengan OpenSID + Next.js.
+
+      <div className="border-t border-outline-variant py-4 text-center text-xs text-on-surface-variant">
+        © {new Date().getFullYear()} {profil.nama_desa}. Tradisi Bertemu Inovasi.
       </div>
     </footer>
   );

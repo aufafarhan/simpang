@@ -119,7 +119,9 @@ class Artikel extends MY_Controller
             'slug'       => $a['slug'],
             'url'        => '/artikel/' . $a['thn'] . '/' . $a['bln'] . '/' . $a['hri'] . '/' . $a['slug'],
             'ringkasan'  => $this->ringkas($a['isi'] ?? ''),
-            'gambar_url' => ! empty($a['gambar']) ? base_url(LOKASI_FOTO_ARTIKEL . $a['gambar']) : null,
+            // OpenSID hanya menyimpan turunan "kecil_"/"sedang_", bukan berkas asli.
+            'gambar_url'    => $this->urlGambar($a['gambar'] ?? null, 'sedang_'),
+            'thumbnail_url' => $this->urlGambar($a['gambar'] ?? null, 'kecil_'),
             'kategori'   => ! empty($a['id_kategori'])
                 ? ['id' => (int) $a['id_kategori'], 'nama' => $a['kategori'] ?? null]
                 : null,
@@ -143,6 +145,20 @@ class Artikel extends MY_Controller
                     : [],
             ];
         }, $items);
+    }
+
+    /**
+     * URL gambar artikel. OpenSID menyimpan nama dasar di database, sedangkan
+     * berkas fisiknya berprefiks ukuran ("kecil_" 440px / "sedang_" 880px).
+     * Nama berkas bisa mengandung spasi sehingga perlu di-encode.
+     */
+    private function urlGambar(?string $gambar, string $ukuran = 'sedang_'): ?string
+    {
+        if (empty($gambar)) {
+            return null;
+        }
+
+        return base_url(LOKASI_FOTO_ARTIKEL . rawurlencode($ukuran . $gambar));
     }
 
     private function ringkas($isi): string

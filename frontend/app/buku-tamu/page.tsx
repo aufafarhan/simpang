@@ -9,10 +9,10 @@ export default function BukuTamuPage() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Buku Tamu</h1>
+      <h1 className="mb-6 text-2xl font-bold text-on-surface">Buku Tamu</h1>
 
       {status === "sent" ? (
-        <div className="rounded-lg bg-navy-50 p-4 text-navy-900">
+        <div className="rounded-lg bg-surface-container p-4 text-primary">
           Terima kasih! Pesan Anda akan ditinjau oleh admin desa sebelum ditampilkan.
         </div>
       ) : (
@@ -25,30 +25,30 @@ export default function BukuTamuPage() {
           }}
         >
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Nama</label>
+            <label className="mb-1 block text-sm font-medium text-on-surface-variant">Nama</label>
             <input
               required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-navy-500 focus:outline-none"
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+            <label className="mb-1 block text-sm font-medium text-on-surface-variant">Email</label>
             <input
               type="email"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-navy-500 focus:outline-none"
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Pesan</label>
+            <label className="mb-1 block text-sm font-medium text-on-surface-variant">Pesan</label>
             <textarea
               required
               rows={4}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-navy-500 focus:outline-none"
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
           <button
             type="submit"
-            className="rounded-lg bg-navy-700 px-5 py-2 font-semibold text-white hover:bg-navy-900"
+            className="min-h-11 cursor-pointer rounded-lg bg-primary px-5 py-2 font-semibold text-on-primary transition hover:bg-primary-container"
           >
             Kirim Pesan
           </button>

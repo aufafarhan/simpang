@@ -15,6 +15,7 @@ import type {
   ApiResponse,
   ArtikelDetail,
   ArtikelRingkas,
+  BerandaData,
   Komentar,
   ProfilDesa,
   StatistikPenduduk,
@@ -43,6 +44,17 @@ async function apiGet<T>(path: string, opts: FetchOpts = {}): Promise<ApiRespons
 }
 
 // ---- Endpoint publik (§3.3) ----
+
+/**
+ * Data agregat halaman depan: slider, headline, artikel, dan seluruh widget
+ * sidebar dalam satu panggilan. Mengembalikan null bila API tidak tersedia —
+ * pemanggil wajib menangani kondisi ini.
+ */
+export async function getBeranda(page = 1): Promise<BerandaData | null> {
+  const r = await apiGet<BerandaData>(`/beranda?page=${page}`, { revalidate: 60 });
+
+  return r?.data ?? null;
+}
 
 export async function getProfilDesa(): Promise<ProfilDesa> {
   const r = await apiGet<ProfilDesa>("/desa/profil", { revalidate: 3600 });

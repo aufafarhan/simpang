@@ -41,6 +41,9 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
     // Profil desa
     Route::get('desa/profil', 'Desa@profil');
 
+    // Agregat halaman depan (slider, headline, artikel + semua widget sidebar)
+    Route::get('beranda', 'Beranda@index');
+
     // Artikel / berita — rute spesifik didahulukan sebelum pola dinamis
     Route::get('artikel', 'Artikel@index');
     Route::get('artikel/headline', 'Artikel@headline');
