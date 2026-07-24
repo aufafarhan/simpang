@@ -53,6 +53,9 @@ desa/anjungan/*
 error_log
 /backup_inkremental/
 
+# Hasil dump database dari tools/perbaiki-kunci-db.php (berisi data warga)
+/backup_db/
+
 # --- Editor / IDE ---
 /.idea/
 /.vscode/

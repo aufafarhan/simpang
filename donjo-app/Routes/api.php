@@ -50,7 +50,14 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
     // Artikel / berita — rute spesifik didahulukan sebelum pola dinamis
     Route::get('artikel', 'Artikel@index');
     Route::get('artikel/headline', 'Artikel@headline');
-    Route::get('artikel/{id}/komentar', 'Artikel@komentar');
+    Route::get('artikel/captcha', 'Artikel@captcha');
+
+    // Komentar: GET untuk membaca, POST untuk mengirim.
+    // OPTIONS WAJIB didaftarkan — browser mengirim preflight CORS sebelum POST
+    // ber-Content-Type: application/json. Tanpa ini preflight 404 dan
+    // browser menolak request dengan pesan "Failed to fetch".
+    Route::match(['GET', 'POST', 'OPTIONS'], 'artikel/{id}/komentar', 'Artikel@komentar');
+
     Route::get('artikel/{thn}/{bln}/{hr}/{slug}', 'Artikel@detail');
 
     // Statistik

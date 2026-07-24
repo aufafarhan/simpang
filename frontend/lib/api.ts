@@ -44,6 +44,26 @@ async function apiGet<T>(path: string, opts: FetchOpts = {}): Promise<ApiRespons
   }
 }
 
+async function apiPost<T>(path: string, body: any): Promise<ApiResponse<T> | null> {
+  if (USE_MOCK) throw new Error("Mock mode aktif, tidak bisa mengirim data.");
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status} untuk ${path}`);
+    return data as ApiResponse<T>;
+  } catch (err) {
+    console.warn(`[api] gagal POST ${path}`, err);
+    throw err;
+  }
+}
+
 // ---- Endpoint publik (§3.3) ----
 
 /**
@@ -112,6 +132,38 @@ export async function getArtikelDetail(
 export async function getKomentar(idArtikel: number): Promise<Komentar[]> {
   const r = await apiGet<Komentar[]>(`/artikel/${idArtikel}/komentar`, { revalidate: 30 });
   return r?.data ?? mockKomentar;
+}
+
+export interface CaptchaData {
+  pertanyaan: string;
+  token: string;
+}
+
+export async function getCaptcha(): Promise<CaptchaData | null> {
+  // force no-cache agar captcha selalu baru
+  const r = await fetch(`${BASE}/artikel/captcha`, { cache: "no-store", headers: { Accept: "application/json" } })
+    .then((res) => res.ok ? res.json() : null)
+    .catch(() => null);
+  return r?.data ?? { pertanyaan: "2 + 3 = ?", token: "mock_token" };
+}
+
+export async function postKomentar(
+  idArtikel: number,
+  data: {
+    nama: string;
+    email: string;
+    isi: string;
+    captcha_jawaban: string;
+    captcha_token: string;
+  }
+): Promise<{ success: boolean; message: string }> {
+  try {
+    if (USE_MOCK) return { success: true, message: "Komentar mock berhasil dikirim." };
+    const r = await apiPost<any>(`/artikel/${idArtikel}/komentar`, data);
+    return { success: true, message: r?.message ?? "Komentar berhasil dikirim." };
+  } catch (err: any) {
+    return { success: false, message: err.message ?? "Gagal mengirim komentar." };
+  }
 }
 
 export async function getStatistikPenduduk(

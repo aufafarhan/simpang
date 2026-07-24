@@ -37,4 +37,7 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+// Catatan: OpenSID memakai router kustom (vendor/opensid/router).
+// Rute TIDAK didaftarkan di sini, melainkan di donjo-app/Routes/*.php
+// memakai sintaks Route::get()/post()/match().
 $route = getRoutes();

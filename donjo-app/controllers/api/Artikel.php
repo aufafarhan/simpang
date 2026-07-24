@@ -141,9 +141,65 @@ class Artikel extends MY_Controller
         $this->kirim($out);
     }
 
-    // GET /api/v1/artikel/{id}/komentar
+    // GET /api/v1/artikel/captcha
+    public function captcha(): void
+    {
+        $num1 = rand(1, 9);
+        $num2 = rand(1, 9);
+        $jawaban = $num1 + $num2;
+        $salt = bin2hex(random_bytes(4));
+        $hash = hash('sha256', $jawaban . $salt . (config_item('encryption_key') ?: 'nagari'));
+        
+        $this->kirim([
+            'pertanyaan' => "$num1 + $num2 = ?",
+            'token' => $salt . '|' . $hash
+        ]);
+    }
+
+    // GET & POST /api/v1/artikel/{id}/komentar
     public function komentar($id): void
     {
+        if (strtolower($this->input->method()) === 'post') {
+            $raw = file_get_contents('php://input');
+            $post = json_decode($raw, true) ?: $this->input->post(null, true);
+            
+            $nama = $post['nama'] ?? '';
+            $email = $post['email'] ?? '';
+            $isi = $post['isi'] ?? '';
+            $jawaban = $post['captcha_jawaban'] ?? '';
+            $token = $post['captcha_token'] ?? '';
+            
+            if (empty($nama) || empty($email) || empty($isi)) {
+                $this->kirim(null, null, 'Nama, Email, dan Komentar wajib diisi.', 400);
+                return;
+            }
+
+            if (empty($token) || strpos($token, '|') === false) {
+                $this->kirim(null, null, 'Sesi captcha tidak valid.', 400);
+                return;
+            }
+
+            list($salt, $hash) = explode('|', $token);
+            $expected = hash('sha256', $jawaban . $salt . (config_item('encryption_key') ?: 'nagari'));
+            if ($hash !== $expected) {
+                $this->kirim(null, null, 'Jawaban captcha salah.', 400);
+                return;
+            }
+
+            $data = [
+                'id_artikel' => (int) $id,
+                'owner'      => $nama,
+                'email'      => $email,
+                'komentar'   => $isi,
+                'status'     => 2, // Menunggu persetujuan
+                'tgl_upload' => date('Y-m-d H:i:s')
+            ];
+            $this->first_artikel_m->insert_comment($data);
+            
+            $this->kirim(null, null, 'Komentar berhasil dikirim dan menunggu persetujuan admin.');
+            return;
+        }
+
         $list = $this->first_artikel_m->list_komentar((int) $id, null);
         $this->kirim($this->mapKomentar($list));
     }
