@@ -56,7 +56,7 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
     // OPTIONS WAJIB didaftarkan — browser mengirim preflight CORS sebelum POST
     // ber-Content-Type: application/json. Tanpa ini preflight 404 dan
     // browser menolak request dengan pesan "Failed to fetch".
-    Route::match(['GET', 'POST', 'OPTIONS'], 'artikel/{id}/komentar', 'Artikel@komentar');
+    Route::any('artikel/{id}/komentar', 'Artikel@komentar');
 
     Route::get('artikel/{thn}/{bln}/{hr}/{slug}', 'Artikel@detail');
 
