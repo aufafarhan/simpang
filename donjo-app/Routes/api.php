@@ -44,6 +44,9 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
     // Agregat halaman depan (slider, headline, artikel + semua widget sidebar)
     Route::get('beranda', 'Beranda@index');
 
+    // Daftar kategori (untuk filter halaman berita)
+    Route::get('kategori', 'Artikel@kategori');
+
     // Artikel / berita — rute spesifik didahulukan sebelum pola dinamis
     Route::get('artikel', 'Artikel@index');
     Route::get('artikel/headline', 'Artikel@headline');

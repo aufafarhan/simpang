@@ -27,12 +27,29 @@ class Artikel extends MY_Controller
         }
     }
 
-    // GET /api/v1/artikel?page=1&cari=
+    /**
+     * GET /api/v1/artikel?page=1&cari=kata&kategori=slug-atau-id
+     *
+     * Catatan: parameter `cari` dibaca langsung oleh model dari query string,
+     * jadi tidak perlu diteruskan manual.
+     */
     public function index(): void
     {
-        $page   = max(1, (int) $this->input->get('page'));
-        $paging = $this->first_artikel_m->paging($page);
-        $items  = $this->first_artikel_m->artikel_show($paging->offset, $paging->per_page);
+        $page     = max(1, (int) $this->input->get('page'));
+        $kategori = trim((string) $this->input->get('kategori'));
+
+        if ($kategori !== '') {
+            // Daftar artikel pada satu kategori (menerima slug maupun id)
+            $paging = $this->first_artikel_m->paging_kat($page, $kategori);
+            $items  = $this->first_artikel_m->list_artikel(
+                $paging->offset,
+                $paging->per_page,
+                $kategori
+            );
+        } else {
+            $paging = $this->first_artikel_m->paging($page);
+            $items  = $this->first_artikel_m->artikel_show($paging->offset, $paging->per_page);
+        }
 
         $data = array_map(fn ($a) => $this->mapRingkas($a), $items);
 
@@ -68,7 +85,7 @@ class Artikel extends MY_Controller
         // Catat kunjungan (dibatasi 1x per sesi di dalam model)
         $this->first_artikel_m->hit($slug);
 
-        $isi = $this->shortcode_model->shortcode($a['isi']);
+        $isi = $this->perbaikiUrlBerkas($this->shortcode_model->shortcode($a['isi']));
 
         $dokumen     = [];
         $dokumenNama = null;
@@ -100,6 +117,28 @@ class Artikel extends MY_Controller
         ]);
 
         $this->kirim($detail);
+    }
+
+    // GET /api/v1/kategori — untuk filter kategori di halaman berita
+    public function kategori(): void
+    {
+        $this->load->model('first_menu_m');
+        $list = $this->first_menu_m->list_menu_kiri();
+        $out  = [];
+
+        foreach ((array) $list as $k) {
+            $k = (array) $k;
+            if (empty($k['slug'])) {
+                continue;
+            }
+            $out[] = [
+                'id'   => isset($k['id']) ? (int) $k['id'] : null,
+                'nama' => $k['kategori'] ?? null,
+                'slug' => $k['slug'],
+            ];
+        }
+
+        $this->kirim($out);
     }
 
     // GET /api/v1/artikel/{id}/komentar
@@ -145,6 +184,33 @@ class Artikel extends MY_Controller
                     : [],
             ];
         }, $items);
+    }
+
+    /**
+     * Perbaiki URL berkas di dalam isi artikel.
+     *
+     * Editor OpenSID menyimpan URL ABSOLUT berikut nama domain saat artikel ditulis
+     * (mis. https://www.nagarisimpang.web.id/assets/../desa/upload/media/foto.jpg).
+     * Akibatnya gambar rusak ketika situs diakses dari domain/lingkungan lain.
+     *
+     * Di sini semua URL yang menunjuk ke folder unggahan desa ditulis ulang agar
+     * memakai base_url() server yang sedang berjalan, apa pun domain aslinya.
+     */
+    private function perbaikiUrlBerkas(?string $html): string
+    {
+        if (empty($html)) {
+            return (string) $html;
+        }
+
+        // Buang segmen "assets/../" yang menyisa dari editor
+        $html = str_ireplace('/assets/../desa/', '/desa/', $html);
+
+        // Ganti host apa pun di depan folder unggahan desa dengan host saat ini
+        return preg_replace_callback(
+            '#https?://[^/"\'\s]+/(desa/(?:upload|logo|pengaturan)/[^"\'\s>]*)#i',
+            static fn (array $m): string => base_url($m[1]),
+            $html
+        ) ?? $html;
     }
 
     /**

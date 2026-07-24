@@ -106,7 +106,7 @@ export function MenuKategori({ data }: { data: KategoriMenu[] }) {
         {data.map((k) => (
           <li key={k.id}>
             <Link
-              href={`/kategori/${k.slug}`}
+              href={`/berita?kategori=${k.slug}`}
               className="block py-2 text-on-surface-variant transition hover:text-primary"
             >
               {k.kategori}
@@ -116,7 +116,7 @@ export function MenuKategori({ data }: { data: KategoriMenu[] }) {
                 {k.submenu.map((s) => (
                   <li key={s.id}>
                     <Link
-                      href={`/kategori/${s.slug}`}
+                      href={`/berita?kategori=${s.slug}`}
                       className="block py-1.5 text-outline transition hover:text-primary"
                     >
                       {s.kategori}

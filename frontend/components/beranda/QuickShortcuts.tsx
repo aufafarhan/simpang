@@ -5,7 +5,7 @@ import SectionHeading from "./SectionHeading";
 /** Pintasan layanan — hanya menautkan halaman yang benar-benar ada. */
 const PINTASAN = [
   { label: "Statistik", icon: "monitoring", href: "/statistik" },
-  { label: "Berita", icon: "newspaper", href: "/arsip" },
+  { label: "Berita", icon: "newspaper", href: "/berita" },
   { label: "Profil", icon: "assured_workload", href: "/profil" },
   { label: "Buku Tamu", icon: "forum", href: "/buku-tamu" },
 ];

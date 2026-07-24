@@ -16,6 +16,7 @@ import type {
   ArtikelDetail,
   ArtikelRingkas,
   BerandaData,
+  KategoriRingkas,
   Komentar,
   ProfilDesa,
   StatistikPenduduk,
@@ -61,12 +62,33 @@ export async function getProfilDesa(): Promise<ProfilDesa> {
   return r?.data ?? mockProfil;
 }
 
+export interface OpsiArtikel {
+  cari?: string;
+  kategori?: string;
+}
+
 export async function getArtikel(
   page = 1,
-): Promise<{ items: ArtikelRingkas[]; total_pages: number }> {
-  const r = await apiGet<ArtikelRingkas[]>(`/artikel?page=${page}`, { revalidate: 60 });
-  if (!r) return { items: mockArtikelList, total_pages: 1 };
-  return { items: r.data, total_pages: r.meta?.total_pages ?? 1 };
+  opsi: OpsiArtikel = {},
+): Promise<{ items: ArtikelRingkas[]; total_pages: number; total: number }> {
+  const q = new URLSearchParams({ page: String(page) });
+  if (opsi.cari) q.set("cari", opsi.cari);
+  if (opsi.kategori) q.set("kategori", opsi.kategori);
+
+  const r = await apiGet<ArtikelRingkas[]>(`/artikel?${q}`, { revalidate: 60 });
+  if (!r) return { items: mockArtikelList, total_pages: 1, total: mockArtikelList.length };
+
+  return {
+    items: r.data,
+    total_pages: r.meta?.total_pages ?? 1,
+    total: r.meta?.total ?? r.data.length,
+  };
+}
+
+export async function getKategori(): Promise<KategoriRingkas[]> {
+  const r = await apiGet<KategoriRingkas[]>("/kategori", { revalidate: 3600 });
+
+  return r?.data ?? [];
 }
 
 export async function getHeadline(): Promise<ArtikelRingkas[]> {

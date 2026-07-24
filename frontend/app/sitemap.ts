@@ -9,7 +9,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "",
     "/profil",
     "/statistik",
-    "/arsip",
+    "/berita",
     "/galeri",
     "/dokumen",
     "/buku-tamu",

@@ -61,6 +61,13 @@ export interface Kategori {
   nama: string | null;
 }
 
+/** Kategori untuk filter halaman berita (/api/v1/kategori). */
+export interface KategoriRingkas {
+  id: number | null;
+  nama: string | null;
+  slug: string;
+}
+
 export interface ArtikelRingkas {
   id: number;
   judul: string;

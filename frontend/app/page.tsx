@@ -42,7 +42,7 @@ export default async function Beranda() {
               icon="newspaper"
               aksi={
                 <Link
-                  href="/arsip"
+                  href="/berita"
                   className="flex items-center gap-1 text-sm font-semibold text-secondary transition-colors hover:text-primary"
                 >
                   Lihat Semua
