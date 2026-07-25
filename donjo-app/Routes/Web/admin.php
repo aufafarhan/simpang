@@ -272,6 +272,8 @@ Route::group('keluarga', static function (): void {
     Route::match(['GET', 'POST'], 'delete/{id?}', 'Keluarga@delete')->name('keluarga.delete');
     Route::post('delete_all', 'Keluarga@delete_all')->name('keluarga.delete_all');
     Route::get('anggota/{id}', 'AnggotaKeluarga@index')->name('keluarga.anggota');
+    Route::get('impor_anggota/{id?}', 'AnggotaKeluarga@impor')->name('keluarga.impor_anggota');
+    Route::post('proses_impor_anggota/{id?}', 'AnggotaKeluarga@proses_impor')->name('keluarga.proses_impor_anggota');
     Route::get('ajax_add_anggota/{id?}', 'AnggotaKeluarga@ajax_add_anggota')->name('keluarga.ajax_add_anggota');
     Route::get('edit_anggota/{id_kk?}/{id?}', 'AnggotaKeluarga@edit_anggota')->name('keluarga.edit_anggota');
     Route::get('kartu_keluarga/{id?}', 'Keluarga@kartu_keluarga')->name('keluarga.kartu_keluarga');

@@ -14,6 +14,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
@@ -39,6 +40,7 @@
                         </li>
                     </ul>
                 </div>
+                <a href="{{ ci_route('keluarga.impor_anggota', $kk) }}" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Impor Anggota"><i class="fa fa-upload"></i> Impor</a>
             @endif
             <a href="{{ ci_route('keluarga.kartu_keluarga', $kk) }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-book"></i> Kartu Keluarga</a>
             <a href="{{ ci_route('keluarga') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar Keluarga"><i class="fa fa-arrow-circle-left "></i>Kembali Ke Daftar Keluarga
