@@ -15,6 +15,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     @include('admin.stunting.widget')
 
@@ -61,6 +62,7 @@
                     <div class="col-md-5 no-padding">
                         @if (can('u'))
                             <a href="{{ ci_route('stunting/formIbuHamil') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                            <a href="#modal-impor-ibu-hamil" data-toggle="modal" data-target="#modal-impor-ibu-hamil" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                         @endif
                         @if (can('h'))
                             <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('stunting.deleteAllIbuHamil') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -114,6 +116,22 @@
         </div>
     </div>
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-ibu-hamil',
+            'judul' => 'Impor Data Bulanan Ibu Hamil',
+            'formAction' => ci_route('stunting.prosesImporIbuHamil'),
+            'formatImpor' => ci_route('stunting.formatImporIbuHamil'),
+            'petunjuk' => [
+                'Kolom: <b>no_kia, posyandu, tanggal_periksa, status_kehamilan, usia_kehamilan, tanggal_melahirkan, pemeriksaan_kehamilan, konsumsi_pil_fe, butir_pil_fe, pemeriksaan_nifas, konseling_gizi, kunjungan_rumah, akses_air_bersih, kepemilikan_jamban, jaminan_kesehatan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>no_kia</b> dan <b>posyandu</b> harus sesuai data yang sudah terdaftar.',
+                'Kolom <b>status_kehamilan</b> diisi N/Normal, Risti, atau KEK.',
+                'Kolom boolean (pemeriksaan_kehamilan, konsumsi_pil_fe, dst) diisi v/ya/1 untuk Ya, selain itu dianggap Tidak.',
+                'Satu baris per No KIA per bulan+tahun. Data yang sudah ada untuk bulan yang sama akan dilewati (duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

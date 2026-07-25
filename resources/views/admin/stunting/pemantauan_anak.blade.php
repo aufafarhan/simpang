@@ -15,6 +15,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     @include('admin.stunting.widget')
 
@@ -61,6 +62,7 @@
                     <div class="col-md-5 no-padding">
                         @if (can('u'))
                             <a href="{{ ci_route('stunting/formAnak') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                            <a href="#modal-impor-anak" data-toggle="modal" data-target="#modal-impor-anak" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                         @endif
                         @if (can('h'))
                             <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('stunting.deleteAllAnak') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -118,6 +120,22 @@
         </div>
     </div>
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-anak',
+            'judul' => 'Impor Data Bulanan Anak',
+            'formAction' => ci_route('stunting.prosesImporAnak'),
+            'formatImpor' => ci_route('stunting.formatImporAnak'),
+            'petunjuk' => [
+                'Kolom: <b>no_kia, posyandu, tanggal_periksa, status_gizi, umur_bulan, status_tikar, pemberian_imunisasi_dasar, pemberian_imunisasi_campak, berat_badan, pengukuran_berat_badan, tinggi_badan, pengukuran_tinggi_badan, konseling_gizi_ayah, konseling_gizi_ibu, kunjungan_rumah, air_bersih, kepemilikan_jamban, akta_lahir, jaminan_kesehatan, pengasuhan_paud</b> (urutan tidak boleh diubah).',
+                'Kolom <b>no_kia</b> dan <b>posyandu</b> harus sesuai data yang sudah terdaftar.',
+                'Kolom <b>status_gizi</b> diisi N, GK, GB, atau S. Kolom <b>status_tikar</b> diisi TD, M, K, atau H.',
+                'Kolom boolean diisi v/ya/1 untuk Ya, selain itu dianggap Tidak.',
+                'Satu baris per No KIA per bulan+tahun. Data yang sudah ada untuk bulan yang sama akan dilewati (duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

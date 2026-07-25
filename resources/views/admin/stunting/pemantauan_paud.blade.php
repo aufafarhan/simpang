@@ -15,6 +15,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     @include('admin.stunting.widget')
 
@@ -49,6 +50,7 @@
                     <div class="col-md-5 no-padding">
                         @if (can('u'))
                             <a href="{{ ci_route('stunting/formPaud') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                            <a href="#modal-impor-paud" data-toggle="modal" data-target="#modal-impor-paud" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                         @endif
                         @if (can('h'))
                             <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('stunting.deleteAllPaud') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -115,6 +117,22 @@
         </div>
     </div>
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-paud',
+            'judul' => 'Impor Data Sasaran PAUD',
+            'formAction' => ci_route('stunting.prosesImporPaud'),
+            'formatImpor' => ci_route('stunting.formatImporPaud'),
+            'petunjuk' => [
+                'Kolom: <b>no_kia, posyandu, tanggal_periksa, kategori_usia, januari, februari, ..., desember</b> (urutan tidak boleh diubah).',
+                'Kolom <b>no_kia</b> dan <b>posyandu</b> harus sesuai data yang sudah terdaftar.',
+                'Kolom <b>kategori_usia</b> diisi 1 (usia 2-<3 tahun) atau 2 (usia 3-6 tahun).',
+                'Kolom bulan (Januari-Desember) diisi Belum, Mengikuti, atau Tidak Mengikuti. Kosongkan untuk otomatis "Belum".',
+                'Satu baris per No KIA per tahun. Data yang sudah ada untuk tahun yang sama akan dilewati (duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')
