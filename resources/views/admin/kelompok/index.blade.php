@@ -18,6 +18,9 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @if ($ci->controller === 'kelompok')
+        @include('admin.components.impor_ringkasan')
+    @endif
     @include('admin.layouts.components.konfirmasi_hapus')
 
     <div class="row">
@@ -26,6 +29,9 @@
                 <div class="box-header with-border">
                     @if (can('u'))
                         <a href="{{ site_url("{$ci->controller}/form") }}" title="Tambah" class="btn btn-social bg-olive btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                        @if ($ci->controller === 'kelompok')
+                            <a href="#modal-impor-kelompok" data-toggle="modal" data-target="#modal-impor-kelompok" title="Impor" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+                        @endif
                     @endif
                     @if (can('h'))
                         <a href="#confirm-delete" title="Hapus" onclick="deleteAllBox('mainform','{{ site_url("{$ci->controller}/delete_all") }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -85,6 +91,21 @@
             </div>
         </div>
     </div>
+
+    @if ($ci->controller === 'kelompok' && can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-kelompok',
+            'judul' => 'Impor Data Kelompok',
+            'formAction' => ci_route('kelompok.proses_impor'),
+            'formatImpor' => ci_route('kelompok.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>kategori, nama, kode, no_sk_pendirian, nik_ketua, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>kategori</b> harus sama persis dengan salah satu nama Kategori yang sudah ada di menu Kategori.',
+                'Kolom <b>nik_ketua</b> harus NIK penduduk yang sudah terdata.',
+                'Kolom <b>kode</b> harus unik, baris dengan kode yang sudah dipakai akan dilewati.',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

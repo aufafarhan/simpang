@@ -39,6 +39,7 @@ use App\Models\Kelompok as KelompokModel;
 use App\Models\KelompokAnggota;
 use App\Models\KelompokMaster;
 use App\Models\Penduduk;
+use App\Traits\ImporExcel;
 use App\Traits\Upload;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -46,11 +47,13 @@ defined('BASEPATH') || exit('No direct script access allowed');
 class Kelompok extends Admin_Controller
 {
     use Upload;
+    use ImporExcel;
 
     public $modul_ini            = 'kependudukan';
     public $sub_modul_ini        = 'kelompok';
     private array $_list_session = ['penerima_bantuan', 'sex', 'status_dasar'];
     protected $tipe              = 'kelompok';
+    private array $kolomImpor    = ['kategori', 'nama', 'kode', 'no_sk_pendirian', 'nik_ketua', 'keterangan'];
 
     public function __construct()
     {
@@ -237,6 +240,122 @@ class Kelompok extends Admin_Controller
         ]))->save();
 
         redirect_with('success', 'Berhasil Tambah Data');
+    }
+
+    public function format_impor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, "format-impor-{$this->tipe}.xlsx");
+    }
+
+    public function proses_impor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), $this->controller);
+        }
+
+        $petaNik   = $this->petaNikPenduduk();
+        $petaKategori = KelompokMaster::tipe($this->tipe)->pluck('id', 'kelompok');
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+        $kodeDipakai = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, $this->controller);
+                    }
+
+                    continue;
+                }
+
+                [$kategori, $nama, $kode, $noSkPendirian, $nikKetua, $keterangan] = array_pad($sel, 6, null);
+                $kategori = trim((string) $kategori);
+                $nama     = trim((string) $nama);
+                $kode     = trim((string) $kode);
+                $nikKetua = trim((string) $nikKetua);
+
+                if ($nama === '' || $kode === '' || $nikKetua === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nama, kode, dan nik_ketua wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $idMaster = $petaKategori[$kategori] ?? null;
+                if (! $idMaster) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kategori '{$kategori}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $idKetua = $petaNik[$nikKetua] ?? null;
+                if (! $idKetua) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) NIK ketua '{$nikKetua}' tidak ditemukan di data penduduk.<br>";
+
+                    continue;
+                }
+
+                if (isset($kodeDipakai[$kode]) || KelompokModel::tipe($this->tipe)->where('kode', $kode)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Kode '{$kode}' sudah dipakai.<br>";
+
+                    continue;
+                }
+                $kodeDipakai[$kode] = $barisKe;
+
+                try {
+                    $kelompok = new KelompokModel([
+                        'id_master'       => $idMaster,
+                        'id_ketua'        => $idKetua,
+                        'nama'            => nama_terbatas($nama),
+                        'keterangan'      => htmlentities((string) $keterangan),
+                        'kode'            => nomor_surat_keputusan($kode),
+                        'no_sk_pendirian' => nomor_surat_keputusan((string) $noSkPendirian),
+                        'tipe'            => $this->tipe,
+                        'config_id'       => identitas('id'),
+                    ]);
+                    $kelompok->save();
+
+                    (new KelompokAnggota([
+                        'id_kelompok' => $kelompok->id,
+                        'config_id'   => identitas('id'),
+                        'id_penduduk' => $idKetua,
+                        'no_anggota'  => 1,
+                        'jabatan'     => 1,
+                        'keterangan'  => "Ketua {$this->tipe}",
+                        'tipe'        => $this->tipe,
+                    ]))->save();
+
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect($this->controller);
     }
 
     public function update($id = 0): void

@@ -15,11 +15,13 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
                 <a href="{{ ci_route('pemilihan.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                <a href="#modal-impor-pemilihan" data-toggle="modal" data-target="#modal-impor-pemilihan" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
             @endif
             @if (can('h'))
                 <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('pemilihan.delete_all') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -51,6 +53,21 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-pemilihan',
+            'judul' => 'Impor Data Pemilihan',
+            'formAction' => ci_route('pemilihan.proses_impor'),
+            'formatImpor' => ci_route('pemilihan.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>judul, tanggal, status, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>tanggal</b> diisi format tanggal apa saja yang bisa dibaca (mis. 2026-08-17 atau 17-08-2026).',
+                'Kolom <b>status</b> diisi 1/Aktif untuk pemilihan yang aktif, selain itu dianggap tidak aktif.',
+                'Baris dengan judul dan tanggal yang sama seperti baris sebelumnya akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 @push('scripts')
     <script>

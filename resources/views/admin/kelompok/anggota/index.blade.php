@@ -23,6 +23,9 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @if ($controller === 'kelompok_anggota')
+        @include('admin.components.impor_ringkasan')
+    @endif
     <div class="row">
         <div class="col-md-12">
             <div class="box box-info">
@@ -44,6 +47,9 @@
                                 </li>
                             </ul>
                         </div>
+                    @endif
+                    @if (can('u') && $controller === 'kelompok_anggota')
+                        <a href="#modal-impor-kelompok-anggota" data-toggle="modal" data-target="#modal-impor-kelompok-anggota" title="Impor Anggota" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                     @endif
                     @if (can('h'))
                         <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform','{{ route("{$controller}.delete_all", $kelompok['id']) }}')"
@@ -165,6 +171,22 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u') && $controller === 'kelompok_anggota')
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-kelompok-anggota',
+            'judul' => 'Impor Anggota Kelompok',
+            'formAction' => ci_route('kelompok_anggota.proses_impor'),
+            'formatImpor' => ci_route('kelompok_anggota.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>kode_kelompok, nik_anggota, no_anggota, jabatan, no_sk_jabatan, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>kode_kelompok</b> harus sama dengan kode kelompok yang sudah terdaftar (boleh berisi anggota dari beberapa kelompok sekaligus dalam satu berkas).',
+                'Kolom <b>nik_anggota</b> harus NIK penduduk yang sudah terdata.',
+                'Kolom <b>jabatan</b> diisi salah satu: Ketua, Wakil Ketua, Sekretaris, Bendahara, atau Anggota. Kosongkan untuk otomatis diisi Anggota.',
+                'Baris dengan NIK yang sudah menjadi anggota kelompok yang sama akan dilewati.',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

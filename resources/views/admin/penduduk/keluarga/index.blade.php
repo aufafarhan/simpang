@@ -36,6 +36,13 @@
                     </ul>
                 </div>
             @endif
+            @if (can('u'))
+                <a
+                    href="{{ ci_route('keluarga.impor') }}"
+                    class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
+                    title="Impor Data Keluarga"
+                ><i class="fa fa-upload"></i> Impor</a>
+            @endif
             <a
                 id="cetak_id"
                 href="{{ ci_route('keluarga.ajax_cetak.cetak') }}"

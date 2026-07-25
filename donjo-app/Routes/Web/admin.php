@@ -258,6 +258,8 @@ Route::group('keluarga', static function (): void {
     Route::get('list_kk_ajax', 'Keluarga@list_kk_ajax')->name('keluarga.list_kk_ajax');
     Route::post('cetak/{aksi?}/{privasi_kk?}', 'Keluarga@cetak')->name('keluarga.cetak');
     Route::get('form', 'Keluarga@form')->name('keluarga.form');
+    Route::get('impor', 'Keluarga@impor')->name('keluarga.impor');
+    Route::post('proses_impor', 'Keluarga@proses_impor')->name('keluarga.proses_impor');
     Route::get('form_peristiwa/{peristiwa}/{id?}', 'AnggotaKeluarga@form')->name('keluarga.form_peristiwa');
     Route::get('edit_nokk/{id?}', 'Keluarga@edit_nokk')->name('keluarga.edit_nokk');
     Route::get('add_exist/{id?}', 'Keluarga@add_exist')->name('keluarga.add_exist');
@@ -368,6 +370,16 @@ foreach (['lembaga' => 'Lembaga', 'kelompok' => 'Kelompok'] as $key => $value) {
     });
 }
 
+// Impor Excel khusus modul Kelompok (belum tersedia untuk Lembaga)
+Route::group('kelompok', static function (): void {
+    Route::get('/format_impor', 'Kelompok@format_impor')->name('kelompok.format_impor');
+    Route::post('/proses_impor', 'Kelompok@proses_impor')->name('kelompok.proses_impor');
+});
+Route::group('kelompok_anggota', static function (): void {
+    Route::get('/format_impor', 'Kelompok_anggota@format_impor')->name('kelompok_anggota.format_impor');
+    Route::post('/proses_impor', 'Kelompok_anggota@proses_impor')->name('kelompok_anggota.proses_impor');
+});
+
 // Kependudukan > Data Suplemen
 Route::group('suplemen', static function (): void {
     Route::get('/clear', static function (): void {
@@ -415,6 +427,8 @@ Route::group('pemilihan', static function (): void {
     Route::get('/status/{id?}', 'Pemilihan@status')->name('pemilihan.status');
     Route::get('/delete/{id}', 'Pemilihan@delete')->name('pemilihan.delete');
     Route::post('/delete_all', 'Pemilihan@delete_all')->name('pemilihan.delete_all');
+    Route::get('/format_impor', 'Pemilihan@format_impor')->name('pemilihan.format_impor');
+    Route::post('/proses_impor', 'Pemilihan@proses_impor')->name('pemilihan.proses_impor');
 });
 
 // Statistik > Statistik Kependudukan
