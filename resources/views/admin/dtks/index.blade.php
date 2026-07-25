@@ -206,7 +206,6 @@
                     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                     <h4 class="modal-title" id="myModalLabel">Proses Impor</h4>
                 </div>
-                {!! form_open(ci_route('dtks/impor'), 'method="GET"') !!}
                 <div class="modal-body">
                     <select name="versi" class="form-control">
                         @foreach (App\Enums\Dtks\DtksEnum::VERSION_LIST as $key => $value)
@@ -217,9 +216,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-warning btn-sm" data-dismiss="modal">Batalkan</button>
-                    <button type="submit" class="btn btn-sm btn-social btn-primary"><i class="fa fa-check"></i> Impor</button>
                 </div>
-                </form>
             </div>
         </div>
     </div>

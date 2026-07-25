@@ -1998,6 +1998,8 @@ Route::group('dtks', static function (): void {
     Route::get('/listAnggota/{id_dtks}', 'Dtks@listAnggota')->name('dtks.listAnggota');
     Route::get('/loadRecentInfo', 'Dtks@loadRecentInfo')->name('dtks.loadRecentInfo');
     Route::get('/loadRecentImpor', 'Dtks@loadRecentImpor')->name('dtks.loadRecentImpor');
+    Route::get('/formatImpor', 'Dtks@formatImpor')->name('dtks.formatImpor');
+    Route::post('/prosesImpor', 'Dtks@prosesImpor')->name('dtks.prosesImpor');
     Route::get('/ekspor', 'Dtks@ekspor')->name('dtks.ekspor');
     Route::match(['GET', 'POST'], '/cetak2/{id?}', 'Dtks@cetak2')->name('dtks.cetak2');
     Route::match(['GET', 'POST'], '/new/{id_rtm}', 'Dtks@new')->name('dtks.new');
