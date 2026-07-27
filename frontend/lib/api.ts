@@ -5,20 +5,32 @@
 // (default true di .env.local). Jika fetch gagal, otomatis fallback ke mock juga.
 
 import {
+  mockAlbumDetail,
+  mockAlbumList,
   mockArtikelDetail,
   mockArtikelList,
   mockKomentar,
+  mockPembangunanDetail,
+  mockPembangunanList,
+  mockPemerintahNagari,
   mockProfil,
+  mockSotkTree,
   mockStatistik,
 } from "./mock";
 import type {
+  AlbumDetail,
+  AlbumRingkas,
   ApiResponse,
   ArtikelDetail,
   ArtikelRingkas,
   BerandaData,
   KategoriRingkas,
   Komentar,
+  PemerintahNagariData,
   ProfilDesa,
+  ProyekPembangunan,
+  ProdukLapak,
+  SotkNode,
   StatistikPenduduk,
 } from "./types";
 
@@ -173,4 +185,69 @@ export async function getStatistikPenduduk(
     revalidate: 300,
   });
   return r?.data ?? mockStatistik;
+}
+
+export async function getGaleri(
+  page = 1
+): Promise<{ items: AlbumRingkas[]; total_pages: number; total: number }> {
+  const r = await apiGet<AlbumRingkas[]>(`/galeri?page=${page}`, { revalidate: 60 });
+  if (!r) return { items: mockAlbumList, total_pages: 1, total: mockAlbumList.length };
+
+  return {
+    items: r.data,
+    total_pages: r.meta?.total_pages ?? 1,
+    total: r.meta?.total ?? r.data.length,
+  };
+}
+
+export async function getGaleriDetail(
+  id: string | number,
+  page = 1
+): Promise<AlbumDetail | null> {
+  const r = await apiGet<AlbumDetail>(`/galeri/${id}?page=${page}`, { revalidate: 60 });
+  if (!r) return mockAlbumDetail;
+
+  return r.data;
+}
+
+export async function getAparatur(): Promise<PemerintahNagariData> {
+  const r = await apiGet<PemerintahNagariData>("/pemerintahan/aparatur", { revalidate: 300 });
+  return r?.data ?? mockPemerintahNagari;
+}
+
+export async function getSotk(): Promise<SotkNode> {
+  const r = await apiGet<SotkNode>("/pemerintahan/sotk", { revalidate: 300 });
+  return r?.data ?? mockSotkTree;
+}
+
+export async function getPembangunan(
+  page = 1,
+  status = ""
+): Promise<{ items: ProyekPembangunan[]; total_pages: number; total: number }> {
+  const q = new URLSearchParams({ page: String(page) });
+  if (status) q.set("status", status);
+
+  const r = await apiGet<ProyekPembangunan[]>(`/pembangunan?${q}`, { revalidate: 60 });
+  if (!r) return { items: mockPembangunanList, total_pages: 1, total: mockPembangunanList.length };
+
+  return {
+    items: r.data,
+    total_pages: r.meta?.total_pages ?? 1,
+    total: r.meta?.total ?? r.data.length,
+  };
+}
+
+export async function getPembangunanDetail(
+  id: string | number
+): Promise<ProyekPembangunan | null> {
+  const r = await apiGet<ProyekPembangunan>(`/pembangunan/${id}`, { revalidate: 60 });
+  if (!r) return mockPembangunanDetail;
+
+  return r.data;
+}
+
+/** Produk Lapak asli dari OpenSID. Tidak memakai fallback data contoh. */
+export async function getProdukLapak(): Promise<ProdukLapak[]> {
+  const r = await apiGet<ProdukLapak[]>("/lapak", { revalidate: 60 });
+  return r?.data ?? [];
 }

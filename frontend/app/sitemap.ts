@@ -11,6 +11,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/statistik",
     "/berita",
     "/galeri",
+    "/pembangunan",
+    "/lapak-umkm",
+    "/pengaduan",
     "/dokumen",
     "/buku-tamu",
   ].map((path) => ({ url: `${base}${path}`, changeFrequency: "weekly", priority: 0.7 }));

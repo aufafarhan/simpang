@@ -75,10 +75,12 @@ $RECYCLE.BIN/
 
 # --- File pribadi / catatan lokal (hapus baris ini kalau mau ikut di-push) ---
 .claude/
+.codex/
 CLAUDE.md
+AGENTS.md
 .agents/
 design/
 docs/
-
+tools/
 
 

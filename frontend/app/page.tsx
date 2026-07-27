@@ -6,6 +6,7 @@ import Hero from "@/components/beranda/Hero";
 import QuickShortcuts from "@/components/beranda/QuickShortcuts";
 import SectionHeading from "@/components/beranda/SectionHeading";
 import StatsBlock from "@/components/beranda/StatsBlock";
+import VideoProfilVisi from "@/components/beranda/VideoProfilVisi";
 import { AgendaMendatang, JamLayanan } from "@/components/beranda/SidebarWidgets";
 import Aparatur from "@/components/widgets/Aparatur";
 import ArsipArtikel from "@/components/widgets/ArsipArtikel";
@@ -27,6 +28,9 @@ export default async function Beranda() {
       <AnnouncementBar items={beranda?.teks_berjalan ?? []} />
 
       <Hero profil={profil} kepala={kepala} />
+
+      <VideoProfilVisi
+      videoUrl="" />
 
       {/* ---------- GRID UTAMA 12 KOLOM ---------- */}
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-16 md:px-6 lg:grid-cols-12 lg:px-8">

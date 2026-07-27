@@ -190,6 +190,29 @@ export interface GaleriItem {
   gambar_url: string | null;
 }
 
+export interface AlbumRingkas {
+  id: number;
+  nama: string;
+  gambar_url: string | null;
+  jumlah_foto: number;
+  tgl_upload: string | null;
+  slug: string;
+}
+
+export interface FotoDetail {
+  id: number;
+  nama: string;
+  gambar_url: string | null;
+  jenis: "foto" | "video";
+  link?: string | null;
+  tgl_upload?: string | null;
+}
+
+export interface AlbumDetail extends AlbumRingkas {
+  deskripsi?: string;
+  foto: FotoDetail[];
+}
+
 export interface AgendaItem {
   [key: string]: unknown;
 }
@@ -217,4 +240,65 @@ export interface BerandaData {
   teks_berjalan: unknown[];
   latar_website: string | null;
   widgets: BerandaWidgets;
+}
+
+export interface AparaturDetail {
+  id: number;
+  nama: string;
+  jabatan: string;
+  nip_niap: string;
+  foto_url: string | null;
+  masa_jabatan?: string | null;
+  deskripsi?: string | null;
+  email?: string | null;
+  urut?: number;
+}
+
+export interface PemerintahNagariData {
+  wali_nagari: AparaturDetail | null;
+  perangkat: AparaturDetail[];
+}
+
+export interface SotkNode {
+  id: number;
+  nama: string;
+  jabatan: string;
+  foto_url: string | null;
+  kriteria?: string;
+  bawahan?: SotkNode[];
+}
+
+export interface FotoDokumentasiPembangunan {
+  id: number;
+  gambar_url: string | null;
+  persentase: number;
+  keterangan: string;
+  tgl_upload?: string | null;
+}
+
+export interface ProyekPembangunan {
+  id: number;
+  judul: string;
+  lokasi: string;
+  anggaran: number;
+  sumber_dana: string;
+  tahun_anggaran: number;
+  pelaksana: string;
+  progres_persen: number;
+  status: "Selesai" | "Dalam Proses" | "Perencanaan";
+  foto_cover: string | null;
+  deskripsi: string;
+  foto_dokumentasi?: FotoDokumentasiPembangunan[];
+}
+
+export interface ProdukLapak {
+  id: number;
+  nama: string;
+  kategori: string;
+  harga: number;
+  satuan: string | null;
+  deskripsi: string;
+  foto_url: string | null;
+  pelapak: string;
+  telepon: string | null;
 }

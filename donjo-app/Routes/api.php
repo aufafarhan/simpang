@@ -62,6 +62,21 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
 
     // Statistik
     Route::get('statistik/penduduk', 'Statistik@penduduk');
+
+    // Galeri Foto & Album
+    Route::get('galeri', 'Galeri@index');
+    Route::get('galeri/{id}', 'Galeri@detail');
+
+    // Pemerintahan & SOTK
+    Route::get('pemerintahan/aparatur', 'Pemerintahan@aparatur');
+    Route::get('pemerintahan/sotk', 'Pemerintahan@sotk');
+
+    // Pembangunan
+    Route::get('pembangunan', 'Pembangunan@index');
+    Route::get('pembangunan/{id}', 'Pembangunan@detail');
+
+    // Lapak UMKM
+    Route::get('lapak', 'Lapak@index');
 });
 
 // Internal API

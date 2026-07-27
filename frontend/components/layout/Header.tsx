@@ -8,10 +8,48 @@ import type { MenuAtas, ProfilDesa } from "@/lib/types";
 const PETA_RUTE: Record<string, string> = {
   Beranda: "/",
   "Data Statistik": "/statistik",
+  Statistik: "/statistik",
+  Galeri: "/galeri",
+  "Galeri Foto": "/galeri",
+  Pemerintahan: "/pemerintah-nagari",
+  "Pemerintah Nagari": "/pemerintah-nagari",
+  "Pemerintah Desa": "/pemerintah-nagari",
+  Pemerintah: "/pemerintah-nagari",
+  SOTK: "/sotk",
+  "Struktur Organisasi": "/sotk",
+  Pembangunan: "/pembangunan",
+  "Pembangunan Desa": "/pembangunan",
+  "Lapak UMKM": "/lapak-umkm",
+  Lapak: "/lapak-umkm",
+  UMKM: "/lapak-umkm",
+  Pengaduan: "/pengaduan",
+  "Buku Tamu": "/buku-tamu",
+  Profil: "/profil",
+  "Profil Desa": "/profil",
+  "Profil Nagari": "/profil",
 };
 
 function hrefMenu(m: MenuAtas): string {
   if (PETA_RUTE[m.nama]) return PETA_RUTE[m.nama];
+
+  const namaLower = (m.nama || "").toLowerCase().trim();
+  const linkLower = (m.link || "").toLowerCase().trim();
+
+  if (namaLower.includes("pemerintah")) return "/pemerintah-nagari";
+  if (namaLower.includes("sotk") || namaLower.includes("struktur organisasi")) return "/sotk";
+  if (namaLower.includes("pembangunan")) return "/pembangunan";
+  if (namaLower.includes("galeri")) return "/galeri";
+  if (namaLower.includes("statistik")) return "/statistik";
+  if (namaLower.includes("umkm") || namaLower === "lapak") return "/lapak-umkm";
+  if (namaLower.includes("pengaduan")) return "/pengaduan";
+
+  if (linkLower.includes("/pemerintah")) return "/pemerintah-nagari";
+  if (linkLower.includes("/sotk")) return "/sotk";
+  if (linkLower.includes("/pembangunan")) return "/pembangunan";
+  if (linkLower.includes("/galeri")) return "/galeri";
+  if (linkLower.includes("/statistik")) return "/statistik";
+  if (linkLower.includes("/lapak")) return "/lapak-umkm";
+
   if (!m.link || m.link === "#") return "#";
 
   return m.link;
