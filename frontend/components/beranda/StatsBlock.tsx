@@ -43,18 +43,18 @@ export default function StatsBlock({
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div className="border-r border-primary-container pr-3">
             <span className="mb-1 block text-xs uppercase tracking-wider text-primary-fixed-dim">
-              Laki-laki
+              Jorong
             </span>
             <div className="font-heading text-2xl tabular-nums">
-              {laki.toLocaleString("id-ID")}
+              5
             </div>
           </div>
           <div className="pl-1">
             <span className="mb-1 block text-xs uppercase tracking-wider text-primary-fixed-dim">
-              Perempuan
+              Luas Wilayah
             </span>
             <div className="font-heading text-2xl tabular-nums">
-              {perempuan.toLocaleString("id-ID")}
+              44,96<span className="text-sm font-normal opacity-80"> km&sup2;</span>
             </div>
           </div>
         </div>
