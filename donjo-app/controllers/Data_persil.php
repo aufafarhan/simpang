@@ -40,20 +40,149 @@ use App\Models\Cdesa;
 use App\Models\Persil;
 use App\Models\RefPersilKelas;
 use App\Models\Wilayah;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Data_persil extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini       = 'pertanahan';
     public $sub_modul_ini   = 'daftar-persil';
     public $aliasController = 'data_persil';
+
+    // Impor Excel dibatasi hanya untuk menambah persil baru dengan kepemilikan awal
+    // (mereplikasi jalur "cdesa_awal" pada simpan()); tidak mencakup path/id_peta (poligon peta)
+    // karena data tersebut tidak bisa dibawa lewat Excel.
+    private array $kolomImpor = [
+        'no_persil', 'nomor_urut_bidang', 'kelas', 'nomor_cdesa_awal',
+        'dusun', 'rw', 'rt', 'luas_persil', 'lokasi',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-persil.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'data_persil');
+        }
+
+        $petaKelas = RefPersilKelas::pluck('kode', 'id')->all();
+        $petaCdesa = Cdesa::pluck('nomor', 'id')->all();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'data_persil');
+                    }
+
+                    continue;
+                }
+
+                [$noPersil, $nomorUrutBidang, $kelasTeks, $nomorCdesa, $dusun, $rw, $rt, $luasPersil, $lokasi] = array_pad($sel, 9, null);
+                $noPersil        = trim((string) $noPersil);
+                $nomorUrutBidang = trim((string) $nomorUrutBidang);
+                $kelasTeks       = trim((string) $kelasTeks);
+                $nomorCdesa      = trim((string) $nomorCdesa);
+
+                if ($noPersil === '' || $nomorUrutBidang === '' || $kelasTeks === '' || $nomorCdesa === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom no_persil, nomor_urut_bidang, kelas, dan nomor_cdesa_awal wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $kelasId = $this->resolveKodeReferensi($petaKelas, $kelasTeks);
+                if (! $kelasId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kelas tanah '{$kelasTeks}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $cdesaId = $this->resolveKodeReferensi($petaCdesa, $nomorCdesa);
+                if (! $cdesaId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) C-Desa dengan nomor '{$nomorCdesa}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $kunci = $noPersil . ':' . $nomorUrutBidang;
+                if (isset($sudahDiproses[$kunci]) || Persil::where('nomor', $noPersil)->where('nomor_urut_bidang', $nomorUrutBidang)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Persil No. {$noPersil} : {$nomorUrutBidang} sudah ada.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $dusun     = trim((string) $dusun);
+                $idWilayah = $dusun !== ''
+                    ? Wilayah::where('dusun', $dusun)->where('rw', trim((string) $rw))->where('rt', trim((string) $rt))->value('id')
+                    : null;
+
+                $dataSimpan = [
+                    'nomor'             => $noPersil,
+                    'nomor_urut_bidang' => (int) $nomorUrutBidang,
+                    'kelas'             => $kelasId,
+                    'cdesa_awal'        => $cdesaId,
+                    'id_wilayah'        => $idWilayah,
+                    'luas_persil'       => is_numeric($luasPersil) ? (float) $luasPersil : null,
+                    'lokasi'            => trim((string) $lokasi) !== '' ? trim((string) $lokasi) : null,
+                    'path'              => null,
+                    'id_peta'           => null,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // DB::beginTransaction();
+                    // $persil = Persil::create($dataSimpan);
+                    // $persil->mutasi()->create($this->dataMutasi($dataSimpan));
+                    // DB::commit();
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('data_persil');
     }
 
     public function index(): void

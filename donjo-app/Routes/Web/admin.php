@@ -1333,6 +1333,8 @@ Route::group('data_persil', static function (): void {
     Route::get('dialog/{aksi}/{id?}', 'Data_persil@dialog_cetak')->name('data_persil.dialog_cetak');
     Route::post('cetak/{aksi}/{id?}', 'Data_persil@cetak')->name('data_persil.cetak');
     Route::get('area_map', 'Data_persil@area_map')->name('data_persil.area_map');
+    Route::get('format-impor', 'Data_persil@formatImpor')->name('data_persil.format_impor');
+    Route::post('proses-impor', 'Data_persil@prosesImpor')->name('data_persil.proses_impor');
 });
 
 // Pertanahan > C-Desa

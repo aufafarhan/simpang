@@ -14,10 +14,12 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
                 <a href="{{ ci_route('data_persil.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                <a href="#modal-impor-persil" data-toggle="modal" data-target="#modal-impor-persil" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
             @endif
             <a
                 href="{{ ci_route('data_persil.dialog.cetak') }}"
@@ -96,6 +98,23 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-persil',
+            'judul' => 'Impor Data Persil',
+            'formAction' => ci_route('data_persil.proses_impor'),
+            'formatImpor' => ci_route('data_persil.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>no_persil, nomor_urut_bidang, kelas, nomor_cdesa_awal, dusun, rw, rt, luas_persil, lokasi</b> (urutan tidak boleh diubah).',
+                'Impor ini hanya untuk menambah persil baru dengan kepemilikan awal (C-Desa awal) — belum mendukung poligon peta (path/area).',
+                'Kolom <b>kelas</b> diisi kode kelas tanah (mis. sesuai kode pada Ref. Kelas Persil).',
+                'Kolom <b>nomor_cdesa_awal</b> harus sesuai dengan nomor C-Desa yang sudah terdaftar.',
+                'Kolom dusun/rw/rt opsional — jika lokasi tidak ditemukan di wilayah, data tetap disimpan memakai kolom lokasi (teks bebas).',
+                'Baris dengan no_persil dan nomor_urut_bidang yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 @push('scripts')
     <script>
