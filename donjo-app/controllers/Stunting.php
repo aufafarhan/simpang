@@ -736,7 +736,7 @@ class Stunting extends Admin_Controller
                 $statusKode = $this->resolveKodeReferensi($lookupStatus, $statusKehamilan) ?? ($statusKehamilan !== '' && ctype_digit((string) $statusKehamilan) ? (int) $statusKehamilan : null);
 
                 try {
-                    IbuHamil::create(static::validateIbuHamil([
+                    $dataSimpan = static::validateIbuHamil([
                         'id_posyandu'           => $posyanduId,
                         'id_kia'                => $kiaId,
                         'tanggal_periksa'       => date('Y-m-d', $waktu),
@@ -752,7 +752,10 @@ class Stunting extends Admin_Controller
                         'akses_air_bersih'      => $this->boolDariTeks($aksesAirBersih),
                         'kepemilikan_jamban'    => $this->boolDariTeks($kepemilikanJamban),
                         'jaminan_kesehatan'     => $this->boolDariTeks($jaminanKesehatan),
-                    ]));
+                    ]);
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // IbuHamil::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());
@@ -1112,7 +1115,7 @@ class Stunting extends Admin_Controller
                 $statusTikarKode = $this->resolveKodeReferensi($lookupStatusTikar, $statusTikar) ?? ($statusTikar !== '' && ctype_digit((string) $statusTikar) ? (int) $statusTikar : null);
 
                 try {
-                    Anak::create(static::validateAnak([
+                    $dataSimpan = static::validateAnak([
                         'id_posyandu'                => $posyanduId,
                         'id_kia'                      => $kiaId,
                         'tanggal_periksa'             => date('Y-m-d', $waktu),
@@ -1133,7 +1136,10 @@ class Stunting extends Admin_Controller
                         'akta_lahir'                  => $this->boolDariTeks($aktaLahir),
                         'jaminan_kesehatan'           => $this->boolDariTeks($jaminanKesehatan),
                         'pengasuhan_paud'             => $this->boolDariTeks($pengasuhanPaud),
-                    ]));
+                    ]);
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // Anak::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());
@@ -1455,7 +1461,10 @@ class Stunting extends Admin_Controller
                 }
 
                 try {
-                    Paud::create(static::validatePaud($dataSimpan));
+                    $dataSimpanPaud = static::validatePaud($dataSimpan);
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // Paud::create($dataSimpanPaud);
+                    log_message('debug', json_encode($dataSimpanPaud));
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

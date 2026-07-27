@@ -176,7 +176,8 @@ class AnggotaKeluarga extends Admin_Controller
         }
 
         $this->load->model(['impor_model']);
-        $this->impor_model->impor_excel();
+        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): dryRun=true supaya hasil parse dicatat ke log, tidak ditulis ke DB.
+        $this->impor_model->impor_excel(false, true);
         redirect("keluarga/anggota/{$id}");
     }
 

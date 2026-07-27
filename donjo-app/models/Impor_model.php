@@ -791,7 +791,7 @@ class Impor_model extends MY_Model
         return ! $this->setting->tgl_data_lengkap_aktif;
     }
 
-    public function impor_excel($hapus = false)
+    public function impor_excel($hapus = false, $dryRun = false)
     {
         try {
             if ($this->file_import_valid() == false) {
@@ -804,7 +804,7 @@ class Impor_model extends MY_Model
 
             // Pengguna bisa menentukan apakah data penduduk yang ada dihapus dulu
             // atau tidak sebelum melakukan impor
-            if ($hapus && $this->boleh_hapus_penduduk()) {
+            if ($hapus && ! $dryRun && $this->boleh_hapus_penduduk()) {
                 $this->hapus_data_penduduk();
             }
 
@@ -851,21 +851,30 @@ class Impor_model extends MY_Model
                             $isi_baris      = $this->get_isi_baris($daftar_kolom, $rowData);
                             $error_validasi = $this->data_import_valid($isi_baris);
                             if (empty($error_validasi)) {
-                                $this->tulis_tweb_wil_clusterdesa($isi_baris);
-                                $this->tulis_tweb_keluarga($isi_baris);
+                                if ($dryRun) {
+                                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                                    // $this->tulis_tweb_wil_clusterdesa($isi_baris);
+                                    // $this->tulis_tweb_keluarga($isi_baris);
+                                    log_message('debug', json_encode($isi_baris));
+                                } else {
+                                    $this->tulis_tweb_wil_clusterdesa($isi_baris);
+                                    $this->tulis_tweb_keluarga($isi_baris);
+                                }
                                 // Untuk pesan jika data yang sama akan diganti
                                 if ($index = array_search($isi_baris['nik'], $data_penduduk) && $isi_baris['nik'] != '0') {
                                     $ganda++;
                                     $pesan .= $baris_data . ') NIK ' . $isi_baris['nik'] . ' sama dengan baris ' . ($index + 2) . '<br>';
                                 }
                                 $data_penduduk[] = $isi_baris['nik'];
-                                $this->tulis_tweb_penduduk($isi_baris);
-                                if ($error = $this->error_tulis_penduduk) {
-                                    $gagal++;
-                                    $pesan .= $baris_data . ') ' . $error['message'] . '<br>';
-                                }
-                                if ($this->info_tulis_penduduk) {
-                                    $pesan .= $baris_data . ') ' . $this->info_tulis_penduduk['message'] . '<br>';
+                                if (! $dryRun) {
+                                    $this->tulis_tweb_penduduk($isi_baris);
+                                    if ($error = $this->error_tulis_penduduk) {
+                                        $gagal++;
+                                        $pesan .= $baris_data . ') ' . $error['message'] . '<br>';
+                                    }
+                                    if ($this->info_tulis_penduduk) {
+                                        $pesan .= $baris_data . ') ' . $this->info_tulis_penduduk['message'] . '<br>';
+                                    }
                                 }
                             } else {
                                 $gagal++;
