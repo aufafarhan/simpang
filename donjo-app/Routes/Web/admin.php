@@ -821,6 +821,8 @@ Route::group('dokumen', static function (): void {
     Route::get('tampilkan_berkas/{id_dokumen?}/{id_pend?}/{popup?}', 'Dokumen@tampilkan_berkas')->name('dokumen.tampilkan_berkas');
     Route::get('ekspor', 'Dokumen@ekspor')->name('dokumen.ekspor');
     Route::post('ekspor_csv', 'Dokumen@ekspor_csv')->name('dokumen.ekspor_csv');
+    Route::get('format-impor', 'Dokumen@formatImpor')->name('dokumen.format_impor');
+    Route::post('proses-impor', 'Dokumen@prosesImpor')->name('dokumen.proses_impor');
 });
 
 Route::group('inventaris_gedung', static function (): void {
