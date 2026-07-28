@@ -37,13 +37,22 @@
 
 use App\Models\CovidPemudik;
 use App\Models\Penduduk;
+use App\Traits\ImporExcel;
+use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Covid19 extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'kesehatan';
     public $sub_modul_ini = 'pendataan';
+
+    private array $kolomImpor = [
+        'nik', 'pantau', 'status_covid', 'wajib_pantau', 'keluhan', 'keterangan',
+        'tanggal_tiba', 'asal_pemudik', 'durasi_pemudik', 'tujuan_pemudik', 'hp_pemudik', 'email_pemudik',
+    ];
 
     public function __construct()
     {
@@ -52,6 +61,119 @@ class Covid19 extends Admin_Controller
         $this->load->model('covid19_model');
         $this->load->model('wilayah_model');
         $this->load->model('penduduk_model');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-covid19-pemudik.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'covid19');
+        }
+
+        $petaNik         = $this->petaNikPenduduk();
+        $petaStatusCovid = DB::table('ref_status_covid')->pluck('nama', 'id')->all();
+        $petaTujuanMudik = unserialize(TUJUAN_MUDIK);
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'covid19');
+                    }
+
+                    continue;
+                }
+
+                [$nik, $pantauTeks, $statusTeks, $wajibPantauTeks, $keluhan, $keterangan, $tglTiba, $asal, $durasi, $tujuanTeks, $hp, $email] = array_pad($sel, 12, null);
+                $nik = preg_replace('/[^0-9]/', '', (string) $nik);
+
+                if ($nik === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nik wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $idTerdata = $petaNik[$nik] ?? null;
+                if (! $idTerdata) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) NIK '{$nik}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                if (isset($sudahDiproses[$idTerdata]) || CovidPemudik::where('id_terdata', $idTerdata)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) NIK '{$nik}' sudah terdaftar sebagai data pemudik.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$idTerdata] = $barisKe;
+
+                $statusCovid = $this->resolveKodeReferensi($petaStatusCovid, $statusTeks);
+                $pantau      = strtolower(trim((string) $pantauTeks)) === 'ya' || trim((string) $pantauTeks) === '1' ? 1 : 0;
+                $wajibPantau = strtolower(trim((string) $wajibPantauTeks)) === 'ya' || trim((string) $wajibPantauTeks) === '1' ? 1 : 0;
+
+                $dataSimpan = [
+                    'config_id'         => identitas('id'),
+                    'id_terdata'        => $idTerdata,
+                    'pantau'            => $pantau,
+                    'status_covid'      => $statusCovid,
+                    'is_wajib_pantau'   => $wajibPantau,
+                    'keluhan_kesehatan' => trim((string) $keluhan) !== '' ? trim((string) $keluhan) : null,
+                    'keterangan'        => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                ];
+
+                if ($pantau === 1) {
+                    $tujuanTeks = trim((string) $tujuanTeks);
+                    $dataSimpan['tanggal_datang'] = $tglTiba instanceof DateTimeInterface
+                        ? $tglTiba->format('Y-m-d')
+                        : (($w = strtotime((string) $tglTiba)) !== false ? date('Y-m-d', $w) : null);
+                    $dataSimpan['asal_mudik']   = trim((string) $asal) !== '' ? trim((string) $asal) : null;
+                    $dataSimpan['durasi_mudik'] = trim((string) $durasi) !== '' ? trim((string) $durasi) : null;
+                    $dataSimpan['tujuan_mudik'] = $petaTujuanMudik[$tujuanTeks] ?? ($tujuanTeks !== '' && in_array($tujuanTeks, $petaTujuanMudik, true) ? $tujuanTeks : null);
+                    $dataSimpan['no_hp']        = trim((string) $hp) !== '' ? trim((string) $hp) : null;
+                    $dataSimpan['email']        = trim((string) $email) !== '' ? trim((string) $email) : null;
+                }
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // CovidPemudik::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('covid19');
     }
 
     public function index(): void

@@ -538,6 +538,8 @@ Route::group('covid19', static function (): void {
     Route::post('/add_pantau', 'Covid19@add_pantau')->name('covid19.add_pantau');
     Route::get('/hapus_pantau/{id?}/{page?}/{plus?}', 'Covid19@hapus_pantau')->name('covid19.hapus_pantau');
     Route::get('/daftar/{aksi?}/{tgl?}/{nik?}', 'Covid19@daftar')->name('covid19.daftar');
+    Route::get('/format-impor', 'Covid19@formatImpor')->name('covid19.format_impor');
+    Route::post('/proses-impor', 'Covid19@prosesImpor')->name('covid19.proses_impor');
 });
 
 // Kesehatan > Vaksin
