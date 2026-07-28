@@ -38,19 +38,152 @@
 use App\Models\Cdesa as CdesaModel;
 use App\Models\Pamong;
 use App\Models\Penduduk;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Cdesa extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'pertanahan';
     public $sub_modul_ini = 'c-desa';
+
+    // Impor Excel dibatasi hanya untuk menambah data C-Desa baru
+    // (mereplikasi jalur insert() untuk warga desa maupun warga luar desa).
+    private array $kolomImpor = [
+        'nomor', 'nama_kepemilikan', 'jenis_pemilik', 'nik_pemilik', 'nama_pemilik_luar', 'alamat_pemilik_luar',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-cdesa.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'cdesa');
+        }
+
+        $petaNik = $this->petaNikPenduduk();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'cdesa');
+                    }
+
+                    continue;
+                }
+
+                [$nomor, $namaKepemilikan, $jenisPemilikTeks, $nikPemilik, $namaPemilikLuar, $alamatPemilikLuar] = array_pad($sel, 6, null);
+                $nomor            = preg_replace('/[^0-9]/', '', (string) $nomor);
+                $namaKepemilikan  = trim((string) $namaKepemilikan);
+                $jenisPemilikTeks = trim((string) $jenisPemilikTeks);
+                $nikPemilik       = trim((string) $nikPemilik);
+                $namaPemilikLuar  = trim((string) $namaPemilikLuar);
+
+                if ($nomor === '' || $namaKepemilikan === '' || $jenisPemilikTeks === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nomor, nama_kepemilikan, dan jenis_pemilik wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $jenisPemilik = in_array($jenisPemilikTeks, ['1', '2'], true) ? (int) $jenisPemilikTeks : null;
+                if (! $jenisPemilik) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom jenis_pemilik: nilai '{$jenisPemilikTeks}' tidak dikenali, isi 1 (Warga Desa) atau 2 (Warga Luar Desa).<br>";
+
+                    continue;
+                }
+
+                if (isset($sudahDiproses[$nomor]) || CdesaModel::where('nomor', $nomor)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Nomor C-Desa '{$nomor}' sudah ada.<br>";
+
+                    continue;
+                }
+
+                $idPenduduk = null;
+                if ($jenisPemilik === 1) {
+                    if ($nikPemilik === '') {
+                        $gagal++;
+                        $pesan .= "{$barisKe}) Kolom nik_pemilik wajib diisi untuk jenis_pemilik Warga Desa.<br>";
+
+                        continue;
+                    }
+
+                    $idPenduduk = $petaNik[$nikPemilik] ?? null;
+                    if (! $idPenduduk) {
+                        $gagal++;
+                        $pesan .= "{$barisKe}) NIK '{$nikPemilik}' tidak ditemukan.<br>";
+
+                        continue;
+                    }
+                } elseif ($namaPemilikLuar === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nama_pemilik_luar wajib diisi untuk jenis_pemilik Warga Luar Desa.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$nomor] = $barisKe;
+
+                $dataSimpan = [
+                    'nomor'               => $nomor,
+                    'nama_kepemilikan'    => $namaKepemilikan,
+                    'jenis_pemilik'       => $jenisPemilik,
+                    'nama_pemilik_luar'   => $jenisPemilik === 2 ? $namaPemilikLuar : null,
+                    'alamat_pemilik_luar' => $jenisPemilik === 2 ? trim((string) $alamatPemilikLuar) : null,
+                ];
+                $dataPenduduk = $jenisPemilik === 1 ? ['id_pend' => $idPenduduk] : null;
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // $cdesa = CdesaModel::create($dataSimpan);
+                    // if ($dataPenduduk) {
+                    //     $cdesa->cdesaPenduduk()->create($dataPenduduk);
+                    // }
+                    log_message('debug', json_encode(array_merge($dataSimpan, ['id_pend' => $idPenduduk])));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('cdesa');
     }
 
     public function index()

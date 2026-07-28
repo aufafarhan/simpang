@@ -14,10 +14,12 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
                 <a href="{{ ci_route('cdesa.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                <a href="#modal-impor-cdesa" data-toggle="modal" data-target="#modal-impor-cdesa" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
             @endif
             @if (can('h'))
                 <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('cdesa.delete_all') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i class='fa fa-trash-o'></i>
@@ -69,6 +71,22 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-cdesa',
+            'judul' => 'Impor Data C-Desa',
+            'formAction' => ci_route('cdesa.proses_impor'),
+            'formatImpor' => ci_route('cdesa.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>nomor, nama_kepemilikan, jenis_pemilik, nik_pemilik, nama_pemilik_luar, alamat_pemilik_luar</b> (urutan tidak boleh diubah).',
+                'Kolom <b>jenis_pemilik</b> diisi 1 untuk Warga Desa atau 2 untuk Warga Luar Desa.',
+                'Jika jenis_pemilik = 1, kolom <b>nik_pemilik</b> wajib diisi NIK yang sudah terdaftar sebagai penduduk desa.',
+                'Jika jenis_pemilik = 2, kolom <b>nama_pemilik_luar</b> dan <b>alamat_pemilik_luar</b> wajib diisi.',
+                'Baris dengan <b>nomor</b> yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 @push('scripts')
     <script>
