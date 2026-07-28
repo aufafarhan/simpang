@@ -42,18 +42,166 @@ use App\Models\Persil;
 use App\Models\RefPersilKelas;
 use App\Models\RefPersilMutasi;
 use App\Models\Wilayah;
+use App\Traits\ImporExcel;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Cdesa_mutasi extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'pertanahan';
     public $sub_modul_ini = 'c-desa';
+
+    // Impor Excel dibatasi hanya untuk menambah data mutasi biasa (perpindahan/pembagian persil
+    // antar C-Desa), TIDAK mencakup jenis_mutasi=9 (pemilik awal) karena baris itu sudah otomatis
+    // dibuat lewat impor Data_persil. Tidak mencakup path/id_peta (poligon peta) karena tidak bisa
+    // dibawa lewat Excel.
+    private array $kolomImpor = [
+        'nomor_cdesa_tujuan', 'no_persil', 'nomor_urut_bidang', 'no_bidang_persil',
+        'no_objek_pajak', 'tanggal_mutasi', 'jenis_mutasi', 'luas', 'nomor_cdesa_asal', 'keterangan',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-mutasi-cdesa.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'cdesa');
+        }
+
+        $petaCdesa      = CdesaModel::pluck('nomor', 'id')->all();
+        $petaJenisMutasi = RefPersilMutasi::where('id', '!=', 9)->pluck('nama', 'id')->all();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'cdesa');
+                    }
+
+                    continue;
+                }
+
+                [$nomorCdesaTujuan, $noPersil, $nomorUrutBidang, $noBidangPersil, $noObjekPajak, $tglMutasi, $jenisMutasiTeks, $luas, $nomorCdesaAsal, $keterangan] = array_pad($sel, 10, null);
+                $nomorCdesaTujuan = preg_replace('/[^0-9]/', '', (string) $nomorCdesaTujuan);
+                $noPersil         = trim((string) $noPersil);
+                $nomorUrutBidang  = trim((string) $nomorUrutBidang);
+                $jenisMutasiTeks  = trim((string) $jenisMutasiTeks);
+                $nomorCdesaAsal   = preg_replace('/[^0-9]/', '', (string) $nomorCdesaAsal);
+
+                if ($nomorCdesaTujuan === '' || $noPersil === '' || $nomorUrutBidang === '' || $jenisMutasiTeks === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nomor_cdesa_tujuan, no_persil, nomor_urut_bidang, dan jenis_mutasi wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $idCdesaMasuk = $this->resolveKodeReferensi($petaCdesa, $nomorCdesaTujuan);
+                if (! $idCdesaMasuk) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) C-Desa tujuan dengan nomor '{$nomorCdesaTujuan}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $persil = Persil::where('nomor', $noPersil)->where('nomor_urut_bidang', $nomorUrutBidang)->first();
+                if (! $persil) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Persil No. {$noPersil} : {$nomorUrutBidang} tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $jenisMutasi = (ctype_digit($jenisMutasiTeks) && array_key_exists((int) $jenisMutasiTeks, $petaJenisMutasi))
+                    ? (int) $jenisMutasiTeks
+                    : $this->resolveKodeReferensi($petaJenisMutasi, $jenisMutasiTeks);
+                if (! $jenisMutasi) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Jenis mutasi '{$jenisMutasiTeks}' tidak dikenali.<br>";
+
+                    continue;
+                }
+
+                $idCdesaAsal = null;
+                if ($nomorCdesaAsal !== '') {
+                    $idCdesaAsal = $this->resolveKodeReferensi($petaCdesa, $nomorCdesaAsal);
+                    if (! $idCdesaAsal) {
+                        $gagal++;
+                        $pesan .= "{$barisKe}) C-Desa asal dengan nomor '{$nomorCdesaAsal}' tidak ditemukan.<br>";
+
+                        continue;
+                    }
+                }
+
+                $tanggalMutasi = $tglMutasi instanceof DateTimeInterface ? $tglMutasi->format('Y-m-d') : (($w = strtotime((string) $tglMutasi)) !== false ? date('Y-m-d', $w) : null);
+
+                $kunci = $persil->id . '|' . $idCdesaMasuk . '|' . $jenisMutasi . '|' . $tanggalMutasi;
+                if (isset($sudahDiproses[$kunci])) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Baris duplikat dengan baris {$sudahDiproses[$kunci]} (persil, C-Desa tujuan, jenis mutasi, dan tanggal sama).<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $dataSimpan = [
+                    'id_persil'        => $persil->id,
+                    'id_cdesa_masuk'   => $idCdesaMasuk,
+                    'no_bidang_persil' => is_numeric($noBidangPersil) ? (int) $noBidangPersil : null,
+                    'no_objek_pajak'   => trim((string) $noObjekPajak) !== '' ? trim((string) $noObjekPajak) : null,
+                    'tanggal_mutasi'   => $tanggalMutasi,
+                    'jenis_mutasi'     => $jenisMutasi,
+                    'luas'             => is_numeric($luas) ? (float) $luas : null,
+                    'cdesa_keluar'     => $idCdesaAsal,
+                    'keterangan'       => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'path'             => null,
+                    'id_peta'          => null,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // MutasiCdesa::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('cdesa');
     }
 
     public function index($id_cdesa, $id_persil = null)

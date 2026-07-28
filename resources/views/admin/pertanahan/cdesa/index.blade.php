@@ -19,7 +19,8 @@
         <div class="box-header with-border">
             @if (can('u'))
                 <a href="{{ ci_route('cdesa.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
-                <a href="#modal-impor-cdesa" data-toggle="modal" data-target="#modal-impor-cdesa" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+                <a href="#modal-impor-cdesa" data-toggle="modal" data-target="#modal-impor-cdesa" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor C-Desa</a>
+                <a href="#modal-impor-mutasi-cdesa" data-toggle="modal" data-target="#modal-impor-mutasi-cdesa" class="btn btn-social bg-olive btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor Mutasi Persil</a>
             @endif
             @if (can('h'))
                 <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('cdesa.delete_all') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i class='fa fa-trash-o'></i>
@@ -84,6 +85,20 @@
                 'Jika jenis_pemilik = 1, kolom <b>nik_pemilik</b> wajib diisi NIK yang sudah terdaftar sebagai penduduk desa.',
                 'Jika jenis_pemilik = 2, kolom <b>nama_pemilik_luar</b> dan <b>alamat_pemilik_luar</b> wajib diisi.',
                 'Baris dengan <b>nomor</b> yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-mutasi-cdesa',
+            'judul' => 'Impor Data Mutasi Persil',
+            'formAction' => ci_route('cdesa.proses_impor_mutasi'),
+            'formatImpor' => ci_route('cdesa.format_impor_mutasi'),
+            'petunjuk' => [
+                'Kolom: <b>nomor_cdesa_tujuan, no_persil, nomor_urut_bidang, no_bidang_persil, no_objek_pajak, tanggal_mutasi, jenis_mutasi, luas, nomor_cdesa_asal, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>nomor_cdesa_tujuan</b> harus sesuai nomor C-Desa yang sudah terdaftar; <b>no_persil</b> + <b>nomor_urut_bidang</b> harus sesuai persil yang sudah terdaftar.',
+                'Impor ini khusus mutasi biasa (perpindahan/pembagian persil), TIDAK untuk data pemilik awal persil (itu otomatis dibuat lewat impor Data Persil).',
+                'Kolom <b>jenis_mutasi</b> diisi sesuai nama pada Referensi Sebab Mutasi.',
+                'Kolom <b>nomor_cdesa_asal</b> opsional, diisi jika mutasi berasal dari C-Desa lain.',
+                'Baris dengan persil, C-Desa tujuan, jenis mutasi, dan tanggal yang sama seperti baris lain pada berkas yang sama akan dilewati (dianggap duplikat).',
             ],
         ])
     @endif

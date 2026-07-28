@@ -1356,6 +1356,8 @@ Route::group('cdesa', static function (): void {
     Route::post('/delete_all', 'Cdesa@deleteAll')->name('cdesa.delete_all');
     Route::get('/format-impor', 'Cdesa@formatImpor')->name('cdesa.format_impor');
     Route::post('/proses-impor', 'Cdesa@prosesImpor')->name('cdesa.proses_impor');
+    Route::get('/format-impor-mutasi', 'Cdesa_mutasi@formatImpor')->name('cdesa.format_impor_mutasi');
+    Route::post('/proses-impor-mutasi', 'Cdesa_mutasi@prosesImpor')->name('cdesa.proses_impor_mutasi');
 
     // group rincian
     Route::group('rincian/{rincian}', static function (): void {
