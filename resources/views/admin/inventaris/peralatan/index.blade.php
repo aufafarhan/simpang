@@ -23,6 +23,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     <div class="row">
         <div class="col-sm-3">
             @include('admin.inventaris.menu')
@@ -32,6 +33,7 @@
                 <div class="box-header with-border">
                     @if (can('u'))
                         <a href="{{ ci_route('inventaris_peralatan.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                        <a href="#modal-impor-inventaris-peralatan" data-toggle="modal" data-target="#modal-impor-inventaris-peralatan" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                     @endif
                     <a
                         href="{{ ci_route('inventaris_peralatan/dialog/cetak') }}"
@@ -94,6 +96,20 @@
         </div>
         @include('admin.layouts.components.konfirmasi_hapus')
     </div>
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-inventaris-peralatan',
+            'judul' => 'Impor Data Inventaris Peralatan Dan Mesin',
+            'formAction' => ci_route('inventaris_peralatan.proses_impor'),
+            'formatImpor' => ci_route('inventaris_peralatan.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>nama_barang, kode_barang, register, merk, ukuran, bahan, tahun_pengadaan, no_pabrik, no_rangka, no_mesin, no_polisi, no_bpkb, asal, harga, keterangan</b> (urutan tidak boleh diubah).',
+                'Hanya kolom <b>nama_barang</b> yang wajib diisi, kolom lain boleh dikosongkan.',
+                'Baris dengan kode_barang dan register yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

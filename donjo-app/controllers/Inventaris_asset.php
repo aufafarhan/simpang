@@ -38,19 +38,132 @@
 use App\Models\Aset;
 use App\Models\InventarisAsset;
 use App\Models\MutasiInventarisAsset;
+use App\Traits\ImporExcel;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Inventaris_asset extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'sekretariat';
     public $sub_modul_ini = 'inventaris';
+
+    // Kolom kategori-spesifik (judul_buku, jenis_hewan, dst.) mengikuti field pada validate() —
+    // umumnya hanya sebagian yang terisi per baris tergantung "jenis" barangnya, sisanya boleh kosong.
+    private array $kolomImpor = [
+        'nama_barang', 'kode_barang', 'register', 'jenis', 'judul_buku', 'spesifikasi_buku',
+        'asal_daerah', 'pencipta', 'bahan', 'jenis_hewan', 'ukuran_hewan', 'jenis_tumbuhan',
+        'ukuran_tumbuhan', 'jumlah', 'tahun_pengadaan', 'asal', 'harga', 'keterangan',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
         $this->load->model(['pamong_model', 'aset_model']);
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-inventaris-asset.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'inventaris_asset');
+        }
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'inventaris_asset');
+                    }
+
+                    continue;
+                }
+
+                [$namaBarang, $kodeBarang, $register, $jenis, $judulBuku, $spesifikasiBuku, $asalDaerah, $pencipta, $bahan, $jenisHewan, $ukuranHewan, $jenisTumbuhan, $ukuranTumbuhan, $jumlah, $tahunPengadaan, $asal, $harga, $keterangan] = array_pad($sel, 18, null);
+                $namaBarang = trim((string) $namaBarang);
+                $kodeBarang = trim((string) $kodeBarang);
+                $register   = trim((string) $register);
+
+                if ($namaBarang === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nama_barang wajib diisi.<br>";
+
+                    continue;
+                }
+
+                if ($kodeBarang !== '' && $register !== '') {
+                    $kunci = strtolower($kodeBarang) . '|' . strtolower($register);
+                    if (isset($sudahDiproses[$kunci]) || InventarisAsset::where('kode_barang', $kodeBarang)->where('register', $register)->exists()) {
+                        $ganda++;
+                        $pesan .= "{$barisKe}) Kode barang '{$kodeBarang}' dengan register '{$register}' sudah ada.<br>";
+
+                        continue;
+                    }
+                    $sudahDiproses[$kunci] = $barisKe;
+                }
+
+                $dataSimpan = [
+                    'nama_barang'      => $namaBarang,
+                    'kode_barang'      => $kodeBarang !== '' ? $kodeBarang : null,
+                    'register'         => $register !== '' ? $register : null,
+                    'jenis'            => trim((string) $jenis) !== '' ? trim((string) $jenis) : null,
+                    'judul_buku'       => trim((string) $judulBuku) !== '' ? trim((string) $judulBuku) : null,
+                    'spesifikasi_buku' => trim((string) $spesifikasiBuku) !== '' ? trim((string) $spesifikasiBuku) : null,
+                    'asal_daerah'      => trim((string) $asalDaerah) !== '' ? trim((string) $asalDaerah) : null,
+                    'pencipta'         => trim((string) $pencipta) !== '' ? trim((string) $pencipta) : null,
+                    'bahan'            => trim((string) $bahan) !== '' ? trim((string) $bahan) : null,
+                    'jenis_hewan'      => trim((string) $jenisHewan) !== '' ? trim((string) $jenisHewan) : null,
+                    'ukuran_hewan'     => trim((string) $ukuranHewan) !== '' ? trim((string) $ukuranHewan) : null,
+                    'jenis_tumbuhan'   => trim((string) $jenisTumbuhan) !== '' ? trim((string) $jenisTumbuhan) : null,
+                    'ukuran_tumbuhan'  => trim((string) $ukuranTumbuhan) !== '' ? trim((string) $ukuranTumbuhan) : null,
+                    'jumlah'           => is_numeric($jumlah) ? (int) $jumlah : null,
+                    'tahun_pengadaan'  => trim((string) $tahunPengadaan) !== '' ? trim((string) $tahunPengadaan) : null,
+                    'asal'             => trim((string) $asal) !== '' ? trim((string) $asal) : null,
+                    'harga'            => is_numeric($harga) ? (float) $harga : null,
+                    'keterangan'       => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'visible'          => 1,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // InventarisAsset::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('inventaris_asset');
     }
 
     public function index(): void

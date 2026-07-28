@@ -22,6 +22,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     <div class="row">
         <div class="col-md-3">
@@ -32,6 +33,7 @@
                 <div class="box-header with-border">
                     @if (can('u'))
                         <a href="{{ ci_route('inventaris_asset.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                        <a href="#modal-impor-inventaris-asset" data-toggle="modal" data-target="#modal-impor-inventaris-asset" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                     @endif
                     <a
                         href="{{ ci_route('inventaris_asset/dialog/cetak') }}"
@@ -84,6 +86,20 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-inventaris-asset',
+            'judul' => 'Impor Data Inventaris Asset Lainnya',
+            'formAction' => ci_route('inventaris_asset.proses_impor'),
+            'formatImpor' => ci_route('inventaris_asset.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>nama_barang, kode_barang, register, jenis, judul_buku, spesifikasi_buku, asal_daerah, pencipta, bahan, jenis_hewan, ukuran_hewan, jenis_tumbuhan, ukuran_tumbuhan, jumlah, tahun_pengadaan, asal, harga, keterangan</b> (urutan tidak boleh diubah).',
+                'Hanya kolom <b>nama_barang</b> yang wajib diisi. Kolom kategori-spesifik (judul_buku, jenis_hewan, dst.) diisi sesuai jenis barangnya saja, sisanya boleh dikosongkan.',
+                'Baris dengan kode_barang dan register yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

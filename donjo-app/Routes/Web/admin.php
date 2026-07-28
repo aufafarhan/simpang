@@ -835,6 +835,8 @@ Route::group('inventaris_gedung', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_gedung@delete')->name('inventaris_gedung.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_gedung@dialog')->name('inventaris_gedung.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_gedung@cetak')->name('inventaris_gedung.cetak');
+    Route::get('/format-impor', 'Inventaris_gedung@formatImpor')->name('inventaris_gedung.format_impor');
+    Route::post('/proses-impor', 'Inventaris_gedung@prosesImpor')->name('inventaris_gedung.proses_impor');
 });
 
 Route::group('inventaris_gedung_mutasi', static function (): void {
@@ -855,6 +857,8 @@ Route::group('inventaris_jalan', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_jalan@delete')->name('inventaris_jalan.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_jalan@dialog')->name('inventaris_jalan.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_jalan@cetak')->name('inventaris_jalan.cetak');
+    Route::get('/format-impor', 'Inventaris_jalan@formatImpor')->name('inventaris_jalan.format_impor');
+    Route::post('/proses-impor', 'Inventaris_jalan@prosesImpor')->name('inventaris_jalan.proses_impor');
 });
 
 Route::group('inventaris_jalan_mutasi', static function (): void {
@@ -875,6 +879,8 @@ Route::group('inventaris_asset', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_asset@delete')->name('inventaris_asset.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_asset@dialog')->name('inventaris_asset.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_asset@cetak')->name('inventaris_asset.cetak');
+    Route::get('/format-impor', 'Inventaris_asset@formatImpor')->name('inventaris_asset.format_impor');
+    Route::post('/proses-impor', 'Inventaris_asset@prosesImpor')->name('inventaris_asset.proses_impor');
 });
 
 Route::group('inventaris_asset_mutasi', static function (): void {
@@ -896,6 +902,8 @@ Route::group('inventaris_kontruksi', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_kontruksi@delete')->name('inventaris_kontruksi.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_kontruksi@dialog')->name('inventaris_kontruksi.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_kontruksi@cetak')->name('inventaris_kontruksi.cetak');
+    Route::get('/format-impor', 'Inventaris_kontruksi@formatImpor')->name('inventaris_kontruksi.format_impor');
+    Route::post('/proses-impor', 'Inventaris_kontruksi@prosesImpor')->name('inventaris_kontruksi.proses_impor');
 });
 
 Route::group('inventaris_peralatan', static function (): void {
@@ -908,6 +916,8 @@ Route::group('inventaris_peralatan', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_peralatan@delete')->name('inventaris_peralatan.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_peralatan@dialog')->name('inventaris_peralatan.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_peralatan@cetak')->name('inventaris_peralatan.cetak');
+    Route::get('/format-impor', 'Inventaris_peralatan@formatImpor')->name('inventaris_peralatan.format_impor');
+    Route::post('/proses-impor', 'Inventaris_peralatan@prosesImpor')->name('inventaris_peralatan.proses_impor');
 });
 
 Route::group('inventaris_peralatan_mutasi', static function (): void {
@@ -929,6 +939,8 @@ Route::group('inventaris_tanah', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_tanah@delete')->name('inventaris_tanah.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_tanah@dialog')->name('inventaris_tanah.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_tanah@cetak')->name('inventaris_tanah.cetak');
+    Route::get('/format-impor', 'Inventaris_tanah@formatImpor')->name('inventaris_tanah.format_impor');
+    Route::post('/proses-impor', 'Inventaris_tanah@prosesImpor')->name('inventaris_tanah.proses_impor');
 });
 
 Route::group('inventaris_tanah_mutasi', static function (): void {
