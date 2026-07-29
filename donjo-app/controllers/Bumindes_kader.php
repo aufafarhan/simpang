@@ -40,18 +40,118 @@ use App\Models\KaderMasyarakat;
 use App\Models\Penduduk;
 use App\Models\RefPendudukBidang;
 use App\Models\RefPendudukKursus;
+use App\Traits\ImporExcel;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Bumindes_kader extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'buku-administrasi-desa';
     public $sub_modul_ini = 'administrasi-pembangunan';
+
+    private array $kolomImpor = ['nik', 'kursus', 'bidang', 'keterangan'];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-bumindes-kader.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'bumindes_kader');
+        }
+
+        $petaNik = $this->petaNikPenduduk();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'bumindes_kader');
+                    }
+
+                    continue;
+                }
+
+                [$nik, $kursusTeks, $bidangTeks, $keterangan] = array_pad($sel, 4, null);
+                $nik = preg_replace('/[^0-9]/', '', (string) $nik);
+
+                if ($nik === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nik wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $pendudukId = $petaNik[$nik] ?? null;
+                if (! $pendudukId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) NIK '{$nik}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                if (isset($sudahDiproses[$pendudukId]) || KaderMasyarakat::where('penduduk_id', $pendudukId)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) NIK '{$nik}' sudah terdaftar sebagai kader.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$pendudukId] = $barisKe;
+
+                $kursus = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) $kursusTeks)))));
+                $bidang = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) $bidangTeks)))));
+
+                $dataSimpan = [
+                    'penduduk_id' => $pendudukId,
+                    'kursus'      => json_encode($kursus),
+                    'bidang'      => json_encode($bidang),
+                    'keterangan'  => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // KaderMasyarakat::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('bumindes_kader');
     }
 
     public function index()

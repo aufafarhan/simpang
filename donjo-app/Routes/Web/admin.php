@@ -1238,6 +1238,8 @@ Route::group('bumindes_kader', static function (): void {
     Route::post('/delete_all', 'Bumindes_kader@delete_all')->name('bumindes_kader.delete_all');
     Route::get('/dialog/{aksi?}', 'Bumindes_kader@dialog')->name('bumindes_kader.dialog');
     Route::post('/cetak/{aksi?}', 'Bumindes_kader@cetak')->name('bumindes_kader.cetak');
+    Route::get('/format-impor', 'Bumindes_kader@formatImpor')->name('bumindes_kader.format_impor');
+    Route::post('/proses-impor', 'Bumindes_kader@prosesImpor')->name('bumindes_kader.proses_impor');
 });
 
 // - Arsip Desa

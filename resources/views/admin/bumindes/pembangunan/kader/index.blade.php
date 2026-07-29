@@ -1,9 +1,11 @@
 @include('admin.layouts.components.asset_datatables')
+@include('admin.components.impor_ringkasan')
 
 <div class="box box-info">
     <div class="box-header">
         @if (can('u'))
             <a href="{{ ci_route('bumindes_kader.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+            <a href="#modal-impor-bumindes-kader" data-toggle="modal" data-target="#modal-impor-bumindes-kader" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
         @endif
         @if (can('h'))
             <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('bumindes_kader.delete_all') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -52,6 +54,21 @@
         </form>
     </div>
 </div>
+
+@if (can('u'))
+    @include('admin.components.modal_impor', [
+        'modalId' => 'modal-impor-bumindes-kader',
+        'judul' => 'Impor Data Kader Pemberdayaan Masyarakat',
+        'formAction' => ci_route('bumindes_kader.proses_impor'),
+        'formatImpor' => ci_route('bumindes_kader.format_impor'),
+        'petunjuk' => [
+            'Kolom: <b>nik, kursus, bidang, keterangan</b> (urutan tidak boleh diubah).',
+            'Kolom <b>nik</b> wajib diisi NIK penduduk desa yang sudah terdaftar.',
+            'Kolom <b>kursus</b> dan <b>bidang</b> boleh diisi lebih dari satu, dipisahkan koma (mis. "Kader Posyandu, Kader KB").',
+            'Satu NIK hanya boleh terdaftar sekali sebagai kader — baris dengan NIK yang sudah ada akan dilewati (dianggap duplikat).',
+        ],
+    ])
+@endif
 
 @push('scripts')
     <script>
