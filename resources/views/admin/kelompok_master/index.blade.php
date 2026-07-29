@@ -17,12 +17,14 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     @include('admin.layouts.components.konfirmasi_hapus')
 
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
                 <a href="<?= site_url("{$ci->controller}/form") ?>" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                <a href="#modal-impor-{{ $ci->controller }}" data-toggle="modal" data-target="#modal-impor-{{ $ci->controller }}" title="Impor" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
             @endif
             @if (can('h'))
                 <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform','<?= site_url("{$ci->controller}/delete_all") ?>')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
@@ -50,6 +52,20 @@
             </form>
         </div>
     </div>
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-' . $ci->controller,
+            'judul' => 'Impor Kategori ' . ucfirst($tipe),
+            'formAction' => ci_route("{$ci->controller}.proses_impor"),
+            'formatImpor' => ci_route("{$ci->controller}.format_impor"),
+            'petunjuk' => [
+                'Kolom: <b>kelompok, deskripsi</b> (urutan tidak boleh diubah).',
+                'Kolom <b>kelompok</b> (nama kategori) wajib diisi.',
+                'Baris dengan nama kategori yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

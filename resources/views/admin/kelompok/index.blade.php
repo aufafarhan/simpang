@@ -18,7 +18,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
-    @if ($ci->controller === 'kelompok')
+    @if (in_array($ci->controller, ['kelompok', 'lembaga']))
         @include('admin.components.impor_ringkasan')
     @endif
     @include('admin.layouts.components.konfirmasi_hapus')
@@ -29,8 +29,8 @@
                 <div class="box-header with-border">
                     @if (can('u'))
                         <a href="{{ site_url("{$ci->controller}/form") }}" title="Tambah" class="btn btn-social bg-olive btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
-                        @if ($ci->controller === 'kelompok')
-                            <a href="#modal-impor-kelompok" data-toggle="modal" data-target="#modal-impor-kelompok" title="Impor" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+                        @if (in_array($ci->controller, ['kelompok', 'lembaga']))
+                            <a href="#modal-impor-{{ $ci->controller }}" data-toggle="modal" data-target="#modal-impor-{{ $ci->controller }}" title="Impor" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                         @endif
                     @endif
                     @if (can('h'))
@@ -92,15 +92,15 @@
         </div>
     </div>
 
-    @if ($ci->controller === 'kelompok' && can('u'))
+    @if (in_array($ci->controller, ['kelompok', 'lembaga']) && can('u'))
         @include('admin.components.modal_impor', [
-            'modalId' => 'modal-impor-kelompok',
-            'judul' => 'Impor Data Kelompok',
-            'formAction' => ci_route('kelompok.proses_impor'),
-            'formatImpor' => ci_route('kelompok.format_impor'),
+            'modalId' => 'modal-impor-' . $ci->controller,
+            'judul' => 'Impor Data ' . $tipe,
+            'formAction' => ci_route("{$ci->controller}.proses_impor"),
+            'formatImpor' => ci_route("{$ci->controller}.format_impor"),
             'petunjuk' => [
                 'Kolom: <b>kategori, nama, kode, no_sk_pendirian, nik_ketua, keterangan</b> (urutan tidak boleh diubah).',
-                'Kolom <b>kategori</b> harus sama persis dengan salah satu nama Kategori yang sudah ada di menu Kategori.',
+                'Kolom <b>kategori</b> harus sama persis dengan salah satu nama Kategori yang sudah ada di menu Kategori ' . $tipe . '.',
                 'Kolom <b>nik_ketua</b> harus NIK penduduk yang sudah terdata.',
                 'Kolom <b>kode</b> harus unik, baris dengan kode yang sudah dipakai akan dilewati.',
             ],

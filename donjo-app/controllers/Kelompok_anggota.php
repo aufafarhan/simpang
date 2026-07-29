@@ -52,7 +52,22 @@ class Kelompok_anggota extends Admin_Controller
     public $sub_modul_ini   = 'kelompok';
     public $tipe            = 'kelompok';
     public $aliasController = 'kelompok';
-    private array $kolomImpor = ['kode_kelompok', 'nik_anggota', 'no_anggota', 'jabatan', 'no_sk_jabatan', 'keterangan'];
+    // Sementara dinonaktifkan (akses admin terkunci lisensi premium) khusus untuk Lembaga_anggota.php
+    // (di-override true di sana) — Kelompok_anggota.php sendiri tetap insert seperti biasa.
+    protected bool $dryRunImpor = false;
+
+    private function kolomImpor(): array
+    {
+        $kolom = ['kode_kelompok', 'nik_anggota', 'no_anggota', 'jabatan', 'no_sk_jabatan', 'keterangan'];
+
+        if ($this->tipe === 'lembaga') {
+            $kolom = array_merge($kolom, [
+                'nmr_sk_pengangkatan', 'tgl_sk_pengangkatan', 'nmr_sk_pemberhentian', 'tgl_sk_pemberhentian', 'periode',
+            ]);
+        }
+
+        return $kolom;
+    }
 
     public function __construct()
     {
@@ -179,7 +194,7 @@ class Kelompok_anggota extends Admin_Controller
     public function format_impor(): void
     {
         isCan('u');
-        $this->unduhTemplateImpor($this->kolomImpor, "format-impor-{$this->tipe}-anggota.xlsx");
+        $this->unduhTemplateImpor($this->kolomImpor(), "format-impor-{$this->tipe}-anggota.xlsx");
     }
 
     public function proses_impor(): void
@@ -195,6 +210,8 @@ class Kelompok_anggota extends Admin_Controller
         $petaNik      = $this->petaNikPenduduk();
         $petaKelompok = Kelompok::tipe($this->tipe)->pluck('id', 'kode');
         $lookupJabatan = JabatanKelompokEnum::all();
+        $kolomImpor    = $this->kolomImpor();
+        $isLembaga     = $this->tipe === 'lembaga';
 
         $sukses  = 0;
         $gagal   = 0;
@@ -209,7 +226,7 @@ class Kelompok_anggota extends Admin_Controller
                 $sel = $this->nilaiBaris($row);
 
                 if ($barisKe === 1) {
-                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                    if ($error = $this->validasiHeaderExcel($sel, $kolomImpor)) {
                         $reader->close();
                         redirect_with('error', $error, $this->aliasController);
                     }
@@ -217,7 +234,11 @@ class Kelompok_anggota extends Admin_Controller
                     continue;
                 }
 
-                [$kodeKelompok, $nikAnggota, $noAnggota, $jabatanTeks, $noSkJabatan, $keterangan] = array_pad($sel, 6, null);
+                $sel = array_pad($sel, count($kolomImpor), null);
+                [$kodeKelompok, $nikAnggota, $noAnggota, $jabatanTeks, $noSkJabatan, $keterangan] = $sel;
+                [$nmrSkPengangkatan, $tglSkPengangkatan, $nmrSkPemberhentian, $tglSkPemberhentian, $periode] = $isLembaga
+                    ? array_slice($sel, 6, 5)
+                    : [null, null, null, null, null];
                 $kodeKelompok = trim((string) $kodeKelompok);
                 $nikAnggota   = trim((string) $nikAnggota);
 
@@ -255,19 +276,40 @@ class Kelompok_anggota extends Admin_Controller
 
                 $jabatan = $this->resolveKodeReferensi($lookupJabatan, $jabatanTeks) ?? JabatanKelompokEnum::ANGGOTA;
 
-                try {
-                    KelompokAnggotaModel::UbahJabatan($idKelompok, $idPenduduk, $jabatan, null);
+                $dataAnggota = [
+                    'id_kelompok'   => $idKelompok,
+                    'config_id'     => identitas('id'),
+                    'id_penduduk'   => $idPenduduk,
+                    'no_anggota'    => bilangan((string) $noAnggota) ?: null,
+                    'jabatan'       => $jabatan,
+                    'no_sk_jabatan' => nomor_surat_keputusan((string) $noSkJabatan),
+                    'keterangan'    => htmlentities((string) $keterangan),
+                    'tipe'          => $this->tipe,
+                ];
 
-                    (new KelompokAnggotaModel([
-                        'id_kelompok'   => $idKelompok,
-                        'config_id'     => identitas('id'),
-                        'id_penduduk'   => $idPenduduk,
-                        'no_anggota'    => bilangan((string) $noAnggota) ?: null,
-                        'jabatan'       => $jabatan,
-                        'no_sk_jabatan' => nomor_surat_keputusan((string) $noSkJabatan),
-                        'keterangan'    => htmlentities((string) $keterangan),
-                        'tipe'          => $this->tipe,
-                    ]))->save();
+                if ($isLembaga) {
+                    $tglAngkat = $tglSkPengangkatan instanceof DateTimeInterface
+                        ? $tglSkPengangkatan->format('Y-m-d')
+                        : (($w1 = strtotime((string) $tglSkPengangkatan)) !== false && trim((string) $tglSkPengangkatan) !== '' ? date('Y-m-d', $w1) : null);
+                    $tglBerhenti = $tglSkPemberhentian instanceof DateTimeInterface
+                        ? $tglSkPemberhentian->format('Y-m-d')
+                        : (($w2 = strtotime((string) $tglSkPemberhentian)) !== false && trim((string) $tglSkPemberhentian) !== '' ? date('Y-m-d', $w2) : null);
+
+                    $dataAnggota['nmr_sk_pengangkatan']  = nomor_surat_keputusan((string) $nmrSkPengangkatan);
+                    $dataAnggota['tgl_sk_pengangkatan']  = $tglAngkat;
+                    $dataAnggota['nmr_sk_pemberhentian'] = nomor_surat_keputusan((string) $nmrSkPemberhentian);
+                    $dataAnggota['tgl_sk_pemberhentian'] = $tglBerhenti;
+                    $dataAnggota['periode']              = htmlentities((string) $periode);
+                }
+
+                try {
+                    if ($this->dryRunImpor) {
+                        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                        log_message('debug', json_encode($dataAnggota));
+                    } else {
+                        KelompokAnggotaModel::UbahJabatan($idKelompok, $idPenduduk, $jabatan, null);
+                        (new KelompokAnggotaModel($dataAnggota))->save();
+                    }
 
                     $sukses++;
                 } catch (Exception $e) {

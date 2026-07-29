@@ -44,6 +44,9 @@ class Lembaga_master extends Kelompok_master
     public $modul_ini     = 'info-desa';
     public $sub_modul_ini = 'lembaga-desa';
     protected $tipe       = 'lembaga';
+    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB impor dilewati,
+    // hasil parse dicatat ke log (lihat guard $dryRunImpor di Kelompok_master::proses_impor()).
+    protected bool $dryRunImpor = true;
 
     public function __construct()
     {

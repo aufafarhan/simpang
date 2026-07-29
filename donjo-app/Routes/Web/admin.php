@@ -372,15 +372,22 @@ foreach (['lembaga' => 'Lembaga', 'kelompok' => 'Kelompok'] as $key => $value) {
     });
 }
 
-// Impor Excel khusus modul Kelompok (belum tersedia untuk Lembaga)
-Route::group('kelompok', static function (): void {
-    Route::get('/format_impor', 'Kelompok@format_impor')->name('kelompok.format_impor');
-    Route::post('/proses_impor', 'Kelompok@proses_impor')->name('kelompok.proses_impor');
-});
-Route::group('kelompok_anggota', static function (): void {
-    Route::get('/format_impor', 'Kelompok_anggota@format_impor')->name('kelompok_anggota.format_impor');
-    Route::post('/proses_impor', 'Kelompok_anggota@proses_impor')->name('kelompok_anggota.proses_impor');
-});
+// Impor Excel modul Kelompok & Lembaga (Lembaga memakai method yang sama via pewarisan class,
+// dengan jalur DB dipotong lewat guard $dryRunImpor)
+foreach (['kelompok', 'lembaga'] as $key) {
+    Route::group($key, static function () use ($key): void {
+        Route::get('/format_impor', ucfirst($key) . '@format_impor')->name("{$key}.format_impor");
+        Route::post('/proses_impor', ucfirst($key) . '@proses_impor')->name("{$key}.proses_impor");
+    });
+    Route::group("{$key}_anggota", static function () use ($key): void {
+        Route::get('/format_impor', ucfirst($key) . '_anggota@format_impor')->name("{$key}_anggota.format_impor");
+        Route::post('/proses_impor', ucfirst($key) . '_anggota@proses_impor')->name("{$key}_anggota.proses_impor");
+    });
+    Route::group("{$key}_master", static function () use ($key): void {
+        Route::get('/format_impor', ucfirst($key) . '_master@format_impor')->name("{$key}_master.format_impor");
+        Route::post('/proses_impor', ucfirst($key) . '_master@proses_impor')->name("{$key}_master.proses_impor");
+    });
+}
 
 // Kependudukan > Data Suplemen
 Route::group('suplemen', static function (): void {
