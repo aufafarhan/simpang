@@ -62,19 +62,81 @@ class Dtks extends Admin_Controller
     public $modul_ini     = 'satu-data';
     public $sub_modul_ini = 'dtks';
 
-    // Impor Excel dibatasi hanya Bagian I-III (Keterangan Tempat, Petugas, Perumahan) —
-    // level-rumah-tangga saja, tidak mencakup Bagian IV/V (data per-anggota keluarga)
-    // karena kompleksitas & risikonya jauh lebih tinggi (mengikuti format resmi Regsosek 2022-K).
+    // Impor Excel mencakup Bagian I-III (Keterangan Tempat, Petugas, Perumahan) dan Bagian V-VI
+    // (Bantuan Sosial & Aset Rumah Tangga, Catatan) — semuanya level-rumah-tangga (field nempel
+    // langsung ke $dtks, satu baris Excel = satu rumah tangga). Bagian IV SENGAJA TIDAK dicakup
+    // karena levelnya per-anggota keluarga (field nempel ke DtksAnggota, baris anggota dibuat
+    // otomatis dari data Penduduk, dan banyak field-nya auto-terisi dari data Penduduk yang sudah
+    // ada) — beda struktur & jauh lebih berisiko menimpa data yang sudah benar. Bagian VII (upload
+    // foto) juga tidak dicakup karena berkas fisik tidak bisa dibawa lewat Excel.
     private array $kolomImpor = [
         'no_kk',
+        // Bagian I - Keterangan Tempat
         'kode_sls_non_sls', 'kode_sub_sls', 'nama_sls_non_sls', 'no_urut_bangunan_tinggal',
         'no_urut_keluarga_verif', 'status_keluarga', 'kode_landmark_wilkerstat', 'kd_kk',
+        // Bagian II - Keterangan Petugas
         'tanggal_pendataan', 'nama_ppl', 'kode_ppl', 'tanggal_pemeriksaan', 'nama_pml', 'kode_pml',
         'nama_responden', 'no_hp_responden', 'kd_hasil_pendataan_keluarga',
+        // Bagian III - Keterangan Perumahan
         'kd_stat_bangunan_tinggal', 'kd_sertiv_lahan_milik', 'luas_lantai', 'kd_jenis_lantai_terluas',
         'kd_jenis_dinding', 'kd_jenis_atap', 'kd_sumber_air_minum', 'kd_jarak_sumber_air_ke_tpl',
         'kd_sumber_penerangan_utama', 'kd_daya_terpasang', 'kd_daya_terpasang2', 'kd_daya_terpasang3',
         'kd_bahan_bakar_memasak', 'kd_fasilitas_tempat_bab', 'kd_jenis_kloset', 'kd_pembuangan_akhir_tinja',
+        // Bagian V - Bantuan Sosial (501a-g: dapat/bulan/tahun)
+        '501a_dapat', '501a_bulan', '501a_tahun',
+        '501b_dapat', '501b_bulan', '501b_tahun',
+        '501c_dapat', '501c_bulan', '501c_tahun',
+        '501d_dapat', '501d_bulan', '501d_tahun',
+        '501e_dapat', '501e_bulan', '501e_tahun',
+        '501f_dapat', '501f_bulan', '501f_tahun',
+        '501g_dapat', '501g_bulan', '501g_tahun',
+        // Bagian V - Kepemilikan Aset
+        '502a', '502b', '502c', '502d', '502e', '502f', '502g', '502h', '502i', '502k', '502l', '502m', '502n',
+        // Bagian V - Kepemilikan Ternak
+        '504a', '504b', '504c', '504d', '504e',
+        // Bagian V - Lahan, Internet, Rekening
+        '503a', '503b', '505', '506',
+        // Bagian VI - Catatan
+        'catatan',
+    ];
+
+    // Peta kode kuisioner (501x/502x/504x) ke nama kolom pada model Dtks,
+    // mereplikasi persis pemetaan pada DTKSRegsosEk2022k::saveBagian5().
+    private const BAGIAN5_BANSOS = [
+        '501a' => 'bss_bnpt',
+        '501b' => 'pkh',
+        '501c' => 'blt_dana_desa',
+        '501d' => 'subsidi_listrik',
+        '501e' => 'bantuan_pemda',
+        '501f' => 'subsidi_pupuk',
+        '501g' => 'subsidi_lpg',
+    ];
+
+    // Catatan: 502d sengaja diisikan ke DUA kolom (kd_pemanas_air & kd_telepon_rumah) dan 502j
+    // tidak dipetakan ke kolom manapun — ini meniru persis (termasuk kejanggalannya) logic asli
+    // DTKSRegsosEk2022k::saveBagian5(), bukan kesalahan penulisan di sini.
+    private const BAGIAN5_ASET = [
+        '502a' => ['tabung_gas_5_5_kg'],
+        '502b' => ['lemari_es'],
+        '502c' => ['ac'],
+        '502d' => ['pemanas_air', 'telepon_rumah'],
+        '502e' => ['televisi'],
+        '502f' => ['perhiasan_10_gr_emas'],
+        '502g' => ['komputer_laptop'],
+        '502h' => ['sepeda_motor'],
+        '502i' => ['sepeda'],
+        '502k' => ['mobil'],
+        '502l' => ['perahu'],
+        '502m' => ['kapal_perahu_motor'],
+        '502n' => ['smartphone'],
+    ];
+
+    private const BAGIAN5_TERNAK = [
+        '504a' => 'sapi',
+        '504b' => 'kerbau',
+        '504c' => 'kuda',
+        '504d' => 'babi',
+        '504e' => 'kambing_domba',
     ];
 
     public function __construct()
@@ -86,7 +148,7 @@ class Dtks extends Admin_Controller
     public function formatImpor(): void
     {
         isCan('u');
-        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-dtks-bagian-1-3.xlsx');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-dtks-bagian-1-3-5-6.xlsx');
     }
 
     public function prosesImpor(): void
@@ -153,7 +215,8 @@ class Dtks extends Admin_Controller
                 }
                 $diproses[$rtm->id] = $barisKe;
 
-                $errorValidasi = $this->validasiKodeDtks($data);
+                $errorValidasi = $this->validasiKodeDtks($data) . ' ' . $this->validasiKodeDtks56($data);
+                $errorValidasi = trim($errorValidasi);
                 if ($errorValidasi !== '') {
                     $gagal++;
                     $pesan .= "{$barisKe}) {$errorValidasi}<br>";
@@ -175,6 +238,7 @@ class Dtks extends Admin_Controller
                     // }
                     //
                     // $this->isiBagian123($dtks, $data);
+                    // $this->isiBagian56($dtks, $data);
                     // $dtks->save();
                     // DB::commit();
                     log_message('debug', json_encode(array_merge(['no_kk' => $noKk, 'id_rtm' => $rtm->id], $data)));
@@ -291,6 +355,102 @@ class Dtks extends Admin_Controller
         ]);
 
         return implode(' ', $pesan);
+    }
+
+    /**
+     * Isi field Bagian V (Bantuan Sosial & Aset Rumah Tangga) dan VI (Catatan) pada $dtks,
+     * mereplikasi field & pemetaan persis seperti DTKSRegsosEk2022k::saveBagian5()/saveBagian6().
+     * Tidak ada gating kondisional di sini karena saveBagian5() asli juga tidak menggating
+     * bulan/tahun terhadap nilai *_dapat.
+     */
+    private function isiBagian56(ModelDtks $dtks, array $data): void
+    {
+        $kosongKeNull = static fn ($v) => ($v === '' || $v === null) ? null : $v;
+
+        foreach (self::BAGIAN5_BANSOS as $kode => $nama) {
+            $dtks->{"kd_{$nama}"}     = $kosongKeNull($data["{$kode}_dapat"]);
+            $dtks->{"bulan_{$nama}"}  = $kosongKeNull($data["{$kode}_bulan"]);
+            $dtks->{"tahun_{$nama}"}  = $kosongKeNull($data["{$kode}_tahun"]);
+        }
+
+        foreach (self::BAGIAN5_ASET as $kode => $daftarNama) {
+            foreach ($daftarNama as $nama) {
+                $dtks->{"kd_{$nama}"} = $kosongKeNull($data[$kode]);
+            }
+        }
+
+        foreach (self::BAGIAN5_TERNAK as $kode => $nama) {
+            $dtks->{"jumlah_{$nama}"} = is_numeric($data[$kode]) ? (int) $data[$kode] : 0;
+        }
+
+        $dtks->kd_lahan               = $kosongKeNull($data['503a']);
+        $dtks->kd_rumah_ditempat_lain = $kosongKeNull($data['503b']);
+        $dtks->kd_internet_sebulan    = $kosongKeNull($data['505']);
+        $dtks->kd_rek_aktif           = $kosongKeNull($data['506']);
+
+        // Bagian VI - Catatan
+        $dtks->catatan = $kosongKeNull($data['catatan']);
+    }
+
+    /**
+     * Validasi kode pilihan Bagian V terhadap Regsosek2022kEnum::YA_TIDAK / pilihanBagian5(),
+     * mereplikasi pengecekan array_key_exists() yang dipakai saveBagian5().
+     */
+    private function validasiKodeDtks56(array $data): string
+    {
+        $yaTidak   = Regsosek2022kEnum::YA_TIDAK;
+        $bulanList = bulan();
+        $pilihan5  = Regsosek2022kEnum::pilihanBagian5();
+
+        $cekYaTidak = static function (string $kode, $nilai) use ($yaTidak): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return array_key_exists($nilai, $yaTidak) ? null : "Kolom {$kode}: nilai '{$nilai}' harus 1 (Ya) atau 2 (Tidak).";
+        };
+        $cekBulan = static function (string $kode, $nilai) use ($bulanList): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+            $angka = is_numeric($nilai) ? (int) $nilai : array_search(strtolower($nilai), array_map('strtolower', $bulanList), true);
+
+            return ($angka !== false && array_key_exists((int) $angka, $bulanList)) ? null : "Kolom {$kode}: bulan '{$nilai}' tidak dikenali.";
+        };
+        $cekTahun = static function (string $kode, $nilai): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return validate_date($nilai, 'Y') ? null : "Kolom {$kode}: tahun '{$nilai}' tidak valid.";
+        };
+        $cekPilihan = static function (string $kode, $nilai, array $daftarPilihan) use ($cekYaTidak): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return array_key_exists($nilai, $daftarPilihan) ? null : "Kolom {$kode}: kode '{$nilai}' tidak dikenali.";
+        };
+
+        $pesan = [];
+        foreach (self::BAGIAN5_BANSOS as $kode => $nama) {
+            $pesan[] = $cekYaTidak("{$kode}_dapat", $data["{$kode}_dapat"]);
+            $pesan[] = $cekBulan("{$kode}_bulan", $data["{$kode}_bulan"]);
+            $pesan[] = $cekTahun("{$kode}_tahun", $data["{$kode}_tahun"]);
+        }
+        foreach (array_keys(self::BAGIAN5_ASET) as $kode) {
+            $pesan[] = $cekYaTidak($kode, $data[$kode]);
+        }
+        $pesan[] = $cekYaTidak('503a', $data['503a']);
+        $pesan[] = $cekYaTidak('503b', $data['503b']);
+        $pesan[] = $cekPilihan('505', $data['505'], $pilihan5['505']);
+        $pesan[] = $cekPilihan('506', $data['506'], $pilihan5['506']);
+
+        return implode(' ', array_filter($pesan));
     }
 
     /**
