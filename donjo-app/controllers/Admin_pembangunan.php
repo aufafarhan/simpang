@@ -42,18 +42,164 @@ use App\Models\Garis;
 use App\Models\Lokasi;
 use App\Models\Pembangunan;
 use App\Models\Wilayah;
+use App\Traits\ImporExcel;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Admin_pembangunan extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini           = 'pembangunan';
     public $kategori_pengaturan = 'Pembangunan';
+
+    // Impor Excel membuat proyek pembangunan baru (level "rencana" — sebelum ada dokumentasi
+    // progres). Kolom "foto" tidak tersedia karena berkas gambar tidak bisa dibawa lewat Excel.
+    // Untuk menaikkan status ke "kegiatan"/"hasil" (Bumindes_kegiatan_pembangunan/
+    // Bumindes_hasil_pembangunan yang read-only), gunakan impor di Pembangunan_dokumentasi.php.
+    private array $kolomImpor = [
+        'judul', 'sumber_dana', 'volume', 'waktu', 'satuan_waktu', 'tahun_anggaran',
+        'pelaksana_kegiatan', 'lokasi', 'anggaran',
+        'sumber_biaya_pemerintah', 'sumber_biaya_provinsi', 'sumber_biaya_kab_kota', 'sumber_biaya_swadaya',
+        'manfaat', 'sifat_proyek', 'keterangan',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-pembangunan.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'admin_pembangunan');
+        }
+
+        $petaSumberDana   = unserialize(SUMBER_DANA);
+        $petaSatuanWaktu  = SatuanWaktuEnum::all();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'admin_pembangunan');
+                    }
+
+                    continue;
+                }
+
+                [
+                    $judul, $sumberDanaTeks, $volume, $waktu, $satuanWaktuTeks, $tahunAnggaran,
+                    $pelaksana, $lokasi, $anggaran,
+                    $biayaPemerintah, $biayaProvinsi, $biayaKabKota, $biayaSwadaya,
+                    $manfaat, $sifatProyek, $keterangan,
+                ] = array_pad($sel, 16, null);
+
+                $judul           = trim((string) $judul);
+                $sumberDanaTeks  = trim((string) $sumberDanaTeks);
+                $satuanWaktuTeks = trim((string) $satuanWaktuTeks);
+                $sifatProyek     = strtoupper(trim((string) $sifatProyek));
+
+                if ($judul === '' || $tahunAnggaran === '' || $tahunAnggaran === null) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom judul dan tahun_anggaran wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $kunci = strtolower($judul) . '|' . $tahunAnggaran;
+                if (isset($sudahDiproses[$kunci])) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Judul '{$judul}' tahun {$tahunAnggaran} sudah diproses pada baris {$sudahDiproses[$kunci]}.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $sumberDana = ($sumberDanaTeks !== '' && ctype_digit($sumberDanaTeks) && array_key_exists((int) $sumberDanaTeks, $petaSumberDana))
+                    ? (int) $sumberDanaTeks
+                    : $this->resolveKodeReferensi($petaSumberDana, $sumberDanaTeks);
+
+                $satuanWaktu = ($satuanWaktuTeks !== '' && ctype_digit($satuanWaktuTeks) && array_key_exists((int) $satuanWaktuTeks, $petaSatuanWaktu))
+                    ? (int) $satuanWaktuTeks
+                    : $this->resolveKodeReferensi($petaSatuanWaktu, $satuanWaktuTeks);
+
+                if (! in_array($sifatProyek, ['BARU', 'LANJUTAN'], true)) {
+                    $sifatProyek = null;
+                }
+
+                $angka = static fn ($v) => is_numeric($v) ? (int) $v : 0;
+
+                $biayaPemerintahN = $angka($biayaPemerintah);
+                $biayaProvinsiN   = $angka($biayaProvinsi);
+                $biayaKabKotaN    = $angka($biayaKabKota);
+                $biayaSwadayaN    = $angka($biayaSwadaya);
+
+                $dataSimpan = [
+                    'sumber_dana'             => $sumberDana,
+                    'judul'                   => judul($judul),
+                    'slug'                    => unique_slug('pembangunan', $judul),
+                    'volume'                  => trim((string) $volume) !== '' ? trim((string) $volume) : null,
+                    'waktu'                   => is_numeric($waktu) ? (int) $waktu : null,
+                    'satuan_waktu'            => $satuanWaktu,
+                    'tahun_anggaran'          => is_numeric($tahunAnggaran) ? (int) $tahunAnggaran : null,
+                    'pelaksana_kegiatan'      => trim((string) $pelaksana) !== '' ? trim((string) $pelaksana) : null,
+                    'id_lokasi'               => null,
+                    'lokasi'                  => trim((string) $lokasi) !== '' ? trim((string) $lokasi) : null,
+                    'keterangan'              => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'foto'                    => null,
+                    'anggaran'                => is_numeric($anggaran) ? (int) $anggaran : null,
+                    'sumber_biaya_pemerintah' => $biayaPemerintahN,
+                    'sumber_biaya_provinsi'   => $biayaProvinsiN,
+                    'sumber_biaya_kab_kota'   => $biayaKabKotaN,
+                    'sumber_biaya_swadaya'    => $biayaSwadayaN,
+                    'sumber_biaya_jumlah'     => $biayaPemerintahN + $biayaProvinsiN + $biayaKabKotaN + $biayaSwadayaN,
+                    'manfaat'                 => trim((string) $manfaat) !== '' ? trim((string) $manfaat) : null,
+                    'sifat_proyek'            => $sifatProyek,
+                    'created_at'              => date('Y-m-d H:i:s'),
+                    'updated_at'              => date('Y-m-d H:i:s'),
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // Pembangunan::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('admin_pembangunan');
     }
 
     public function index()

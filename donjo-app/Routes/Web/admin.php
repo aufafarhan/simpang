@@ -1413,6 +1413,8 @@ Route::group('admin_pembangunan', static function (): void {
     Route::match(['GET', 'POST'], '/maps/{id}', 'Admin_pembangunan@maps')->name('admin_pembangunan.maps');
     Route::post('/update-maps/{id}', 'Admin_pembangunan@updateMaps')->name('admin_pembangunan.update-maps');
     Route::get('/lock/{id?}', 'Admin_pembangunan@lock')->name('admin_pembangunan.lock');
+    Route::get('/format-impor', 'Admin_pembangunan@formatImpor')->name('admin_pembangunan.format_impor');
+    Route::post('/proses-impor', 'Admin_pembangunan@prosesImpor')->name('admin_pembangunan.proses_impor');
 });
 
 // Pembagunan
@@ -1425,6 +1427,8 @@ Route::group('pembangunan_dokumentasi', static function (): void {
     Route::get('/delete-dokumentasi/{id_pembangunan}/{id?}', 'Pembangunan_dokumentasi@deleteDokumentasi')->name('pembangunan_dokumentasi.delete-dokumentasi');
     Route::get('/dialog/{id}/{aksi?}', 'Pembangunan_dokumentasi@dialog')->name('pembangunan_dokumentasi.dialog');
     Route::post('/daftar/{id}/{aksi?}', 'Pembangunan_dokumentasi@daftar')->name('pembangunan_dokumentasi.daftar');
+    Route::get('/format-impor', 'Pembangunan_dokumentasi@formatImpor')->name('pembangunan_dokumentasi.format_impor');
+    Route::post('/proses-impor', 'Pembangunan_dokumentasi@prosesImpor')->name('pembangunan_dokumentasi.proses_impor');
 });
 
 // Lapak

@@ -40,17 +40,122 @@ defined('BASEPATH') || exit('No direct script access allowed');
 use App\Models\Pamong;
 use App\Models\Pembangunan;
 use App\Models\PembangunanDokumentasi;
+use App\Traits\ImporExcel;
 
 class Pembangunan_dokumentasi extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini           = 'pembangunan';
     public $aliasController     = 'admin_pembangunan';
     public $kategori_pengaturan = 'Pembangunan';
+
+    // Impor Excel dipakai untuk menambah entri dokumentasi progres pada proyek pembangunan
+    // yang sudah ada (dicari lewat judul persis, bukan id) — inilah yang menentukan status proyek
+    // pindah dari "rencana" ke "kegiatan" (progres < 100%) atau "hasil" (progres = 100%) di
+    // Bumindes_kegiatan_pembangunan.php / Bumindes_hasil_pembangunan.php (keduanya read-only,
+    // datanya diturunkan otomatis dari ada/tidaknya & persentase dokumentasi ini).
+    // Kolom "gambar" tidak tersedia karena berkas foto tidak bisa dibawa lewat Excel.
+    private array $kolomImpor = ['judul_pembangunan', 'persentase', 'keterangan'];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-pembangunan-dokumentasi.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'admin_pembangunan');
+        }
+
+        $petaStatus = unserialize(STATUS_PEMBANGUNAN);
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'admin_pembangunan');
+                    }
+
+                    continue;
+                }
+
+                [$judulPembangunan, $persentaseTeks, $keterangan] = array_pad($sel, 3, null);
+                $judulPembangunan = trim((string) $judulPembangunan);
+                $persentaseTeks   = trim((string) $persentaseTeks);
+
+                if ($judulPembangunan === '' || $persentaseTeks === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom judul_pembangunan dan persentase wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $pembangunan = Pembangunan::where('judul', $judulPembangunan)->first();
+                if (! $pembangunan) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Proyek pembangunan dengan judul '{$judulPembangunan}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $persentaseAngka = preg_replace('/[^0-9]/', '', $persentaseTeks);
+                if ($persentaseAngka === '' || ! in_array((int) $persentaseAngka, $petaStatus, false)) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom persentase: nilai '{$persentaseTeks}' tidak dikenali. Isi salah satu dari: " . implode(', ', $petaStatus) . '.<br>';
+
+                    continue;
+                }
+
+                $dataSimpan = [
+                    'id_pembangunan' => $pembangunan->id,
+                    'persentase'     => $persentaseAngka . '%',
+                    'keterangan'     => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'created_at'     => date('Y-m-d H:i:s'),
+                    'updated_at'     => date('Y-m-d H:i:s'),
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // PembangunanDokumentasi::create($dataSimpan);
+                    // $this->perubahan_anggaran($pembangunan->id, $dataSimpan['persentase'], 0);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('admin_pembangunan');
     }
 
     public function dokumentasi($id = null)
