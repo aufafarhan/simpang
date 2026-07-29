@@ -1115,6 +1115,8 @@ Route::group('bumindes_tanah_kas_desa', static function (): void {
     Route::get('/delete_tanah_kas_desa/{id?}', 'Bumindes_tanah_kas_desa@delete_tanah_kas_desa')->name('bumindes_tanah_kas_desa.delete_tanah_kas_desa');
     Route::post('/delete_all', 'Bumindes_tanah_kas_desa@delete_all')->name('bumindes_tanah_kas_desa.delete_all');
     // Route::post('/cetak_tanah_kas_desa/{aksi?}', 'Bumindes_tanah_kas_desa@cetak_tanah_kas_desa')->name('bumindes_tanah_kas_desa.cetak_tanah_kas_desa');
+    Route::get('/format-impor', 'Bumindes_tanah_kas_desa@formatImpor')->name('bumindes_tanah_kas_desa.format_impor');
+    Route::post('/proses-impor', 'Bumindes_tanah_kas_desa@prosesImpor')->name('bumindes_tanah_kas_desa.proses_impor');
 });
 
 // Buku Tanah Desa
@@ -1131,6 +1133,8 @@ Route::group('bumindes_tanah_desa', static function (): void {
     Route::get('/delete/{id}', 'Bumindes_tanah_desa@delete')->name('bumindes_tanah_desa.delete');
     Route::get('/dialog/{aksi?}', 'Bumindes_tanah_desa@dialog')->name('bumindes_tanah_desa.dialog');
     Route::post('/cetak/{aksi?}', 'Bumindes_tanah_desa@cetak')->name('bumindes_tanah_desa.cetak');
+    Route::get('/format-impor', 'Bumindes_tanah_desa@formatImpor')->name('bumindes_tanah_desa.format_impor');
+    Route::post('/proses-impor', 'Bumindes_tanah_desa@prosesImpor')->name('bumindes_tanah_desa.proses_impor');
 });
 
 // Buku inventaris dan kekayaan desa

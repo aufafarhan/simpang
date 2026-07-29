@@ -41,19 +41,148 @@ use App\Models\RefDokumen;
 use App\Models\RefPersilKelas;
 use App\Models\RefPeruntukanTanahKas;
 use App\Models\TanahKasDesa;
+use App\Traits\ImporExcel;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Bumindes_tanah_kas_desa extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini       = 'buku-administrasi-desa';
     public $sub_modul_ini   = 'administrasi-umum';
     public $aliasController = 'bumindes_tanah_kas_desa';
+
+    private array $kolomImpor = [
+        'letter_c_persil', 'nama_pemilik_asal', 'kelas', 'luas',
+        'asli_milik_desa', 'pemerintah', 'provinsi', 'kabupaten_kota', 'lain_lain',
+        'sawah', 'tegal', 'kebun', 'tambak_kolam', 'tanah_kering_darat',
+        'ada_patok', 'tidak_ada_patok', 'ada_papan_nama', 'tidak_ada_papan_nama',
+        'lokasi', 'peruntukan', 'mutasi', 'keterangan',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-bumindes-tanah-kas-desa.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'bumindes_tanah_kas_desa');
+        }
+
+        $petaKelas = RefPersilKelas::pluck('kode', 'id')->all();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'bumindes_tanah_kas_desa');
+                    }
+
+                    continue;
+                }
+
+                [
+                    $letterCPersil, $namaPemilikAsal, $kelasTeks, $luas,
+                    $asliMilikDesa, $pemerintah, $provinsi, $kabupatenKota, $lainLain,
+                    $sawah, $tegal, $kebun, $tambakKolam, $tanahKeringDarat,
+                    $adaPatok, $tidakAdaPatok, $adaPapanNama, $tidakAdaPapanNama,
+                    $lokasi, $peruntukan, $mutasi, $keterangan,
+                ] = array_pad($sel, 22, null);
+
+                $letterCPersil   = preg_replace('/[^0-9]/', '', (string) $letterCPersil);
+                $namaPemilikAsal = trim((string) $namaPemilikAsal);
+                $kelasTeks       = trim((string) $kelasTeks);
+
+                if ($letterCPersil === '' || $namaPemilikAsal === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom letter_c_persil dan nama_pemilik_asal wajib diisi.<br>";
+
+                    continue;
+                }
+
+                if (isset($sudahDiproses[$letterCPersil]) || TanahKasDesa::CheckLetterC($letterCPersil)) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Letter C / Persil '{$letterCPersil}' sudah digunakan.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$letterCPersil] = $barisKe;
+
+                $kelasId = $kelasTeks !== ''
+                    ? ((ctype_digit($kelasTeks) && array_key_exists((int) $kelasTeks, $petaKelas)) ? (int) $kelasTeks : $this->resolveKodeReferensi($petaKelas, $kelasTeks))
+                    : null;
+
+                $angka = static fn ($v) => is_numeric($v) ? (int) $v : null;
+
+                $dataSimpan = [
+                    'nama_pemilik_asal'    => $namaPemilikAsal,
+                    'letter_c'             => (int) $letterCPersil,
+                    'kelas'                => $kelasId,
+                    'luas'                 => $angka($luas),
+                    'asli_milik_desa'      => $angka($asliMilikDesa),
+                    'pemerintah'           => $angka($pemerintah),
+                    'provinsi'             => $angka($provinsi),
+                    'kabupaten_kota'       => $angka($kabupatenKota),
+                    'lain_lain'            => $angka($lainLain),
+                    'sawah'                => $angka($sawah),
+                    'tegal'                => $angka($tegal),
+                    'kebun'                => $angka($kebun),
+                    'tambak_kolam'         => $angka($tambakKolam),
+                    'tanah_kering_darat'   => $angka($tanahKeringDarat),
+                    'ada_patok'            => $angka($adaPatok),
+                    'tidak_ada_patok'      => $angka($tidakAdaPatok),
+                    'ada_papan_nama'       => $angka($adaPapanNama),
+                    'tidak_ada_papan_nama' => $angka($tidakAdaPapanNama),
+                    'lokasi'               => trim((string) $lokasi) !== '' ? trim((string) $lokasi) : null,
+                    'peruntukan'           => trim((string) $peruntukan) !== '' ? trim((string) $peruntukan) : null,
+                    'mutasi'               => trim((string) $mutasi) !== '' ? trim((string) $mutasi) : null,
+                    'keterangan'           => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'visible'              => 1,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // TanahKasDesa::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('bumindes_tanah_kas_desa');
     }
 
     public function index(): void

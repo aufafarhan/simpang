@@ -1,8 +1,10 @@
+@include('admin.components.impor_ringkasan')
 <div class="box box-info">
     <div class="box-header with-border">
         @if (can('u'))
             <a href="{{ route('bumindes_tanah_kas_desa.form') }}" class="btn btn-social btn-success btn-sm btn-sm
 			visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah"><i class="fa fa-plus"></i>Tambah</a>
+            <a href="#modal-impor-bumindes-tanah-kas-desa" data-toggle="modal" data-target="#modal-impor-bumindes-tanah-kas-desa" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
         @endif
 
         <a
@@ -57,6 +59,21 @@
         </div>
     </div>
 </div>
+
+@if (can('u'))
+    @include('admin.components.modal_impor', [
+        'modalId' => 'modal-impor-bumindes-tanah-kas-desa',
+        'judul' => 'Impor Data Buku Tanah Kas Desa',
+        'formAction' => ci_route('bumindes_tanah_kas_desa.proses_impor'),
+        'formatImpor' => ci_route('bumindes_tanah_kas_desa.format_impor'),
+        'petunjuk' => [
+            'Kolom: <b>letter_c_persil, nama_pemilik_asal, kelas, luas, asli_milik_desa, pemerintah, provinsi, kabupaten_kota, lain_lain, sawah, tegal, kebun, tambak_kolam, tanah_kering_darat, ada_patok, tidak_ada_patok, ada_papan_nama, tidak_ada_papan_nama, lokasi, peruntukan, mutasi, keterangan</b> (urutan tidak boleh diubah).',
+            'Kolom <b>letter_c_persil</b> dan <b>nama_pemilik_asal</b> wajib diisi.',
+            'Kolom <b>kelas</b> diisi kode kelas tanah (mis. sesuai kode pada Ref. Kelas Persil).',
+            'Baris dengan letter_c_persil yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+        ],
+    ])
+@endif
 
 @push('scripts')
     <script>
