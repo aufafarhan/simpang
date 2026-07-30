@@ -32,9 +32,9 @@ export default async function Beranda() {
       <VideoProfilVisi
       videoUrl="" />
 
-      {/* ---------- GRID UTAMA 12 KOLOM ---------- */}
+      {/* GRID UTAMA 12 KOLOM */}
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-16 md:px-6 lg:grid-cols-12 lg:px-8">
-        {/* ================= KOLOM KIRI ================= */}
+        {/* KOLOM KIRI */}
         <div className="flex flex-col gap-16 lg:col-span-8">
           <QuickShortcuts />
 
@@ -86,7 +86,7 @@ export default async function Beranda() {
           )}
         </div>
 
-        {/* ================= SIDEBAR ================= */}
+        {/* SIDEBAR */}
         <aside className="flex flex-col gap-6 lg:col-span-4">
           {w && (
             <>
