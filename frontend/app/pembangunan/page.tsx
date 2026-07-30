@@ -5,7 +5,8 @@ import PembangunanFilterClient from "@/components/pembangunan/PembangunanFilterC
 import { getPembangunan } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Data Pembangunan - Nagari Simpang",
+  // Nama nagari ditambahkan otomatis oleh template judul di app/layout.tsx.
+  title: "Data Pembangunan",
   description:
     "Transparansi dan informasi terkini mengenai proyek infrastruktur dan pembangunan berkelanjutan di wilayah Nagari Simpang.",
 };

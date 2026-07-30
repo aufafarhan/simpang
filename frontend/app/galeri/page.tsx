@@ -4,7 +4,8 @@ import Icon from "@/components/ui/Icon";
 import { getGaleri } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Galeri Album - Nagari Simpang",
+  // Nama nagari ditambahkan otomatis oleh template judul di app/layout.tsx.
+  title: "Galeri Album",
   description:
     "Dokumentasi kegiatan, keindahan alam, dan momen penting di Nagari Simpang. Jelajahi memori desa kami melalui lensa.",
 };

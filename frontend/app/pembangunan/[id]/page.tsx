@@ -13,7 +13,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const proyek = await getPembangunanDetail(id);
-  const title = proyek?.judul ? `${proyek.judul} - Nagari Simpang` : "Proyek Pembangunan Nagari Simpang";
+  // Nama nagari ditambahkan otomatis oleh template judul di app/layout.tsx —
+  // jangan diulang di sini agar tidak jadi "… — Simpang — Simpang".
+  const title = proyek?.judul || "Proyek Pembangunan";
 
   return {
     title,

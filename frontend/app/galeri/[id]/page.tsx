@@ -14,7 +14,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const album = await getGaleriDetail(id);
-  const title = album?.nama ? `${album.nama} - Galeri Nagari Simpang` : "Galeri Nagari Simpang";
+  // Nama nagari ditambahkan otomatis oleh template judul di app/layout.tsx.
+  const title = album?.nama ? `${album.nama} — Galeri` : "Galeri";
 
   return {
     title,

@@ -26,40 +26,81 @@ class Pembangunan extends MY_Controller
     }
 
     /**
-     * GET /api/v1/pembangunan?page=1&status=
+     * GET /api/v1/pembangunan?page=1&cari=&tahun=
+     *
+     * Catatan penting soal `set_tipe('')`:
+     * Pembangunan_model default ke tipe 'rencana', yang MENYARING hanya proyek
+     * tanpa progres (`d.persentase IS NULL`). Untuk halaman publik kita butuh
+     * SEMUA proyek — tipe kosong berarti tanpa penyaringan (lihat get_tipe()).
+     *
+     * `get_data()` mengembalikan Query Builder, bukan array — wajib dieksekusi
+     * dengan ->get()->result_array().
      */
     public function index(): void
     {
-        $search = trim((string) $this->input->get('cari'));
-        $tahun  = trim((string) $this->input->get('tahun')) ?: 'semua';
-        $items  = $this->pembangunan_model->get_data($search, $tahun);
+        $search  = trim((string) $this->input->get('cari'));
+        $tahun   = trim((string) $this->input->get('tahun')) ?: 'semua';
+        $page    = max(1, (int) $this->input->get('page'));
+        $perPage = 12;
 
-        $data = array_map(fn ($p) => $this->mapProyek($p), $items);
+        $semua = $this->pembangunan_model
+            ->set_tipe('')
+            ->get_data($search, $tahun)
+            ->get()
+            ->result_array();
 
-        json(['data' => $data, 'message' => 'OK']);
+        $total      = count($semua);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $potongan   = array_slice($semua, ($page - 1) * $perPage, $perPage);
+
+        json([
+            'data' => array_map(fn ($p) => $this->mapProyek($p), $potongan),
+            'meta' => [
+                'page'        => $page,
+                'per_page'    => $perPage,
+                'total'       => $total,
+                'total_pages' => $totalPages,
+            ],
+            'message' => 'OK',
+        ]);
     }
 
     /**
      * GET /api/v1/pembangunan/{id}
+     *
+     * Menerima id numerik maupun slug. Pembangunan_model tidak punya
+     * get_pembangunan(); kita pakai builder get_data() lalu saring.
      */
     public function detail($id = 0): void
     {
-        $id     = (int) $id;
-        $proyek = $this->pembangunan_model->get_pembangunan($id);
+        $builder = $this->pembangunan_model->set_tipe('')->get_data();
 
-        if (! $proyek) {
+        if (is_numeric($id)) {
+            $builder->where('p.id', (int) $id);
+        } else {
+            $builder->where('p.slug', $id);
+        }
+
+        $proyek = $builder->get()->row_array();
+
+        if (empty($proyek)) {
             json(['data' => null, 'message' => 'Proyek pembangunan tidak ditemukan'], 404);
+
             return;
         }
 
-        $dokumentasi = $this->pembangunan_dokumentasi_model->get_dokumentasi($id);
-        $fotoList    = array_map(function ($doc) {
+        // find_dokumentasi() mengembalikan objek (->result()), bukan array asosiatif.
+        $dokumentasi = $this->pembangunan_dokumentasi_model->find_dokumentasi((int) $proyek['id']);
+
+        $fotoList = array_map(function ($doc) {
+            $d = (array) $doc;
+
             return [
-                'id'         => (int) $doc['id'],
-                'gambar_url' => ! empty($doc['gambar']) ? base_url('desa/upload/pembangunan/' . $doc['gambar']) : null,
-                'persentase' => (int) ($doc['persentase'] ?? 0),
-                'keterangan' => $doc['keterangan'] ?? '',
-                'tgl_upload' => isset($doc['tgl_upload']) ? date('c', strtotime($doc['tgl_upload'])) : null,
+                'id'         => (int) ($d['id'] ?? 0),
+                'gambar_url' => $this->urlGambar($d['gambar'] ?? null),
+                'persentase' => (int) str_replace('%', '', (string) ($d['persentase'] ?? 0)),
+                'keterangan' => $d['keterangan'] ?? '',
+                'tgl_upload' => ! empty($d['created_at']) ? date('c', strtotime($d['created_at'])) : null,
             ];
         }, $dokumentasi);
 
@@ -67,6 +108,29 @@ class Pembangunan extends MY_Controller
         $mapped['foto_dokumentasi'] = $fotoList;
 
         json(['data' => $mapped, 'message' => 'OK']);
+    }
+
+    /**
+     * URL gambar pembangunan.
+     *
+     * Gambar pembangunan (cover maupun dokumentasi) disimpan di LOKASI_GALERI
+     * (`desa/upload/galeri/`) — BUKAN folder `desa/upload/pembangunan/`.
+     * Ini mengikuti tema resmi OpenSID (vendor/themes/esensi/partials/pembangunan/).
+     * Tidak ada turunan ukuran `kecil_`/`sedang_` untuk berkas ini.
+     *
+     * Berkas diperiksa keberadaannya dulu supaya tidak mengirim URL rusak.
+     */
+    private function urlGambar(?string $namaBerkas): ?string
+    {
+        if (empty($namaBerkas)) {
+            return null;
+        }
+
+        if (! is_file(FCPATH . LOKASI_GALERI . $namaBerkas)) {
+            return null;
+        }
+
+        return base_url(LOKASI_GALERI . rawurlencode($namaBerkas));
     }
 
     private function mapProyek(array $p): array
@@ -81,7 +145,7 @@ class Pembangunan extends MY_Controller
             $statusStr = 'Perencanaan';
         }
 
-        $coverUrl = ! empty($p['foto']) ? base_url('desa/upload/pembangunan/' . $p['foto']) : null;
+        $coverUrl = $this->urlGambar($p['foto'] ?? null);
 
         return [
             'id'             => (int) $p['id'],
