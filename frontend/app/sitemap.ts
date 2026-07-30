@@ -12,6 +12,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/berita",
     "/galeri",
     "/pembangunan",
+    "/status-idm",
+    "/status-sdgs",
     "/lapak-umkm",
     "/pengaduan",
     "/dokumen",

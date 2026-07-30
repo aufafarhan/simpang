@@ -27,7 +27,45 @@ const PETA_RUTE: Record<string, string> = {
   Profil: "/profil",
   "Profil Desa": "/profil",
   "Profil Nagari": "/profil",
+  "Status IDM": "/status-idm",
+  "Status SDGs": "/status-sdgs",
+  SDGs: "/status-sdgs",
 };
+
+/**
+ * Menu OpenSID mendaftarkan Status IDM per tahun sebagai item terpisah
+ * (Status IDM 2021, 2022, 2023, 2024). Di frontend baru, pemilihan tahun
+ * dilakukan DI DALAM halaman /status-idm, jadi entri-entri itu diringkas
+ * menjadi satu. Label tahun dibuang agar tidak menyesatkan.
+ */
+function rapikanNama(nama: string): string {
+  const n = nama.trim();
+  if (/status\s*idm/i.test(n)) return "Status IDM";
+  if (/sdgs/i.test(n)) return "Status SDGs";
+
+  return n;
+}
+
+/** Buang item bertautan sama (mis. 4 entri Status IDM) — sisakan yang pertama. */
+function ringkasMenu(items: MenuAtas[]): MenuAtas[] {
+  const terlihat = new Set<string>();
+
+  return items.reduce<MenuAtas[]>((hasil, m) => {
+    const href = hrefMenu(m);
+    const kunci = `${href}|${rapikanNama(m.nama)}`;
+
+    if (href !== "#" && terlihat.has(kunci)) return hasil;
+    if (href !== "#") terlihat.add(kunci);
+
+    hasil.push({
+      ...m,
+      nama: rapikanNama(m.nama),
+      submenu: m.submenu?.length ? ringkasMenu(m.submenu) : m.submenu,
+    });
+
+    return hasil;
+  }, []);
+}
 
 function hrefMenu(m: MenuAtas): string {
   if (PETA_RUTE[m.nama]) return PETA_RUTE[m.nama];
@@ -42,6 +80,8 @@ function hrefMenu(m: MenuAtas): string {
   if (namaLower.includes("statistik")) return "/statistik";
   if (namaLower.includes("umkm") || namaLower === "lapak") return "/lapak-umkm";
   if (namaLower.includes("pengaduan")) return "/pengaduan";
+  if (namaLower.includes("idm")) return "/status-idm";
+  if (namaLower.includes("sdgs")) return "/status-sdgs";
 
   if (linkLower.includes("/pemerintah")) return "/pemerintah-nagari";
   if (linkLower.includes("/sotk")) return "/sotk";
@@ -49,6 +89,8 @@ function hrefMenu(m: MenuAtas): string {
   if (linkLower.includes("/galeri")) return "/galeri";
   if (linkLower.includes("/statistik")) return "/statistik";
   if (linkLower.includes("/lapak")) return "/lapak-umkm";
+  if (linkLower.includes("status-idm")) return "/status-idm";
+  if (linkLower.includes("status-sdgs")) return "/status-sdgs";
 
   if (!m.link || m.link === "#") return "#";
 
@@ -108,9 +150,12 @@ function ItemMenu({ m }: { m: MenuAtas }) {
 }
 
 export default function Header({ profil }: { profil: ProfilDesa }) {
-  const menu = profil.menu_atas?.length
+  const menuAsli = profil.menu_atas?.length
     ? profil.menu_atas
     : profil.menu.map((m, i) => ({ id: String(i), nama: m.judul, link: m.url }));
+
+  // Ringkas entri berulang (mis. Status IDM 2021–2024 -> satu "Status IDM").
+  const menu = ringkasMenu(menuAsli);
 
   return (
     <header className="sticky top-0 z-50 border-b border-outline-variant bg-background">

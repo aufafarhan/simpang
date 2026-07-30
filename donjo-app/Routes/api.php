@@ -77,6 +77,10 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
 
     // Lapak UMKM
     Route::get('lapak', 'Lapak@index');
+
+    // Status Desa (IDM & SDGs) — data dari API Kemendesa, di-cache OpenSID
+    Route::get('status/idm', 'Status@idm');
+    Route::get('status/sdgs', 'Status@sdgs');
 });
 
 // Internal API

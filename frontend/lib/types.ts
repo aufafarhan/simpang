@@ -302,3 +302,47 @@ export interface ProdukLapak {
   pelapak: string;
   telepon: string | null;
 }
+
+// ---- Status Desa: IDM & SDGs ----
+// Sumber: API Kemendesa lewat helper OpenSID (di-cache setahun).
+
+export interface IndikatorIdm {
+  no: number;
+  indikator: string;
+  skor: number | null;
+  keterangan: string;
+  kegiatan: string;
+  nilai: string | null;
+}
+
+export interface StatusIdm {
+  tahun: number;
+  /** Hanya tahun yang benar-benar punya data (cache error dikecualikan). */
+  tahun_tersedia: number[];
+  skor: number;
+  status: string | null;
+  target_status: string | null;
+  skor_minimal: number | null;
+  /** Selisih skor yang masih perlu dicapai untuk naik status. */
+  penambahan: number | null;
+  wilayah: {
+    desa: string | null;
+    kecamatan: string | null;
+    kabupaten: string | null;
+    provinsi: string | null;
+  };
+  indikator: IndikatorIdm[];
+}
+
+export interface TujuanSdgs {
+  nomor: number;
+  judul: string;
+  skor: number | null;
+  gambar_url: string | null;
+}
+
+export interface StatusSdgs {
+  skor_rata_rata: number | null;
+  jumlah_tujuan: number;
+  tujuan: TujuanSdgs[];
+}

@@ -32,6 +32,8 @@ import type {
   ProdukLapak,
   SotkNode,
   StatistikPenduduk,
+  StatusIdm,
+  StatusSdgs,
 } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -250,4 +252,58 @@ export async function getPembangunanDetail(
 export async function getProdukLapak(): Promise<ProdukLapak[]> {
   const r = await apiGet<ProdukLapak[]>("/lapak", { revalidate: 60 });
   return r?.data ?? [];
+}
+
+// ---- Status Desa: IDM & SDGs ----
+//
+// CATATAN: kedua fungsi ini SENGAJA TIDAK punya fallback mock.
+// Skor IDM & SDGs adalah angka resmi Kemendesa — memalsukannya dengan data
+// contoh akan menyesatkan pembaca. Bila API gagal, kembalikan null beserta
+// pesannya agar halaman bisa menampilkan keadaan sebenarnya.
+
+export interface HasilStatus<T> {
+  data: T | null;
+  pesan: string | null;
+}
+
+export async function getStatusIdm(tahun?: number): Promise<HasilStatus<StatusIdm>> {
+  if (USE_MOCK) return { data: null, pesan: "Mode mock aktif — data IDM tidak tersedia." };
+
+  const q = tahun ? `?tahun=${tahun}` : "";
+
+  try {
+    const res = await fetch(`${BASE}/status/idm${q}`, {
+      next: { revalidate: 3600 },
+      headers: { Accept: "application/json" },
+    });
+    const body = await res.json();
+
+    if (!res.ok || !body?.data?.skor) {
+      return { data: null, pesan: body?.message ?? `Gagal memuat data IDM (HTTP ${res.status}).` };
+    }
+
+    return { data: body.data as StatusIdm, pesan: null };
+  } catch {
+    return { data: null, pesan: "Tidak dapat menghubungi server data IDM." };
+  }
+}
+
+export async function getStatusSdgs(): Promise<HasilStatus<StatusSdgs>> {
+  if (USE_MOCK) return { data: null, pesan: "Mode mock aktif — data SDGs tidak tersedia." };
+
+  try {
+    const res = await fetch(`${BASE}/status/sdgs`, {
+      next: { revalidate: 3600 },
+      headers: { Accept: "application/json" },
+    });
+    const body = await res.json();
+
+    if (!res.ok || !body?.data?.tujuan?.length) {
+      return { data: null, pesan: body?.message ?? `Gagal memuat data SDGs (HTTP ${res.status}).` };
+    }
+
+    return { data: body.data as StatusSdgs, pesan: null };
+  } catch {
+    return { data: null, pesan: "Tidak dapat menghubungi server data SDGs." };
+  }
 }
