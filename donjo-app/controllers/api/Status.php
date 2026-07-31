@@ -68,14 +68,25 @@ class Status extends MY_Controller
         $indikator = [];
 
         foreach ($this->toArray($d['ROW'] ?? []) as $r) {
-            $r           = $this->toArray($r);
+            $r = $this->toArray($r);
+
+            // Kolom "YANG DAPAT MELAKSANAKAN KEGIATAN" — enam pihak, sering kosong.
+            $bersih      = static fn ($v) => trim((string) ($v ?? '')) !== '' ? trim((string) $v) : null;
             $indikator[] = [
                 'no'         => (int) ($r['NO'] ?? 0),
-                'indikator'  => $r['INDIKATOR'] ?? '',
+                'indikator'  => trim((string) ($r['INDIKATOR'] ?? '')),
                 'skor'       => is_numeric($r['SKOR'] ?? null) ? (float) $r['SKOR'] : null,
                 'keterangan' => $r['KETERANGAN'] ?? '',
                 'kegiatan'   => $r['KEGIATAN'] ?? '',
                 'nilai'      => $r['NILAI'] ?? null,
+                'pelaksana'  => [
+                    'pusat'     => $bersih($r['PUSAT'] ?? null),
+                    'provinsi'  => $bersih($r['PROV'] ?? null),
+                    'kabupaten' => $bersih($r['KAB'] ?? null),
+                    'desa'      => $bersih($r['DESA'] ?? null),
+                    'csr'       => $bersih($r['CSR'] ?? null),
+                    'lainnya'   => $bersih($r['LAINNYA'] ?? null),
+                ],
             ];
         }
 

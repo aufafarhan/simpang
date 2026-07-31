@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import PilihTahunIdm from "@/components/status/PilihTahunIdm";
 import Breadcrumb from "@/components/ui/Breadcrumb";
 import Icon from "@/components/ui/Icon";
@@ -55,24 +56,120 @@ function kelompokkanIndikator(items: IndikatorIdm[]): { label: string | null; is
   }));
 }
 
-function KartuIndikator({ item }: { item: IndikatorIdm }) {
+/**
+ * Tabel indikator mengikuti struktur tema OpenSID lama
+ * (vendor/themes/esensi/partials/idm/index.php): 12 kolom dengan header
+ * bertingkat — enam kolom terakhir dikelompokkan di bawah
+ * "Yang Dapat Melaksanakan Kegiatan".
+ */
+const PELAKSANA: { kunci: keyof IndikatorIdm["pelaksana"]; label: string }[] = [
+  { kunci: "pusat", label: "Pusat" },
+  { kunci: "provinsi", label: "Provinsi" },
+  { kunci: "kabupaten", label: "Kabupaten" },
+  { kunci: "desa", label: "Desa" },
+  { kunci: "csr", label: "CSR" },
+  { kunci: "lainnya", label: "Lainnya" },
+];
+
+function TabelIndikator({
+  kelompok,
+}: {
+  kelompok: { label: string | null; isi: IndikatorIdm[] }[];
+}) {
+  const th = "px-3 py-2 text-left font-semibold";
+  const td = "px-3 py-2 align-top text-on-surface-variant";
+
   return (
-    <li className="flex items-start gap-4 border-b border-outline-variant py-3 last:border-0">
-      <span className="mt-0.5 w-7 shrink-0 text-right text-xs font-semibold tabular-nums text-outline">
-        {item.no}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-on-surface">{item.indikator}</p>
-        {item.keterangan && (
-          <p className="mt-0.5 text-xs text-on-surface-variant">{item.keterangan}</p>
-        )}
-      </div>
-      {item.skor !== null && (
-        <span className="shrink-0 rounded-lg bg-surface-container px-2.5 py-1 text-sm font-bold tabular-nums text-primary">
-          {item.skor}
-        </span>
-      )}
-    </li>
+    // Tabel ini lebar (12 kolom) — digulir di dalam wadahnya sendiri
+    // agar body halaman tidak ikut menggulir mendatar.
+    <div className="overflow-x-auto rounded-xl border border-outline-variant shadow-level1">
+      <table className="w-full min-w-[1100px] border-collapse text-sm">
+        <thead className="bg-primary text-on-primary">
+          <tr>
+            <th rowSpan={2} className={`${th} w-12 text-center`}>
+              No
+            </th>
+            <th rowSpan={2} className={`${th} min-w-[190px]`}>
+              Indikator IDM
+            </th>
+            <th rowSpan={2} className={`${th} w-16 text-center`}>
+              Skor
+            </th>
+            <th rowSpan={2} className={`${th} min-w-[240px]`}>
+              Keterangan
+            </th>
+            <th rowSpan={2} className={`${th} min-w-[180px]`}>
+              Kegiatan yang Dapat Dilakukan
+            </th>
+            <th rowSpan={2} className={`${th} w-20 text-center`}>
+              +Nilai
+            </th>
+            <th
+              colSpan={PELAKSANA.length}
+              className="border-l border-on-primary/20 px-3 py-2 text-center font-semibold"
+            >
+              Yang Dapat Melaksanakan Kegiatan
+            </th>
+          </tr>
+          <tr className="bg-primary-container text-on-primary-container">
+            {PELAKSANA.map((p) => (
+              <th
+                key={p.kunci}
+                className="border-l border-on-primary/20 px-3 py-1.5 text-left text-xs font-semibold"
+              >
+                {p.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody>
+          {kelompok.map((k, iK) => (
+            <Fragment key={iK}>
+              {k.label && (
+                <tr className="bg-secondary-container">
+                  <td
+                    colSpan={6 + PELAKSANA.length}
+                    className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-secondary-container"
+                  >
+                    {k.label}{" "}
+                    <span className="font-normal normal-case tracking-normal">
+                      ({k.isi.length} indikator)
+                    </span>
+                  </td>
+                </tr>
+              )}
+
+              {k.isi.map((i, iI) => (
+                // `no` berulang antar dimensi -> gabungkan dengan indeks agar key unik
+                <tr
+                  key={`${iK}-${i.no}-${iI}`}
+                  className="border-t border-outline-variant odd:bg-surface even:bg-surface-container-low"
+                >
+                  <td className={`${td} text-center tabular-nums`}>{i.no}</td>
+                  <td className={`${td} font-semibold text-on-surface`}>{i.indikator}</td>
+                  <td className={`${td} text-center font-bold tabular-nums text-primary`}>
+                    {i.skor ?? "—"}
+                  </td>
+                  <td className={td}>{i.keterangan || "—"}</td>
+                  <td className={td}>{i.kegiatan || "—"}</td>
+                  <td className={`${td} text-center tabular-nums`}>{i.nilai ?? "—"}</td>
+
+                  {PELAKSANA.map((p) => (
+                    <td
+                      key={p.kunci}
+                      className={`${td} border-l border-outline-variant text-xs`}
+                    >
+                      {i.pelaksana?.[p.kunci] ?? "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -202,27 +299,13 @@ export default async function StatusIdmPage({ searchParams }: { searchParams: Se
                 Rincian indikator tidak tersedia untuk tahun ini.
               </p>
             ) : (
-              <div className="space-y-6">
-                {kelompokkanIndikator(data.indikator).map((k, iK) => (
-                  <div key={iK}>
-                    {k.label && (
-                      <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-tertiary">
-                        <Icon name="category" size={16} />
-                        {k.label}
-                        <span className="font-normal normal-case tracking-normal text-outline">
-                          ({k.isi.length} indikator)
-                        </span>
-                      </h3>
-                    )}
-                    <ul className="rounded-xl border border-outline-variant bg-surface px-4 shadow-level1 md:px-6">
-                      {k.isi.map((i, iI) => (
-                        // `no` berulang antar dimensi -> gabungkan dengan indeks agar key unik
-                        <KartuIndikator key={`${iK}-${i.no}-${iI}`} item={i} />
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+              <>
+                <TabelIndikator kelompok={kelompokkanIndikator(data.indikator)} />
+                <p className="mt-2 flex items-center gap-1 text-xs text-outline md:hidden">
+                  <Icon name="swipe" size={14} />
+                  Geser tabel ke samping untuk melihat seluruh kolom.
+                </p>
+              </>
             )}
           </section>
 

@@ -306,6 +306,16 @@ export interface ProdukLapak {
 // ---- Status Desa: IDM & SDGs ----
 // Sumber: API Kemendesa lewat helper OpenSID (di-cache setahun).
 
+/** Pihak yang dapat melaksanakan kegiatan perbaikan indikator. */
+export interface PelaksanaIdm {
+  pusat: string | null;
+  provinsi: string | null;
+  kabupaten: string | null;
+  desa: string | null;
+  csr: string | null;
+  lainnya: string | null;
+}
+
 export interface IndikatorIdm {
   no: number;
   indikator: string;
@@ -313,6 +323,7 @@ export interface IndikatorIdm {
   keterangan: string;
   kegiatan: string;
   nilai: string | null;
+  pelaksana: PelaksanaIdm;
 }
 
 export interface StatusIdm {

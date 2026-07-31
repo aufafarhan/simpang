@@ -113,12 +113,10 @@ function ItemMenu({ m }: { m: MenuAtas }) {
       {isEksternal(href) ? (
         <a href={href} className={kelas}>
           {m.nama}
-          {punyaAnak && <span aria-hidden> ▾</span>}
         </a>
       ) : (
         <Link href={href} className={kelas}>
           {m.nama}
-          {punyaAnak && <span aria-hidden> ▾</span>}
         </Link>
       )}
 
