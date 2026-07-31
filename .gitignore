@@ -53,6 +53,9 @@ desa/anjungan/*
 error_log
 /backup_inkremental/
 
+# Hasil dump database dari tools/perbaiki-kunci-db.php (berisi data warga)
+/backup_db/
+
 # --- Editor / IDE ---
 /.idea/
 /.vscode/
@@ -72,3 +75,12 @@ $RECYCLE.BIN/
 
 # --- File pribadi / catatan lokal (hapus baris ini kalau mau ikut di-push) ---
 .claude/
+.codex/
+CLAUDE.md
+AGENTS.md
+.agents/
+design/
+docs/
+tools/
+
+

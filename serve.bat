@@ -29,4 +29,7 @@ echo Menjalankan OpenSID di http://localhost:8080
 echo Tekan Ctrl+C untuk berhenti.
 echo.
 
-"%PHP_BIN%" -S localhost:8080
+REM Bind ke 0.0.0.0, bukan "localhost". Di Windows, "localhost" bisa resolve
+REM hanya ke IPv6 [::1] sehingga 127.0.0.1:8080 mati — Next.js (undici) mencoba
+REM kedua alamat dan gagal dengan AggregateError/ETIMEDOUT.
+"%PHP_BIN%" -S 0.0.0.0:8080
