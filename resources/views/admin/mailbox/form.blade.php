@@ -22,9 +22,8 @@
             <div class="col-md-12">
                 <div class="box box-info">
                     <div class="box-header with-border">
-                        <a href="{{ ci_route('mailbox') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah Artikel">
-                            <i class="fa fa-arrow-circle-left "></i>Kembali ke Daftar Kotak Pesan
-                        </a>
+                        <x-kembali-button judul="Kembali Ke Daftar Kotak Pesan" url="mailbox" />
+                        <x-kembali-button judul="Kembali Ke Daftar Kotak Keluar" url="mailbox/2" />
                     </div>
                     <div class="box-body">
                         <div class="form-group">

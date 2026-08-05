@@ -40,7 +40,7 @@
                         <div class="col-sm-3">
                             <select class="form-control input-sm select2" id="id_tipe" @disabled($disableFilter)>
                                 <option value="">Tipe Pertanyaan</option>
-                                @foreach (Modules\Analisis\Enums\TipePertanyaanEnum::all() as $key => $item)
+                                @foreach (Modules\Analisis\Enums\AnalisisTipeIndikatorEnum::all() as $key => $item)
                                     <option value="{{ $key }}">{{ $item }}</option>
                                 @endforeach
                             </select>
@@ -82,6 +82,7 @@
                                                         <th>Kategori/Variabel</th>
                                                         <th>Bobot</th>
                                                         <th>Aksi Analisis</th>
+                                                        <th>Status</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -166,6 +167,13 @@
                         searchable: true,
                         class: 'padat',
                     },
+                    {
+                        data: 'is_publik',
+                        name: 'is_publik',
+                        searchable: true,
+                        orderable: false,
+                        class: 'padat'
+                    }
                 ],
                 columnDefs: [{
                     type: 'num',

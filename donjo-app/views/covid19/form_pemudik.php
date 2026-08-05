@@ -12,7 +12,8 @@
 		<div class="box box-info">
 			<?php if (can('u')): ?>
 				<div class="box-header with-border">
-					<a href="<?= site_url('covid19')?>" class="btn btn-social btn-flat btn-primary btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar Pemudik Saat Covid-19"><i class="fa fa-arrow-circle-o-left"></i> Kembali Ke Daftar Pemudik Saat Covid-19</a>
+					<?= view('admin.layouts.components.tombol_kembali', ['url' => site_url('covid19'), 'label' => 'Daftar Pemudik Saat Covid-19']);
+                    ?>
 				</div>
 			<?php endif; ?>
 			<div class="box-header with-border">
@@ -24,7 +25,7 @@
 					<div class="form-group" >
 						<label class="col-sm-3 control-label required"  for="terdata">NIK / Nama</label>
 						<div class="col-sm-4">
-							<select class="form-control select2 required" id="covid_pemudik" name="terdata"  onchange="formAction('main')" style="width: 100%;">
+							<select class="form-control select2 required" id="covid_pemudik" name="terdata" onchange="formAction('main')" style="width: 100%;">
 								<option value="">-- Silakan Masukan NIK / Nama--</option>
 								<?php if ($individu['nik']) : ?>
 									<option value="<?= $individu['id'] ?>" selected><?= 'NIK: ' . $individu['nik'] . ' - ' . $individu['nama'] . ' - ' . $individu['alamat_wilayah'] ?></option>

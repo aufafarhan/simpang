@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -38,6 +38,7 @@
 use App\Models\Cdesa;
 use App\Models\Cdesa as CdesaModel;
 use App\Models\Persil;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -55,7 +56,6 @@ class Cdesa_rincian extends Admin_Controller
     public function index($rincian)
     {
         $data['rincian'] = Cdesa::with(['penduduk'])->findOrFail($rincian);
-        $data['desa']    = $this->header['desa'];
 
         return view('admin.pertanahan.cdesa.rincian.index', $data);
     }
@@ -69,9 +69,26 @@ class Cdesa_rincian extends Admin_Controller
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row) use ($rincian) {
 
-                    $aksi = '<a href="' . ci_route('cdesa.mutasi', [$rincian, $row->id]) . '" class="btn bg-maroon btn-sm" style="margin-right: 3px;"  title="Daftar Mutasi"><i class="fa fa-exchange"></i></a>';
+                    $aksi = '';
 
-                    $aksi .= '<a href="#" data-path="' . $row->path . '" class="btn bg-olive btn-sm area-map" title="Lihat Map" data-toggle="modal" style="margin-right: 3px;" data-target="#map-modal" ><i class="fa fa-map"></i></a>';
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'        => ci_route('cdesa.mutasi', [$rincian, $row->id]),
+                        'icon'       => 'fa fa-exchange',
+                        'judul'      => 'Daftar Mutasi',
+                        'type'       => 'bg-maroon',
+                        'buttonOnly' => true,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'         => '#',
+                        'icon'        => 'fa fa-map',
+                        'judul'       => 'Lihat Map',
+                        'type'        => 'bg-olive',
+                        'modalTarget' => 'map-modal',
+                        'buttonOnly'  => true,
+                        'modal'       => true,
+                        'attributes'  => ['data-path' => $row->path, 'class' => 'area-map'],
+                    ])->render();
 
                     return $aksi;
                 })

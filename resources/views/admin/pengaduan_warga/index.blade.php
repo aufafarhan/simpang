@@ -17,12 +17,9 @@
     @include('admin.pengaduan_warga.widget')
 
     <div class="box box-info">
-        @if (can('h'))
-            <div class="box-header with-border">
-                <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('pengaduan_admin.delete') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
-                        class='fa fa-trash-o'></i> Hapus</a>
-            </div>
-        @endif
+        <div class="box-header with-border">
+            <x-hapus-button confirmDelete="true" selectData="true" :url="'pengaduan_admin/delete'" />
+        </div>
         <div class="box-body">
             <div class="row mepet">
                 <div class="col-sm-2">
@@ -61,6 +58,7 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+            let filterColumn = {!! json_encode($filterColumn) !!}
             var TableData = $('#tabeldata').DataTable({
                 responsive: true,
                 processing: true,
@@ -68,7 +66,6 @@
                 ajax: {
                     url: "{{ ci_route('pengaduan_admin.datatables') }}",
                     data: function(req) {
-                        console.log(req);
                         req.status = $('#status').val();
                     },
                 },
@@ -133,6 +130,13 @@
 
             if (ubah == 0) {
                 TableData.column(2).visible(false);
+            }
+
+            if (filterColumn) {
+                if (filterColumn['status'] > 0) {
+                    $('#status').val(filterColumn['status'])
+                    $('#status').trigger('change')
+                }
             }
         });
     </script>

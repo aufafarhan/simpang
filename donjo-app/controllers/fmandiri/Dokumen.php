@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+use App\Enums\StatusEnum;
 use App\Models\Dokumen as DokumenModel;
 use App\Models\Keluarga;
 use App\Models\SyaratSurat;
@@ -61,8 +62,10 @@ class Dokumen extends Mandiri_Controller
                     $deleteUrl   = site_url("layanan-mandiri/dokumen/hapus/{$item->id}");
                     $downloadUrl = site_url("layanan-mandiri/dokumen/unduh/{$item->id}");
 
-                    $aksi .= '<a href="' . $editUrl . '" title="Ubah" class="btn btn-warning btn-sm"><i class="fa fa-pencil"></i></a> ';
-                    $aksi .= '<a href="' . $deleteUrl . '" title="Hapus" class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></a> ';
+                    if ($item->dok_warga == StatusEnum::YA) {
+                        $aksi .= '<a href="' . $editUrl . '" title="Ubah" class="btn btn-warning btn-sm"><i class="fa fa-pencil"></i></a> ';
+                        $aksi .= '<a href="' . $deleteUrl . '" title="Hapus" class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></a> ';
+                    }
 
                     return $aksi . ('<a target="_blank" href="' . $downloadUrl . '" title="Unduh" class="btn bg-purple btn-sm"><i class="fa fa-eye"></i></a>');
                 })
@@ -89,6 +92,14 @@ class Dokumen extends Mandiri_Controller
             $data['nik']         = $this->is_login->nik;
             $data['aksi']        = 'Ubah';
             $data['form_action'] = site_url("layanan-mandiri/dokumen/ubah/{$id}");
+
+            if ($data['dokumen']->dok_warga == StatusEnum::TIDAK) {
+                $respon = [
+                    'status' => 'error',
+                    'pesan'  => 'Dokumen tidak dapat diubah oleh warga',
+                ];
+                redirect_with('notif', $respon, 'layanan-mandiri/dokumen');
+            }
         } else {
             $data['dokumen']     = null;
             $data['dokumen']     = null;
@@ -187,29 +198,6 @@ class Dokumen extends Mandiri_Controller
         }
     }
 
-    private function upload_dokumen()
-    {
-        $old_file                = $this->input->post('old_file', true);
-        $config['upload_path']   = LOKASI_DOKUMEN;
-        $config['allowed_types'] = 'jpg|jpeg|png|pdf';
-        $config['file_name']     = namafile($this->input->post('nama', true));
-
-        $this->load->library('MY_Upload', null, 'upload');
-        $this->upload->initialize($config);
-
-        if (! $this->upload->do_upload('satuan')) {
-            session_error($this->upload->display_errors(null, null));
-
-            return false;
-        }
-
-        if (empty($old_file)) {
-            unlink(LOKASI_DOKUMEN . $old_file);
-        }
-
-        return $this->upload->data()['file_name'];
-    }
-
     public function hapus($id = ''): void
     {
         try {
@@ -234,5 +222,28 @@ class Dokumen extends Mandiri_Controller
             ];
             redirect_with('notif', $respon, 'layanan-mandiri/dokumen');
         }
+    }
+
+    private function upload_dokumen()
+    {
+        $old_file                = $this->input->post('old_file', true);
+        $config['upload_path']   = LOKASI_DOKUMEN;
+        $config['allowed_types'] = 'jpg|jpeg|png|pdf';
+        $config['file_name']     = namafile($this->input->post('nama', true));
+
+        $this->load->library('upload');
+        $this->upload->initialize($config);
+
+        if (! $this->upload->do_upload('satuan')) {
+            session_error($this->upload->display_errors(null, null));
+
+            return false;
+        }
+
+        if (empty($old_file)) {
+            unlink(LOKASI_DOKUMEN . $old_file);
+        }
+
+        return $this->upload->data()['file_name'];
     }
 }

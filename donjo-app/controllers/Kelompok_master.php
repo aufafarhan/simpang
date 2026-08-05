@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Models\KelompokMaster;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -68,15 +69,23 @@ class Kelompok_master extends Admin_Controller
                     $aksi = '';
 
                     if (can('u')) {
-                        $aksi .= '<a href="' . site_url("{$controller}/form/{$row->id}") . '" class="btn bg-orange btn-sm" title="Ubah Kategori"><i class="fa fa-edit"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                            'url' => "{$controller}/form/" . $row->id,
+                        ])->render();
                     }
+
                     if (can('h') && $row->jumlah == 0) {
-                        $aksi .= '<a href="#" data-href="' . site_url("{$controller}/delete/{$row->id}") . '" class="btn bg-maroon btn-sm" title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => route("{$controller}.delete", ['id' => $row->id]),
+                            'confirmDelete' => true,
+                        ])->render();
+
                     }
 
                     return $aksi;
                 })
-                ->rawColumns(['ceklist', 'aksi'])
+                ->editColumn('deskripsi', static fn ($row): string => html_entity_decode($row->deskripsi))
+                ->rawColumns(['ceklist', 'aksi', 'kelompok', 'deskripsi'])
                 ->make();
         }
 
@@ -157,7 +166,7 @@ class Kelompok_master extends Admin_Controller
     {
         return [
             'config_id' => identitas('id'),
-            'kelompok'  => nama_terbatas($request['kelompok']),
+            'kelompok'  => judul($request['kelompok']),
             'deskripsi' => htmlentities((string) $request['deskripsi']),
             'tipe'      => $this->tipe,
         ];

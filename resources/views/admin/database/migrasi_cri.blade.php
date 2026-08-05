@@ -18,18 +18,20 @@
                                                                         <small>
                                                                             <strong><i class="fa fa-info-circle text-red"></i>
                                                                                 Sebelum melakukan migrasi ini, pastikan
-                                                                                database SID anda telah
+                                                                                database SID Anda telah
                                                                                 dibackup.</strong>
                                                                         </small>
                                                                     </p>
                                                                     <p>Apabila sesudah melakukan konversi ini, masih
                                                                         ditemukan masalah, laporkan di :</P>
-                                                                    <ul>
-                                                                        <li> <a href="https://github.com/OpenSID/OpenSID/issues">https://github.com/OpenSID/OpenSID/issues</a>
-                                                                        </li>
-                                                                        <li> <a href="{{ config_item('fb_opendesa') }}">{{ config_item('fb_opendesa') }}</a>
-                                                                        </li>
-                                                                    </ul>
+                                                                    <div class="table-responsive">
+                                                                        <ul>
+                                                                            <li> <a href="https://github.com/OpenSID/OpenSID/issues">https://github.com/OpenSID/OpenSID/issues</a>
+                                                                            </li>
+                                                                            <li> <a href="{{ config_item('fb_opendesa') }}">{{ config_item('fb_opendesa') }}</a>
+                                                                            </li>
+                                                                        </ul>
+                                                                    </div>
                                                                     <table class="table table-bordered">
                                                                         <tbody>
                                                                             <tr>
@@ -81,7 +83,7 @@
                                                         const _error = []
                                                         e.preventDefault();
                                                         Swal.fire({
-                                                            title: 'Apakah anda sudah melakukan backup database ?',
+                                                            title: 'Apakah Anda sudah melakukan backup database ?',
                                                             showDenyButton: true,
                                                             confirmButtonText: 'Sudah',
                                                             denyButtonText: `Belum`,

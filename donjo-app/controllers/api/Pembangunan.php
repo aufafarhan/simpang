@@ -15,8 +15,8 @@ class Pembangunan extends MY_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('pembangunan_model');
-        $this->load->model('pembangunan_dokumentasi_model');
+        // Pengganti Pembangunan_model & Pembangunan_dokumentasi_model (dihapus 2607).
+        $this->load->helper('api_v1');
 
         if (strtolower($this->input->method()) === 'options') {
             $this->cors();
@@ -43,11 +43,7 @@ class Pembangunan extends MY_Controller
         $page    = max(1, (int) $this->input->get('page'));
         $perPage = 12;
 
-        $semua = $this->pembangunan_model
-            ->set_tipe('')
-            ->get_data($search, $tahun)
-            ->get()
-            ->result_array();
+        $semua = pembangunan_list_api($search, $tahun);
 
         $total      = count($semua);
         $totalPages = max(1, (int) ceil($total / $perPage));
@@ -73,15 +69,7 @@ class Pembangunan extends MY_Controller
      */
     public function detail($id = 0): void
     {
-        $builder = $this->pembangunan_model->set_tipe('')->get_data();
-
-        if (is_numeric($id)) {
-            $builder->where('p.id', (int) $id);
-        } else {
-            $builder->where('p.slug', $id);
-        }
-
-        $proyek = $builder->get()->row_array();
+        $proyek = pembangunan_detail_api($id);
 
         if (empty($proyek)) {
             json(['data' => null, 'message' => 'Proyek pembangunan tidak ditemukan'], 404);
@@ -89,8 +77,7 @@ class Pembangunan extends MY_Controller
             return;
         }
 
-        // find_dokumentasi() mengembalikan objek (->result()), bukan array asosiatif.
-        $dokumentasi = $this->pembangunan_dokumentasi_model->find_dokumentasi((int) $proyek['id']);
+        $dokumentasi = pembangunan_dokumentasi_api((int) $proyek['id']);
 
         $fotoList = array_map(function ($doc) {
             $d = (array) $doc;

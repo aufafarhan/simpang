@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,15 +29,17 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Libraries\Release;
+use App\Libraries\Saas;
 use App\Models\Shortcut;
-use App\Services\Pelanggan;
+use Modules\Pelanggan\Services\CekService;
+use Modules\Pelanggan\Services\PelangganService;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -55,14 +57,22 @@ class Beranda extends Admin_Controller
 
     public function index()
     {
-        get_pesan_opendk(); //ambil pesan baru di opendk
+        get_pesan_opendk(); // ambil pesan baru di opendk
 
-        $this->load->library('saas');
+        $notif_langganan = PelangganService::statusLangganan();
+        $notif_percobaan = null;
+
+        // hanya cek percobaan kalau premium kosong
+        if (empty($notif_langganan)) {
+            $notif_percobaan = PelangganService::statusPercobaan();
+        }
+
         $data = [
             'rilis'           => $this->getUpdate(),
             'shortcut'        => Shortcut::querys()['data'],
-            'saas'            => $this->saas->peringatan(),
-            'notif_langganan' => Pelanggan::status_langganan(),
+            'saas'            => Saas::peringatan(),
+            'notif_langganan' => $notif_langganan,
+            'notif_percobaan' => $notif_percobaan,
         ];
 
         return view('admin.home.index', $data);
@@ -72,23 +82,19 @@ class Beranda extends Admin_Controller
     {
         $info = [];
 
-        if (cek_koneksi_internet() && ! config_item('demo_mode')) {
-            $url_rilis = ($this->premium->validasi_akses() && PREMIUM) ? config_item('rilis_premium') : config_item('rilis_umum');
+        if (cek_koneksi_internet() && !config_item('demo_mode')) {
+            $url_rilis = config_item('rilis_umum');
 
             $release = new Release();
-            $release->setApiUrl($url_rilis)->setCurrentVersion($this->versi_setara);
+            $release->setApiUrl($url_rilis)->setCurrentVersion();
 
             if ($release->isAvailable()) {
                 $info['update_available'] = $release->isAvailable();
-                $info['current_version']  = 'v' . AmbilVersi();
-                $info['latest_version']   = $release->getLatestVersion() . (PREMIUM ? '-premium' : '');
-                $info['release_name']     = $release->getReleaseName();
-                $info['release_body']     = $release->getReleaseBody();
-                $info['url_download']     = $release->getReleaseDownload();
-
-                if ($this->versi_setara) {
-                    $info['current_version'] .= '(' . $release->getCurrentVersion() . ')';
-                }
+                $info['current_version'] = 'v' . AmbilVersi();
+                $info['latest_version'] = $release->getLatestVersion();
+                $info['release_name'] = $release->getReleaseName();
+                $info['release_body'] = $release->getReleaseBody();
+                $info['url_download'] = $release->getReleaseDownload();
             } else {
                 $info['update_available'] = false;
             }

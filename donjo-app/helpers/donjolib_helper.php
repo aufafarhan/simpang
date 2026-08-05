@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,11 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
+
+use App\Events\Pesan\PesanOpenDKReceived;
+use Carbon\Carbon;
 
 function nested_array_search($needle, $array)
 {
@@ -265,13 +268,14 @@ function getBulan(int $bln)
 }
 
 /**
- * @param mixed $asc
+ * @param mixed      $asc
+ * @param mixed|null $tambah
  *
  * @return string[]
  */
-function tahun(?int $awal = null, $asc = false): array
+function tahun(?int $awal = null, $asc = false, $tambah = null): array
 {
-    $akhir = date('Y');
+    $akhir = $tambah ? date('Y') + $tambah : date('Y');
     $awal ??= $akhir;
     $tahun = [];
 
@@ -367,19 +371,28 @@ function tgl_indo_dari_str($tgl_str, $kosong = '-')
     return $time ? tgl_indo(date('Y m d', strtotime($tgl_str))) : $kosong;
 }
 
-function tgl_indo($tgl, $replace_with = '-', string $with_day = '')
+function tgl_indo($tgl, $replace_with = '-', bool $with_day = false, $format = null)
 {
-    if (date_is_empty($tgl)) {
+    if (empty($tgl) || $tgl === '0000-00-00' || $tgl === '0000-00-00 00:00:00') {
         return $replace_with;
     }
-    $tanggal = substr($tgl, 8, 2);
-    $bulan   = getBulan((int) substr($tgl, 5, 2));
-    $tahun   = substr($tgl, 0, 4);
-    if ($with_day !== '') {
-        $tanggal = $with_day . ', ' . date('j', strtotime($tgl));
+    // ambil tanggalnya saja
+    $tgl = str_replace(' ', '-', substr($tgl, 0, 10));
+
+    try {
+        $createFromFormat = strlen(explode('-', $tgl)[0]) == 4 ? 'Y-m-d' : 'd-m-Y';
+        $date             = Carbon::createFromFormat($createFromFormat, $tgl);
+    } catch (Exception $e) {
+        return $replace_with;
     }
 
-    return $tanggal . ' ' . $bulan . ' ' . $tahun;
+    return $with_day
+        ? $date->translatedFormat('l, d F Y')
+        : (
+            $format
+            ? $date->format($format)
+            : $date->translatedFormat('d F Y')
+        );
 }
 
 function tgl_indo_out($tgl, $replace_with = '-')
@@ -721,28 +734,64 @@ function set_words($data = '', $type = null): string
     return trim($data);
 }
 
-function persen($data, string $simbol = '%', $digit = 2): string
-{
-    $str = number_format(is_nan($data) ? 0 : (float) ($data * 100), $digit, '.', '');
+if (! function_exists('persen')) {
+    /**
+     * Mengubah nilai desimal menjadi persentase dalam format string.
+     *
+     * @param float|int $data            Nilai desimal yang ingin dikonversi (misalnya 0.25 menjadi 25).
+     * @param string    $simbol          Simbol yang ditambahkan di akhir (default: '%').
+     * @param int       $digit           Jumlah digit di belakang koma (default: 2).
+     * @param bool      $tampilkanSimbol Apakah simbol akan ditampilkan atau tidak (default: true).
+     */
+    function persen($data, string $simbol = '%', int $digit = 2, bool $tampilkanSimbol = true): string
+    {
+        $nilai = is_nan($data) ? 0 : (float) ($data * 100);
+        $str   = number_format($nilai, $digit, '.', '');
+        $hasil = str_replace('.', ',', $str);
 
-    return str_replace('.', ',', $str) . $simbol;
-}
-
-function persen2($pembilang, $pembagi, $simbol = '%', $digit = 2): string
-{
-    $data = ($pembagi == 0) ? 0 : $pembilang / $pembagi;
-
-    return persen($data, $simbol, $digit);
-}
-
-function persen3($number, $total, $precision = 2)
-{
-    // Can't divide by zero so let's catch that early.
-    if ($total == 0) {
-        return 0;
+        return $tampilkanSimbol ? $hasil . $simbol : $hasil;
     }
+}
 
-    return round(($number / $total) * 100, $precision) . '%';
+if (! function_exists('persen2')) {
+    /**
+     * Menghitung persentase dari pembilang dan pembagi, lalu mengubahnya ke format string.
+     *
+     * @param float|int $pembilang       Nilai pembilang.
+     * @param float|int $pembagi         Nilai pembagi.
+     * @param string    $simbol          Simbol yang ditambahkan di akhir (default: '%').
+     * @param int       $digit           Jumlah digit di belakang koma (default: 2).
+     * @param bool      $tampilkanSimbol Apakah simbol akan ditampilkan atau tidak (default: true).
+     */
+    function persen2($pembilang, $pembagi, string $simbol = '%', int $digit = 2, bool $tampilkanSimbol = true): string
+    {
+        $data = ($pembagi == 0) ? 0 : $pembilang / $pembagi;
+
+        return persen($data, $simbol, $digit, $tampilkanSimbol);
+    }
+}
+
+if (! function_exists('persen3')) {
+    /**
+     * Menghitung persentase dari dua angka dan mengembalikannya sebagai string.
+     *
+     * @param float|int $number          Nilai pembilang.
+     * @param float|int $total           Nilai pembagi.
+     * @param int       $precision       Jumlah digit di belakang koma (default: 2).
+     * @param string    $simbol          Simbol yang ditambahkan di akhir (default: '%').
+     * @param bool      $tampilkanSimbol Apakah simbol akan ditampilkan atau tidak (default: true).
+     */
+    function persen3($number, $total, int $precision = 2, string $simbol = '%', bool $tampilkanSimbol = true): string
+    {
+        if ($total == 0) {
+            return $tampilkanSimbol ? '0' . $simbol : '0';
+        }
+
+        $result    = round(($number / $total) * 100, $precision);
+        $formatted = str_replace('.', ',', number_format($result, $precision, '.', ''));
+
+        return $tampilkanSimbol ? $formatted . $simbol : $formatted;
+    }
 }
 
 function sensor_nik_kk($data)
@@ -821,7 +870,12 @@ function get_pesan_opendk(): void
                 'jenis'      => $pesan->jenis,
                 'diarsipkan' => $pesan->diarsipkan,
             ];
-            $model_pesan::firstOrCreate(['id' => $pesan->id], $row);
+            $pesanOpenDK = $model_pesan::firstOrCreate(['id' => $pesan->id], $row);
+
+            if ($pesanOpenDK->wasRecentlyCreated) {
+                // Dispatch event to send notifications
+                event(new PesanOpenDKReceived($pesanOpenDK));
+            }
 
             foreach ($pesan->detail_pesan as $pesan_detail) {
                 $row = [

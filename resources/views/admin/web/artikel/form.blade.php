@@ -20,11 +20,10 @@
         <div class="col-md-8">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ ci_route('web', $cat) }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah Artikel">
-                        <i class="fa fa-arrow-circle-left "></i>Kembali ke Daftar Artikel
-                    </a>
+                    <x-kembali-button judul="Kembali Ke Daftar Artikel" :url="'/web/' . $cat" />
+
                     @if ($artikel['slug'])
-                        <a href="{{ $artikel['url_slug'] }}" target="_blank" class="btn btn-social bg-green btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-eye"></i> Lihat Artikel</a>
+                        <x-btn-button judul="Lihat Artikel" icon="fa fa-eye" slug='true' blank='true' type="bg-green" file="true" :url="$artikel['url_slug']" />
                     @endif
                 </div>
                 <div class="box-body">
@@ -44,7 +43,7 @@
                     </div>
                     <div class="form-group">
                         <label class="control-label" for="kode_desa">Isi Artikel</label>
-                        <textarea name="isi" data-filemanager='{!! json_encode(['external_filemanager_path' => base_url('assets/kelola_file/'), 'filemanager_title' => 'Responsive Filemanager', 'filemanager_access_key' => $session->fm_key]) !!}' class="form-control input-sm required" style="height:350px;">{{ $artikel['isi'] }}</textarea>
+                        <textarea name="isi" data-filemanager='{!! json_encode(['external_filemanager_path' => base_url('rfm/'), 'filemanager_title' => 'Responsive Filemanager', 'filemanager_access_key' => $session->fm_key]) !!}' class="form-control input-sm required" style="height:350px;">{{ $artikel['isi'] }}</textarea>
                     </div>
                 </div>
             </div>
@@ -69,7 +68,7 @@
                             <label class="control-label" for="gambar">Gambar Utama</label>
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" id="file_path">
-                                <input type="file" class="hidden" id="file" name="gambar">
+                                <input type="file" class="hidden" id="file" name="gambar" accept=".gif,.jpg,.jpeg,.png,.webp">
                                 <span class="input-group-btn">
                                     <button type="button" class="btn btn-info" id="file_browser"><i class="fa fa-search"></i> Browse</button>
                                 </span>
@@ -87,7 +86,7 @@
                             <label class="control-label" for="gambar1">Gambar Tambahan</label>
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" id="file_path1">
-                                <input type="file" class="hidden" id="file1" name="gambar1">
+                                <input type="file" class="hidden" id="file1" name="gambar1" accept=".gif,.jpg,.jpeg,.png,.webp">
                                 <span class="input-group-btn">
                                     <button type="button" class="btn btn-info" id="file_browser1"><i class="fa fa-search"></i> Browse</button>
                                 </span>
@@ -105,7 +104,7 @@
                             <label class="control-label" for="gambar2">Gambar Tambahan</label>
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" id="file_path2">
-                                <input type="file" class="hidden" id="file2" name="gambar2">
+                                <input type="file" class="hidden" id="file2" name="gambar2" accept=".gif,.jpg,.jpeg,.png,.webp">
                                 <span class="input-group-btn">
                                     <button type="button" class="btn btn-info" id="file_browser2"><i class="fa fa-search"></i> Browse</button>
                                 </span>
@@ -123,7 +122,7 @@
                             <label class="control-label" for="gambar3">Gambar Tambahan</label>
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" id="file_path3">
-                                <input type="file" class="hidden" id="file3" name="gambar3">
+                                <input type="file" class="hidden" id="file3" name="gambar3" accept=".gif,.jpg,.jpeg,.png,.webp">
                                 <span class="input-group-btn">
                                     <button type="button" class="btn btn-info" id="file_browser3"><i class="fa fa-search"></i> Browse</button>
                                 </span>
@@ -283,7 +282,7 @@
             toolbar3: "| laporan_keuangan | penerima_bantuan | sotk",
             image_advtab: true,
             external_plugins: {
-                "filemanager": "{{ asset('kelola_file/plugin.min.js') }}"
+                "filemanager": "{{ base_url('rfm/plugin.min.js') }}"
             },
             templates: [{
                     title: 'Test template 1',

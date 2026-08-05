@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -165,14 +165,13 @@ class Stunting
                     'stunting'        => $item->sum(static fn ($q) => $q->isStunting() ? $q->total : 0),
                 ];
             });
-
         }
 
         return [
             'categories' => $posyandu->pluck('nama')->toArray(),
             'data'       => [
                 ['name' => 'Normal', 'data' => $summary->pluck('normal')->toArray()],
-                ['name' => 'Resiko Stunting', 'data' => $summary->pluck('resiko_stunting')->toArray()],
+                ['name' => 'Risiko Stunting', 'data' => $summary->pluck('resiko_stunting')->toArray()],
                 ['name' => 'Terindikasi Stunting', 'data' => $summary->pluck('stunting')->toArray()],
             ],
         ];
@@ -199,6 +198,8 @@ class Stunting
             ->whereYear('bulanan_anak.created_at', $this->tahun)
             ->selectRaw('bulanan_anak.kia_id as kia_id')
             ->get();
+
+        $dataNoKia = [];
 
         foreach ($JTRT_IbuHamil as $item_ibuHamil) {
             $dataNoKia[] = $item_ibuHamil;

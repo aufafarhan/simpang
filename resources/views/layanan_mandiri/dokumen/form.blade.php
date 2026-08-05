@@ -7,7 +7,8 @@
         </div>
         <div class="box-body box-line">
             <div class="form-group">
-                <a href="{{ site_url('layanan-mandiri/dokumen') }}" class="btn bg-aqua btn-social"><i class="fa fa-arrow-circle-left "></i>Kembali ke Dokumen</a>
+                @include('admin.layouts.components.tombol_kembali_layanan_mandiri', ['url' => site_url('layanan-mandiri/dokumen'), 'label' => 'Dokumen'])
+
             </div>
         </div>
         <div class="box-body box-line">
@@ -25,6 +26,7 @@
             @endif
             <form id="validasi" action="{{ $form_action }}" method="POST" enctype="multipart/form-data">
                 <input type="number" class="hidden" name="id_pend" value="{{ $id_pend }}" />
+                <input type="hidden" name="dok_warga" value="{{ $dokumen['dok_warga'] }}" />
                 <div class="form-group">
                     <label for="nama_dokumen">Nama Dokumen</label>
                     <input id="nama_dokumen" name="nama" class="form-control required {{ $cek_anjungan['keyboard'] == 1 ? 'kbvtext' : '' }}" type="text" placeholder="Nama Dokumen" value="{{ $dokumen['nama'] }}" />
@@ -52,7 +54,7 @@
                         </span>
                     </div>
                 </div>
-                <span class="help-block"><code>Kosongkan jika tidak ingin mengubah dokumen. Ukuran maksimal <strong>{{ max_upload() }} MB</strong>.</code></span>
+                <span class="help-block"><code>Kosongkan jika tidak ingin mengubah dokumen. Ukuran maksimal <strong>{{ max_upload(true) }}</strong>.</code></span>
                 </hr>
                 @if (!empty($kk))
                     <p><strong>Centang jika dokumen yang diupload berlaku juga untuk anggota keluarga di bawah ini. </strong></p>

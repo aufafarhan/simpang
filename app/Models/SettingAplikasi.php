@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -40,34 +40,26 @@ namespace App\Models;
 use App\Enums\StatusEnum;
 use App\Models\Galery as Galeri;
 use App\Traits\ConfigId;
+use Illuminate\Support\Facades\Schema;
 use Rennokki\QueryCache\Traits\QueryCacheable;
+use Spatie\Activitylog\ActivityLogStatus;
+use Spatie\Activitylog\Contracts\Activity;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class SettingAplikasi extends BaseModel
 {
     use ConfigId;
+    use LogsActivity;
     use QueryCacheable;
 
-    public const WARNA_TEMA = '#eab308';
-
-    /**
-     * Invalidate the cache automatically
-     * upon update in the database.
-     *
-     * @var bool
-     */
-    protected static $flushCacheOnUpdate = true;
+    public const WARNA_TEMA    = '#eab308';
+    public const TAHUN_IDM_MIN = 2021;
 
     // forever cache
     public $cacheFor = -1;
-
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'setting_aplikasi';
 
     /**
      * The timestamps for the model.
@@ -84,15 +76,60 @@ class SettingAplikasi extends BaseModel
     public $incrementing = false;
 
     /**
+     * Key yang sensitif dan tidak boleh ditampilkan ketika di panggil di view.
+     */
+    public static array $sensitiveKeys = [
+        'api_opendk_server',
+        'api_opendk_key',
+        'api_gform_id_script',
+        'api_gform_credential',
+        'api_gform_redirect_uri',
+        'layanan_opendesa_token',
+        'telegram_token',
+        'telegram_user_id',
+        'tte_api',
+        'tte_username',
+        'tte_password',
+        'email_protocol',
+        'email_smtp_host',
+        'email_smtp_user',
+        'email_smtp_pass',
+        'email_smtp_port',
+        'google_recaptcha_site_key',
+        'google_recaptcha_secret_key',
+    ];
+
+    /**
+     * Invalidate the cache automatically
+     * upon update in the database.
+     *
+     * @var bool
+     */
+    protected static $flushCacheOnUpdate = true;
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'setting_aplikasi';
+
+    /**
      * The fillable with the model.
      *
      * @var array
      */
     protected $fillable = [
         'config_id',
+        'judul',
         'key',
         'value',
+        'keterangan',
+        'jenis',
+        'option',
         'attribute',
+        'kategori',
+        'urut',
     ];
 
     protected $guarded = ['id'];
@@ -115,6 +152,81 @@ class SettingAplikasi extends BaseModel
         'option' => 'json',
     ];
 
+    public static function deleteFile($model, ?string $file, $deleting = false): void
+    {
+        if ($model->isDirty() || $deleting) {
+            if ($model->key == 'latar_website') {
+                $lokasi = 'desa/pengaturan/images/';
+            }
+
+            if ($model->key == 'latar_login') {
+                $lokasi = LATAR_LOGIN;
+            }
+
+            if ($model->key == 'latar_login_mandiri') {
+                $lokasi = LATAR_LOGIN;
+            }
+
+            if ($model->key == 'latar_kehadiran') {
+                $lokasi = LATAR_LOGIN;
+            }
+            if (file_exists($lokasi)) {
+                unlink($lokasi . setting($model->key));
+            }
+        }
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        cache()->forget('setting_aplikasi');
+
+        static::updating(static function ($model): void {
+            if (is_string($model->value)) {
+                static::deleteFile($model, $model->value);
+            }
+        });
+
+        static::deleting(static function ($model): void {
+            if (is_string($model->value)) {
+                static::deleteFile($model, $model->value, true);
+            }
+        });
+    }
+
+    public function tapActivity(Activity $activity, string $eventName): void
+    {
+        // Cek apakah tabel log_activity tersedia
+        if (! Schema::hasTable('log_activity')) {
+            logger()->warning(sprintf('Tabel log_activity tidak tersedia, log aktivitas tidak akan dicatat pada: %s', self::class));
+
+            $this->disableLogging();
+            app(ActivityLogStatus::class)->disable();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('Pengaturan Aplikasi')
+            ->setDescriptionForEvent(fn ($event): string => sprintf(
+                'Pengaturan aplikasi %s telah di %s',
+                $this->key,
+                match ($event) {
+                    'created' => 'dibuat',
+                    'updated' => 'diubah',
+                    'deleted' => 'dihapus',
+                    default   => $event,
+                }
+            ))
+            ->logAll()
+            ->logOnlyDirty();
+    }
+
     public function getOptionAttribute()
     {
         if ($this->attributes['jenis'] == 'option' && $this->attributes['key'] == 'tampilan_anjungan_slider') {
@@ -127,7 +239,7 @@ class SettingAplikasi extends BaseModel
             ];
         }
 
-        return json_decode($this->attributes['option'], true);
+        return json_decode((string) $this->attributes['option'], true);
     }
 
     public function getValueAttribute()
@@ -137,5 +249,13 @@ class SettingAplikasi extends BaseModel
         }
 
         return $this->attributes['value'];
+    }
+
+    public function scopeUrut($query)
+    {
+        return $query->orderBy(
+            Schema::hasColumn('setting_aplikasi', 'urut') ? 'urut' : 'key',
+            'asc'
+        );
     }
 }

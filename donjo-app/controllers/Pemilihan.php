@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 use App\Models\Pemilihan as PemilihanModel;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -51,9 +52,19 @@ class Pemilihan extends Admin_Controller
         parent::__construct();
         isCan('b');
         if (! Schema::hasTable('pemilihan')) {
-            session_error('Tabel Pemilihan tidak ditemukan, silahkan lakukan migrasi database terlebih dahulu.');
+            session_error('Tabel Pemilihan tidak ditemukan, silakan lakukan migrasi database terlebih dahulu.');
             redirect('dpt');
         }
+    }
+
+    protected static function Validate($request = [])
+    {
+        return [
+            'judul'      => nama_terbatas($request['judul']),
+            'tanggal'    => date('Y-m-d', strtotime((string) $request['tanggal'])),
+            'keterangan' => $request['keterangan'],
+            'status'     => $request['status'] ?? 0,
+        ];
     }
 
     public function index()
@@ -71,27 +82,23 @@ class Pemilihan extends Admin_Controller
                     }
                 })
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row): string {
-                    $aksi = '';
+                ->addColumn(
+                    'aksi',
+                    static fn ($row) => View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "pemilihan/form/{$row->uuid}",
+                    ])->render() .
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('pemilihan.form', $row->uuid) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => site_url("pemilihan/status/{$row->uuid}"),
+                        'active' => $row->status,
+                    ])->render() .
 
-                    if (can('u')) {
-                        if ($row->status) {
-                            $aksi .= '<a href="' . site_url("pemilihan/status/{$row->uuid}") . '" class="btn bg-navy btn-sm" title="Nonaktifkan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . site_url("pemilihan/status/{$row->uuid}") . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        }
-                    }
+                    View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('pemilihan.delete', $row->uuid),
+                        'confirmDelete' => true,
+                    ])->render()
+                )
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('pemilihan.delete', $row->uuid) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
-
-                    return $aksi;
-                })
                 ->editColumn('tanggal', static fn ($row) => tgl_indo2($row->tanggal))
                 ->rawColumns(['ceklist', 'aksi'])
                 ->make();
@@ -171,15 +178,5 @@ class Pemilihan extends Admin_Controller
         }
 
         redirect_with('error', 'Gagal Hapus Data', 'pemilihan/');
-    }
-
-    protected static function Validate($request = [])
-    {
-        return [
-            'judul'      => nama_terbatas($request['judul']),
-            'tanggal'    => date('Y-m-d', strtotime((string) $request['tanggal'])),
-            'keterangan' => $request['keterangan'],
-            'status'     => $request['status'] ?? 0,
-        ];
     }
 }

@@ -23,7 +23,7 @@
         <div class="col-md-9">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ site_url('inventaris_tanah_mutasi') }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Mutasi Inventaris Tanah</a>
+                    <x-kembali-button judul="Kembali Ke Daftar Mutasi Inventaris Tanah" url="inventaris_tanah_mutasi" />
                 </div>
                 <form class="form-horizontal" id="validasi" name="form_tanah" method="post" action="{{ $form_action }}">
                     <div class="box-body">
@@ -73,7 +73,7 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="col-sm-3 control-label" for="mutasi">Status Asset</label>
+                            <label class="col-sm-3 control-label" for="mutasi">Status Aset</label>
                             <div class="col-sm-4">
                                 <select name="status_mutasi" id="status" class="form-control input-sm required" @disabled($view_mark)>
                                     <option value="Baik" @selected($main->mutasi->status_mutasi == 'Baik')>Baik</option>

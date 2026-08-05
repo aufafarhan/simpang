@@ -1,15 +1,16 @@
 @extends('admin.layouts.index')
 @include('admin.layouts.components.asset_validasi')
+@include('admin.layouts.components.datetime_picker')
 
 @section('title')
     <h1>
-        Formulir DTKS {{ \App\Enums\Dtks\DtksEnum::VERSION_LIST[$dtks->versi_kuisioner] }}
+        Formulir {{ setting('sebutan_dtks') }} {{ \App\Enums\Dtks\DtksEnum::VERSION_LIST[$dtks->versi_kuisioner] }}
     </h1>
 @endsection
 
 @section('breadcrumb')
     <li><a href="{{ ci_route('dtks') }}">DTKS</a></li>
-    <li class="active">Formulir DTKS</li>
+    <li class="active">Formulir</li>
 @endsection
 
 @section('content')

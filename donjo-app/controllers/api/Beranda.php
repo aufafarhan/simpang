@@ -5,11 +5,20 @@
  * Bagian dari OpenSID (GPL-3.0). Read-only.
  *
  * Mengembalikan SEMUA data yang dibutuhkan beranda (slider, headline, artikel,
- * dan 14 widget sidebar) dalam satu panggilan, dengan memanfaatkan
- * Web_Controller::_get_common_data() sehingga tidak menulis ulang logika OpenSID.
+ * dan 14 widget sidebar) dalam satu panggilan, dengan memanfaatkan data yang
+ * sudah disiapkan OpenSID sehingga logikanya tidak ditulis ulang.
+ *
+ * CATATAN VERSI (2412 -> 2607):
+ * Web_Controller::_get_common_data(&$data) DIHAPUS di 2607 dan digantikan
+ * Web_Controller::viewShare() yang dipanggil otomatis oleh konstruktor lalu
+ * menaruh datanya lewat View::share(). Karena itu data diambil dengan
+ * View::getShared(). Selain itu `menu_atas` tidak lagi ikut dibagikan
+ * (model First_menu_m juga dihapus), jadi dibangun ulang di menuAtas().
  *
  * Rute: GET /api/v1/beranda?page=1
  */
+
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -18,23 +27,24 @@ class Beranda extends Web_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('first_artikel_m');
-        $this->load->model('shortcode_model');
+        // Pengganti First_artikel_m, First_menu_m & Shortcode_model yang
+        // dihapus di OpenSID 2607.
+        $this->load->helper('api_v1');
     }
 
     public function index(): void
     {
-        $data = [];
-        // Mengisi: statistik_pengunjung, menu_atas, menu_kiri, slide_artikel,
-        // slider_gambar, teks_berjalan, latar_website + seluruh data widget.
-        $this->_get_common_data($data);
+        // viewShare() sudah dijalankan konstruktor Web_Controller dan menaruh
+        // statistik_pengunjung, menu_kiri, slide_artikel, slider_gambar,
+        // teks_berjalan, latar_website + seluruh data widget lewat View::share().
+        $data = View::getShared();
 
         // --- Artikel terkini (berpaginasi) ---
         $page   = max(1, (int) $this->input->get('page'));
-        $paging = $this->first_artikel_m->paging($page);
-        $items  = $this->first_artikel_m->artikel_show($paging->offset, $paging->per_page);
+        $paging = artikel_paging_api($page);
+        $items  = artikel_list_api($paging->offset, $paging->per_page);
 
-        $headline = $this->first_artikel_m->get_headline();
+        $headline = artikel_headline_api();
 
         $payload = [
             'artikel' => [
@@ -49,7 +59,7 @@ class Beranda extends Web_Controller
             'headline' => $headline ? $this->mapRingkas($headline) : null,
             'slider'   => $this->mapSlider($data['slide_artikel'] ?? [], $data['slider_gambar'] ?? []),
 
-            'menu_atas'     => $data['menu_atas'] ?? [],
+            'menu_atas'     => menu_atas_api(),
             'teks_berjalan' => $data['teks_berjalan'] ?? [],
             'latar_website' => ! empty($data['latar_website']) ? base_url($data['latar_website']) : null,
 

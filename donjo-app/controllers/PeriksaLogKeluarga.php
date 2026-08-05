@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,11 +29,13 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
+
+use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -51,7 +53,13 @@ class PeriksaLogKeluarga extends CI_Controller
     {
         $keluarga = $this->input->get('keluarga');
 
-        $logs  = $this->db->where(['id_kk' => $keluarga['id']])->order_by('tgl_peristiwa')->get('log_keluarga')->result_array();
+        $logs = DB::table('log_keluarga')
+            ->where('id_kk', $keluarga['id'])
+            ->where('config_id', identitas('id'))
+            ->orderBy('tgl_peristiwa')
+            ->get()
+            ->toArray();
+
         $no_kk = $keluarga['no_kk'];
         $id    = $keluarga['id'];
 
@@ -60,12 +68,20 @@ class PeriksaLogKeluarga extends CI_Controller
 
     public function hapusLog()
     {
-        $idLog    = $this->input->post('id');
-        $idPend   = $this->db->where('id', $idLog)->get('log_keluarga')->row_array()['id_pend'];
-        $keluarga = $this->db->where('id', $idPend)->get('tweb_keluarga')->row_array();
-        $status   = 0;
-        if ($this->db->where('id', $idLog)->delete('log_keluarga')) {
-            log_message('notice', 'Hapus log keluarga NIK : ' . $keluarga['nik']);
+        $idLog = $this->input->post('id');
+
+        $idPend = DB::table('log_keluarga')
+            ->where('id', $idLog)
+            ->where('config_id', identitas('id'))
+            ->value('id_pend');
+
+        $keluarga = DB::table('tweb_keluarga')
+            ->where('id', $idPend)
+            ->first();
+
+        $status = 0;
+        if (DB::table('log_keluarga')->where('id', $idLog)->where('config_id', identitas('id'))->delete()) {
+            log_message('notice', 'Hapus log keluarga NIK : ' . $keluarga->nik);
             $status = 1;
         }
 

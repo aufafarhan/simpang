@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -49,18 +49,18 @@ class SuplemenTerdata extends BaseModel
     public const KELUARGA = 2;
 
     /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'suplemen_terdata';
-
-    /**
      * The timestamps for the model.
      *
      * @var bool
      */
     public $timestamps = false;
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'suplemen_terdata';
 
     /**
      * The guarded with the model.
@@ -75,6 +75,10 @@ class SuplemenTerdata extends BaseModel
      * @var array
      */
     protected $with = ['suplemen', 'penduduk'];
+
+    protected $casts = [
+        'data_form_isian' => 'array',
+    ];
 
     public function suplemen()
     {
@@ -91,35 +95,32 @@ class SuplemenTerdata extends BaseModel
         return $this->belongsTo(Keluarga::class, 'keluarga_id');
     }
 
-    public function scopeAnggota($query, $sasaran, $suplemen): ?array
+    public function scopeAnggota($query, $sasaran, $suplemen): void
     {
-        switch ($sasaran) {
-            case SuplemenTerdata::PENDUDUK:
-                $query->join('tweb_penduduk', 'tweb_penduduk.id', '=', 'suplemen_terdata.penduduk_id', 'left')
-                    ->join('tweb_keluarga', 'tweb_keluarga.id', '=', 'tweb_penduduk.id_kk', 'left')
-                    ->selectRaw('no_kk as terdata_info')
-                    ->selectRaw('nik as terdata_plus')
-                    ->selectRaw('nama as terdata_nama');
-                break;
+         // Skip data yang tidak punya penduduk_id dan keluarga_id
+        $query->where(static function ($q): void {
+            $q->whereNotNull('suplemen_terdata.penduduk_id')
+                ->orWhereNotNull('suplemen_terdata.keluarga_id');
+        });
 
-            case SuplemenTerdata::KELUARGA:
-                $query->join('tweb_keluarga', 'tweb_keluarga.id', '=', 'suplemen_terdata.keluarga_id', 'left')
-                    ->join('tweb_penduduk', 'tweb_penduduk.id', '=', 'tweb_keluarga.nik_kepala', 'left')
-                    ->selectRaw('nik as terdata_info')
-                    ->selectRaw('no_kk as terdata_plus')
-                    ->selectRaw('nama as terdata_nama');
-                break;
-
-            default:
-                return [];
+        if ($sasaran == SuplemenTerdata::PENDUDUK) {
+            $query->join('tweb_penduduk', 'tweb_penduduk.id', '=', 'suplemen_terdata.penduduk_id', 'left')
+                ->join('tweb_keluarga', 'tweb_keluarga.id', '=', 'tweb_penduduk.id_kk', 'left')
+                ->selectRaw('no_kk as terdata_info')
+                ->selectRaw('nik as terdata_plus')
+                ->selectRaw('nama as terdata_nama');
+        } elseif ($sasaran == SuplemenTerdata::KELUARGA) {
+            $query->join('tweb_keluarga', 'tweb_keluarga.id', '=', 'suplemen_terdata.keluarga_id', 'left')
+                ->join('tweb_penduduk', 'tweb_penduduk.id', '=', 'tweb_keluarga.nik_kepala', 'left')
+                ->selectRaw('nik as terdata_info')
+                ->selectRaw('no_kk as terdata_plus')
+                ->selectRaw('nama as terdata_nama');
         }
 
         $query->join('tweb_wil_clusterdesa', 'tweb_wil_clusterdesa.id', '=', 'tweb_penduduk.id_cluster', 'left')
             ->selectRaw('suplemen_terdata.*, tweb_penduduk.nik, tweb_penduduk.nama, tweb_penduduk.tempatlahir, tweb_penduduk.tanggallahir, tweb_penduduk.sex, tweb_keluarga.no_kk, tweb_wil_clusterdesa.rt, tweb_wil_clusterdesa.rw, tweb_wil_clusterdesa.dusun')
             ->selectRaw('(case when (tweb_penduduk.id_kk is null) then tweb_penduduk.alamat_sekarang else tweb_keluarga.alamat end) AS alamat')
             ->where('id_suplemen', $suplemen);
-
-        return null;
     }
 
     public function scopeFilter($query, array $filters)

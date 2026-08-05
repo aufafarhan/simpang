@@ -1,60 +1,67 @@
 $(document).ready(function() {
 	$("#paging").validate();
 
-	// Untuk form surat memeriksa nomor surat secara remote/ajax
-	$("#validasi.form-surat").validate({
-		ignore: '#wrapper-mandiri input[name=nomor]',
+	// Inisialisasi validasi untuk form #validasi secara umum
+	$("#validasi").validate({
 		errorElement: "label",
 		errorClass: "error",
-		highlight:function (element){
+		highlight: function(element) {
 			$(element).closest(".form-group").addClass("has-error");
 		},
-		unhighlight:function (element){
+		unhighlight: function(element) {
+			$('.select2').on("select2:close", function (e) {  
+				$(this).valid(); 
+			});
+	
 			$(element).closest(".form-group").removeClass("has-error");
 		},
-		errorPlacement: function (error, element) {
+		errorPlacement: function(error, element) {
+			const formGroup = element.closest('.form-group');
+			const hasCode = formGroup.find('code').length;
+
 			if (element.parent('.input-group').length) {
 				error.insertAfter(element.parent());
-			} else if (element.hasClass('select2')) {
-				error.insertAfter(element.next('span'));
+			} else if (element.hasClass('select2-hidden-accessible')) {
+				error.insertAfter(hasCode ? formGroup.find('code').last() : element.siblings('span.select2'));
 			} else {
-				error.insertAfter(element);
+				error.insertAfter(hasCode ? formGroup.find('code').last() : element);
 			}
 		},
-		// https://www.bladephp.co/jquery-validation-remote-codeigniter
-		rules: {
-			url_surat: {
-				required: true
-			},
-			nomor: {
-				required: true,
-				remote: {
-					url: $('#url_remote').val(),
-					type: "post",
-					data:{
-						url: function() {
-							return $('#url_surat').val()
-						}
-					}
+		invalidHandler: function(form, validator) {
+			if (validator.errorList.length) {
+				const firstErrorElement = $(validator.errorList[0].element);
+				const tabPanel = firstErrorElement.closest('.tab-pane');
+
+				if (tabPanel.length) {
+					$(`a[data-toggle="tab"][href="#${tabPanel.attr('id')}"]`).click();
+
+					$('html, body').animate({
+						scrollTop: firstErrorElement.offset().top - 100
+					}, 300);
 				}
 			}
 		},
-		messages: {
-			nomor: {
-				remote: "Nomor surat itu sudah digunakan",
-			},
-		},
-		success: function() {
-			refreshFormCsrf();
-		},
-		invalidHandler: function () {
-			refreshFormCsrf();
-		},
-		submitHandler: function(form) {
-			refreshFormCsrf();
-			form.submit();
-		}
 	});
+
+	// Menambahkan aturan validasi untuk input[name='nomor'] jika elemen ditemukan
+	let $nomorField = $("#validasi.form-surat input[name='nomor']");
+	if ($nomorField.length) {
+		$nomorField.rules("add", {
+			required: true,
+			remote: {
+				url: $("#url_remote").val(),
+				type: "POST",
+				data: {
+					url: () => $("#url_surat").val()
+				}
+			},
+			messages: {
+				remote: "Nomor surat itu sudah digunakan"
+			},
+			success: refreshFormCsrf,
+			invalidHandler: refreshFormCsrf
+		});
+	}
 
 	// Untuk form surat masuk/keluar memeriksa nomor urut secara remote/ajax
 	$("#validasi.nomor-urut").validate({
@@ -97,30 +104,6 @@ $(document).ready(function() {
 		},
 		success: function() {
 			csrf_semua_form();
-		}
-	});
-
-	$("#validasi").validate({
-		errorElement: "label",
-		errorClass: "error",
-		highlight:function (element){
-			$(element).closest(".form-group").addClass("has-error");
-		},
-		unhighlight:function (element) {
-			$('.select2').on("select2:close", function (e) {  
-				$(this).valid(); 
-			});
-
-			$(element).closest(".form-group").removeClass("has-error");
-		},
-		errorPlacement: function (error, element) {
-			if (element.parent('.input-group').length) {
-				error.insertAfter(element.parent());
-			} else if (element.hasClass('select2')) {
-				error.insertAfter(element.next('span'));
-			} else {
-				error.insertAfter(element);
-			}
 		}
 	});
 
@@ -216,7 +199,7 @@ $(document).ready(function() {
 		return this.optional(element) || nik_valid;
 	}, "NIK harus bilangan 16 digit dan tidak boleh diawali 0");
 
-	// TODO : Jika validasi no_kk sudah siap seperti nik sementara, silahkan gunakan validasi nik dengan pesan yg dinamis
+	// TODO : Jika validasi no_kk sudah siap seperti nik sementara, silakan gunakan validasi nik dengan pesan yg dinamis
 	jQuery.validator.addMethod("no_kk", function(value, element) {
 		no_kk_valid = /^\d*$/.test(value) && (value.length == 16) && (value.indexOf('0') != 0);
 		return this.optional(element) || no_kk_valid;
@@ -319,7 +302,7 @@ $(document).ready(function() {
 		valid = value.length <= 150;
 		return this.optional(element) || valid;
 		},
-		"Maksimal 150 karakter. Silahkan menyingkat url menggunakan <a href='https://s.id/' target='_blank'>s.id</a> atau atau sejenisnya.",
+		"Maksimal 150 karakter. Silakan menyingkat url menggunakan <a href='https://s.id/' target='_blank'>s.id</a> atau atau sejenisnya.",
 	);
 
 	$('.bilangan_titik').each(function() {
@@ -378,6 +361,11 @@ $(document).ready(function() {
 		return this.optional(element) || valid;
 	}, "Username hanya boleh berisi karakter alpha, numerik dan terdiri dari 4 hingga 30 karakter");
 
+	jQuery.validator.addMethod("email", function(value, element) {
+		valid = /^[a-zA-Z0-9@._\\-]{4,100}$/.test(value);
+		return this.optional(element) || valid;
+	}, "Email hanya boleh berisi karakter alpha, numeric, titik, strip, garis bawah, dan terdiri dari 4 hingga 100 karakter");
+
 	jQuery.validator.addMethod("telegram", function(value, element) {
 		valid = /^@[a-zA-Z0-9\_]{5,100}$/.test(value);
 		return this.optional(element) || valid;
@@ -408,6 +396,14 @@ $(document).ready(function() {
 			return true;
 		return false;
 	}, "Tanggal harus sama atau lebih besar dari tanggal minimal.");
+
+	jQuery.validator.addMethod("jam_lebih_besar", function(value, element, params)  {
+		jam_minimal = $(params).val();		
+		jam_ini = value;		
+		if (jam_ini >= jam_minimal)
+			return true;
+		return false;
+	}, "Jam harus sama atau lebih besar dari jam minimal.");
 
 	jQuery.validator.addMethod("warna", function(value, element) {
 		valid = /^#[a-zA-Z0-9#]+$/i.test(value) || /^rgba[a-zA-Z0-9.,()]+$/i.test(value);
@@ -441,6 +437,12 @@ $(document).ready(function() {
 		valid = /^\[\w+\]$/.test(value);
 		return this.optional(element) || valid;
 	},`Harus diawali [ dan diakhiri ]`);
+
+	jQuery.validator.addMethod("format_tanggal", function(value, element) {
+		// Regex untuk memastikan hanya karakter format tanggal yang valid (d, D, j, m, M, F, Y, y, H, h, i, s, A, a, dll.)
+		const regex = /^[djmnMFYyHhisAa]([:\/\-\s]?[djmnMFYyHhisAa])*$/;
+		return this.optional(element) || regex.test(value);
+	}, "Format tidak valid. Contoh format yang benar: d F Y H:i:s, d-M-Y, Y/m/d, H:i:s");
 });
 
 function validate(elementClassId) {

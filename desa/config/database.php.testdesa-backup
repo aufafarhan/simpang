@@ -1,0 +1,36 @@
+<?php
+// -------------------------------------------------------------------------
+//
+// Letakkan username, password dan database sebetulnya di file ini.
+// File ini JANGAN di-commit ke GIT. TAMBAHKAN di .gitignore
+// -------------------------------------------------------------------------
+
+// CADANGAN setelan asli instalasi OpenSID 2607 (menunjuk database `testdesa`),
+// disimpan sebelum diarahkan ke db_nagarisimpang untuk proses upgrade.
+//
+// CATATAN: password di bawah terenkripsi memakai app_key ASLI instalasi ini,
+// yang dicadangkan sebagai desa/app_key.asli-2607. Untuk memakai kembali
+// setelan testdesa ini, app_key tersebut harus dikembalikan juga.
+
+// Data Konfigurasi MySQL yang disesuaikan
+
+$db['default']['hostname'] = 'localhost';
+$db['default']['username'] = 'root';
+$db['default']['password'] = 'eyJpdiI6Ik5FNTVwLzlCN1lPNnhmenI3bG5iWkE9PSIsInZhbHVlIjoiYVd6Q2RMaGRmcWl1dlVqc0w4cTdyQT09IiwibWFjIjoiMTdhODIyNWM1MWU1NjhlYzBlMjVkZmMxNGQxMGQ0YTUwZjI2YzE5YTc1NmUwZWY2NGVkNTRlMTVjNjU4M2I1MiIsInRhZyI6IiJ9';
+$db['default']['port']     = 3306;
+$db['default']['database'] = 'testdesa';
+$db['default']['dbcollat'] = 'utf8mb4_general_ci';
+
+/*
+| Untuk setting koneksi database 'Strict Mode'
+| Sesuaikan dengan ketentuan hosting
+*/
+$db['default']['stricton'] = true;
+
+/*
+| Konfigurasi options digunakan untuk menyisipkan opsi tambahan
+| saat mengatur koneksi ke database.
+*/
+$db['default']['options'] = [
+    // PDO::ATTR_EMULATE_PREPARES => true,
+];

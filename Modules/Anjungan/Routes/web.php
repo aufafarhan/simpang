@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -46,6 +46,8 @@ Route::group('anjungan', ['namespace' => 'Anjungan/BackEnd'], static function ()
     Route::get('/delete/{id?}', 'AnjunganController@delete')->name('admin.anjungan.delete');
     Route::post('/delete', 'AnjunganController@delete')->name('admin.anjungan.delete-all');
     Route::get('/kunci/{id?}/{val?}', 'AnjunganController@kunci')->name('admin.anjungan.kunci');
+    Route::get('/verify', 'AnjunganController@verify')->name('admin.anjungan.verify');
+    Route::get('/delete_device/{uuid?}', 'AnjunganController@delete_device')->name('admin.anjungan.delete_device');
 });
 
 // Anjungan > Menu
@@ -75,4 +77,7 @@ Route::group('anjungan-mandiri', ['namespace' => 'Anjungan/FrontEnd'], static fu
     Route::get('/surat/form/{id?}', 'AnjunganSuratController@form')->name('anjungan.surat.form');
     Route::post('/surat/kirim', 'AnjunganSuratController@kirim')->name('anjungan.surat.kirim');
     Route::get('/permohonan', 'AnjunganSuratController@permohonan')->name('anjungan.permohonan');
+    Route::get('penduduk-guest', 'PendudukGuestController@create')->name('anjungan.penduduk_guest.create');
+    Route::post('penduduk-guest', 'PendudukGuestController@store')->name('anjungan.penduduk_guest.store');
+    Route::delete('penduduk-guest', 'PendudukGuestController@destroy')->name('anjungan.penduduk_guest.destroy');
 });

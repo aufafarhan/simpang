@@ -2,6 +2,10 @@ $(".file-browser").click(function () {
   $(this).closest(".input-group").find(".file-input").click();
 });
 
+$(".file-path").click(function () {
+  $(this).closest(".input-group").find(".file-browser").click();
+});
+
 $(".file-input").change(function () {
   var inputGroup = $(this).closest(".input-group");
   var filePath = $(this).val().split("\\").pop();
@@ -46,6 +50,16 @@ function _error(pesan) {
     title: "Gagal!",
     html: pesan,
     icon: "error",
+    confirmButtonText: "OK",
+    timer: 5000,
+  });
+}
+
+function _success(pesan) {
+  Swal.fire({
+    title: "Berhasil!",
+    html: pesan,
+    icon: "success",
     confirmButtonText: "OK",
     timer: 5000,
   });
@@ -107,7 +121,7 @@ function enableHapusTerpilih(name = "id_cb[]") {
 
 /*
  * Fixes the search menu on mobile
- * Todo: hapus fungsi dibawah ini jika melakukan upgrade adminlte ke >= 4.2.1
+ * Todo: hapus fungsi di bawah ini jika melakukan upgrade adminlte ke >= 4.2.1
  */
 +(function ($) {
   "use strict";
@@ -299,3 +313,11 @@ function enableHapusTerpilih(name = "id_cb[]") {
   // ===============
   Plugin.call($("body"));
 })(jQuery);
+
+$(document).ready(function () {
+  $('.autoselect').on('click', function() {
+    if($(this).val() == 0) {
+      $(this).select();
+    }    
+  });
+});

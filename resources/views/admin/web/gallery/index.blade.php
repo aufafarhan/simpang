@@ -4,12 +4,12 @@
 @include('admin.layouts.components.jquery_ui')
 @section('title')
     <h1>
-        Daftar Album
+        <h1>{{ $parent ? 'Rincian Album' : 'Daftar Album' }}</h1>
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="active">Daftar Album</li>
+    <li class="active">{{ $parent ? 'Rincian Album' : 'Daftar Album' }}</li>
 @endsection
 
 @section('content')
@@ -17,19 +17,13 @@
 
     <div class="box box-info">
         <div class="box-header with-border">
-            @if (can('u'))
-                <a href="{{ ci_route('gallery.form', $parentEncrypt) }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class='fa fa-plus'></i> Tambah</a>
-            @endif
-            @if (can('h'))
-                <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('gallery.delete', $parentEncrypt) }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
-                        class='fa fa-trash-o'
-                    ></i>
-                    Hapus</a>
-            @endif
+            <x-tambah-button :url="'gallery/form/' .$parentEncrypt" />
+            <x-hapus-button confirmDelete="true" selectData="true" :url="'gallery/delete/' . $parentEncrypt" />
             @if ($parent)
-                <a href="{{ ci_route('gallery') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                    <i class="fa fa-arrow-circle-left "></i>Kembali ke Daftar Album
-                </a>
+                <x-kembali-button 
+                    judul="Kembali Ke Daftar Album"
+                    url="gallery"
+                />
             @endif
         </div>
         @if ($subtitle)
@@ -39,14 +33,7 @@
         @endif
         <div class="box-body">
             <div class="row mepet">
-                <div class="col-sm-2">
-                    <select id="status" class="form-control input-sm select2" name="status">
-                        <option value="">Pilih Status</option>
-                        @foreach ($status as $key => $item)
-                            <option value="{{ $key }}">{{ $item }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                @include('admin.layouts.components.select_status')
             </div>
             <hr class="batas">
             {!! form_open(null, 'id="mainform" name="mainform"') !!}
@@ -58,9 +45,10 @@
                             <th><input type="checkbox" id="checkall" /></th>
                             <th class="padat">No</th>
                             <th class="padat">Aksi</th>
+                            <th nowrap>Gambar</th>
                             <th nowrap>Nama {{ $parent ? 'Gambar' : 'Album' }}</th>
-                            <th nowrap>Aktif</th>
                             <th>Dimuat Pada</th>
+                            <th nowrap>Status</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -86,7 +74,7 @@
                 processing: true,
                 serverSide: true,
                 order: [
-                    [7, 'asc']
+                    [8, 'asc']
                 ],
                 ajax: {
                     url: "{{ ci_route('gallery.datatables') }}",
@@ -120,14 +108,15 @@
                         orderable: false
                     },
                     {
-                        data: 'nama',
-                        name: 'nama',
-                        searchable: true,
-                        orderable: true
+                        data: 'gambar',
+                        name: 'gambar',
+                        searchable: false,
+                        orderable: false,
+                        class: 'padat'
                     },
                     {
-                        data: 'enabled',
-                        name: 'enabled',
+                        data: 'nama',
+                        name: 'nama',
                         searchable: true,
                         orderable: true
                     },
@@ -136,6 +125,13 @@
                         name: 'tgl_upload',
                         searchable: false,
                         orderable: true
+                    },
+                    {
+                        data: 'status_label',
+                        name: 'enabled',
+                        searchable: false,
+                        orderable: true,
+                        class: 'padat'
                     },
                     {
                         data: 'urut',
@@ -158,9 +154,8 @@
             });
 
             $('#status').change(function() {
-                TableData.column(5).search($(this).val()).draw()
+                TableData.ajax.reload();
             })
-
 
             if (hapus == 0) {
                 TableData.column(1).visible(false);

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,6 +39,7 @@ namespace App\Models;
 
 use App\Traits\Author;
 use App\Traits\ConfigId;
+use App\Traits\StatusTrait;
 use Illuminate\Database\Eloquent\Builder;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -47,9 +48,13 @@ class Gawai extends BaseModel
 {
     use Author;
     use ConfigId;
+    use StatusTrait;
 
-    public const ANJUNGAN = 1;
-    public const GAWAI    = 2;
+    public const ANJUNGAN  = 1;
+    public const GAWAI     = 2;
+    public const KEHADIRAN = 3;
+
+    public $statusColumName = 'status';
 
     /**
      * The table associated with the model.
@@ -64,11 +69,15 @@ class Gawai extends BaseModel
      * @var array<int, string>
      */
     protected $fillable = [
+        'uuid',
+        'user_agent',
         'ip_address',
         'mac_address',
         'id_pengunjung',
         'keterangan',
         'status',
+        'orientasi_layar',
+        'permohonan_surat_tanpa_akun',
         'status_alasan',
         'tipe',
         'printer_ip',
@@ -76,6 +85,7 @@ class Gawai extends BaseModel
         'keyboard',
         'created_by',
         'updated_by',
+        'status',
     ];
 
     /**
@@ -86,6 +96,7 @@ class Gawai extends BaseModel
     protected $casts = [
         'status'   => 'boolean',
         'keyboard' => 'boolean',
+        'tipe'     => 'array',
     ];
 
     /**
@@ -94,7 +105,7 @@ class Gawai extends BaseModel
      * @var array
      */
     protected $attributes = [
-        'tipe' => self::GAWAI,
+        'tipe' => '[2]', // Default GAWAI as JSON string
     ];
 
     /**
@@ -106,6 +117,16 @@ class Gawai extends BaseModel
         // 'createdBy',
         // 'updatedBy',
     ];
+
+    /**
+     * Apply a global scope to only include active status.
+     */
+    protected static function booted()
+    {
+        static::addGlobalScope('tipe', static function (Builder $builder): void {
+            $builder->whereJsonContains('tipe', self::GAWAI);
+        });
+    }
 
     /**
      * Define a one-to-one relationship.
@@ -125,15 +146,5 @@ class Gawai extends BaseModel
     public function updatedBy()
     {
         return $this->hasOne(User::class, 'id', 'updated_by');
-    }
-
-    /**
-     * Apply a global scope to only include active status.
-     */
-    protected static function booted()
-    {
-        static::addGlobalScope('tipe', static function (Builder $builder): void {
-            $builder->where('tipe', self::GAWAI);
-        });
     }
 }

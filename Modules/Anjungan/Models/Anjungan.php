@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,13 +39,17 @@ namespace Modules\Anjungan\Models;
 
 use App\Models\Gawai;
 use Illuminate\Database\Eloquent\Builder;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Anjungan extends Gawai
 {
+    use LogsActivity;
+
     protected $attributes = [
-        'tipe' => self::ANJUNGAN,
+        'tipe' => '[1]', // Default ANJUNGAN as JSON string
     ];
 
     /**
@@ -56,7 +60,26 @@ class Anjungan extends Gawai
     protected static function booted()
     {
         static::addGlobalScope('tipe', static function (Builder $builder) {
-            $builder->where('tipe', self::ANJUNGAN);
+            $builder
+                ->whereJsonContains('tipe', self::ANJUNGAN)
+                ->orwhereJsonContains('tipe', self::KEHADIRAN);
         });
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('Anjungan')
+            ->setDescriptionForEvent(static fn ($event) => sprintf(
+                'Daftar anjungan telah di %s',
+                match ($event) {
+                    'created' => 'dibuat',
+                    'updated' => 'diubah',
+                    'deleted' => 'dihapus',
+                    default   => $event,
+                }
+            ))
+            ->logAll()
+            ->logOnlyDirty();
     }
 }

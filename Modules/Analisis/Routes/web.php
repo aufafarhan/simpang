@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -46,14 +46,15 @@ Route::group('analisis_master', ['namespace' => 'Analisis'], static function ():
     Route::post('delete', 'AnalisisMasterController@delete')->name('analisis_master.delete-all');
     Route::get('lock/{id}', 'AnalisisMasterController@lock')->name('analisis_master.lock');
     Route::get('panduan', 'AnalisisMasterController@panduan')->name('analisis_master.panduan');
-    Route::get('import_analisis', 'AnalisisMasterController@import_analisis')->name('analisis_master.import_analisis');
+    Route::get('import_analisis', 'AnalisisMasterController@importAnalisis')->name('analisis_master.import_analisis');
     Route::post('import', 'AnalisisMasterController@import')->name('analisis_master.import');
     Route::get('ekspor/{id}', 'AnalisisMasterController@ekspor')->name('analisis_master.ekspor');
-    Route::get('import_gform/{id?}', 'AnalisisMasterController@import_gform')->name('analisis_master.import_gform');
+    Route::get('import_gform/{id?}', 'AnalisisMasterController@importGform')->name('analisis_master.import_gform');
     Route::get('menu/{id?}', 'AnalisisMasterController@menu')->name('analisis_master.menu');
-    Route::post('exec_import_gform', 'AnalisisMasterController@exec_import_gform')->name('analisis_master.exec_import_gform');
-    Route::post('save_import_gform/{id?}', 'AnalisisMasterController@save_import_gform')->name('analisis_master.save_import_gform');
-    Route::match(['GET', 'POST'], '/update_gform/{id?}', 'AnalisisMasterController@update_gform')->name('analisis_master.update_gform');
+    Route::post('exec_import_gform', 'AnalisisMasterController@execImportGform')->name('analisis_master.exec_import_gform');
+    Route::post('save_import_gform/{id?}', 'AnalisisMasterController@saveImportGform')->name('analisis_master.save_import_gform');
+    Route::match(['GET', 'POST'], '/update_gform/{id?}', 'AnalisisMasterController@updateGform')->name('analisis_master.update_gform');
+    Route::get('handle_update_gform', 'AnalisisMasterController@handleUpdateGform')->name('analisis_master.handle_update_gform');
 });
 
 Route::group('analisis_indikator/{master}', ['namespace' => 'Analisis'], static function (): void {
@@ -65,13 +66,13 @@ Route::group('analisis_indikator/{master}', ['namespace' => 'Analisis'], static 
     Route::get('delete/{id?}', 'AnalisisIndikatorController@delete')->name('analisis_indikator.delete');
     Route::post('delete', 'AnalisisIndikatorController@delete')->name('analisis_indikator.delete-all');
     Route::group('parameter/{indikator}', static function (): void {
-        Route::get('', 'AnalisisParamterController@index')->name('analisis_parameter.index-default');
-        Route::get('datatables', 'AnalisisParamterController@datatables')->name('analisis_parameter.datatables');
-        Route::get('form/{id?}', 'AnalisisParamterController@form')->name('analisis_parameter.form');
-        Route::post('insert', 'AnalisisParamterController@insert')->name('analisis_parameter.insert');
-        Route::post('update/{id?}', 'AnalisisParamterController@update')->name('analisis_parameter.update');
-        Route::get('delete/{id?}', 'AnalisisParamterController@delete')->name('analisis_parameter.delete');
-        Route::post('delete', 'AnalisisParamterController@delete')->name('analisis_parameter.delete-all');
+        Route::get('', 'AnalisisParameterController@index')->name('analisis_parameter.index-default');
+        Route::get('datatables', 'AnalisisParameterController@datatables')->name('analisis_parameter.datatables');
+        Route::get('form/{id?}', 'AnalisisParameterController@form')->name('analisis_parameter.form');
+        Route::post('insert', 'AnalisisParameterController@insert')->name('analisis_parameter.insert');
+        Route::post('update/{id?}', 'AnalisisParameterController@update')->name('analisis_parameter.update');
+        Route::get('delete/{id?}', 'AnalisisParameterController@delete')->name('analisis_parameter.delete');
+        Route::post('delete', 'AnalisisParameterController@delete')->name('analisis_parameter.delete-all');
     });
 });
 
@@ -102,15 +103,15 @@ Route::group('analisis_respon/{master}', ['namespace' => 'Analisis'], static fun
     Route::get('perbaharui/{id_subjek}', 'AnalisisResponController@perbaharui')->name('analisis_respon.perbaharui');
     Route::post('update/{id}', 'AnalisisResponController@update')->name('analisis_respon.update');
     Route::get('aturan_unduh', 'AnalisisResponController@aturan_unduh')->name('analisis_respon.aturan_unduh');
-    Route::get('data_ajax', 'AnalisisResponController@data_ajax')->name('analisis_respon.data_ajax');
-    Route::post('data_unduh', 'AnalisisResponController@data_unduh')->name('analisis_respon.data_unduh');
+    Route::get('data_ajax', 'AnalisisResponController@dataAjax')->name('analisis_respon.data_ajax');
+    Route::post('data_unduh', 'AnalisisResponController@dataUnduh')->name('analisis_respon.data_unduh');
     Route::get('import/{op?}', 'AnalisisResponController@import')->name('analisis_respon.import');
-    Route::post('import_proses/{op?}', 'AnalisisResponController@import_proses')->name('analisis_respon.import_proses');
-    Route::get('form_impor_bdt/{id?}', 'AnalisisResponController@form_impor_bdt')->name('analisis_respon.form_impor_bdt');
-    Route::post('impor_bdt', 'AnalisisResponController@impor_bdt')->name('analisis_respon.impor_bdt');
+    Route::post('import_proses/{op?}', 'AnalisisResponController@importProses')->name('analisis_respon.import_proses');
+    Route::get('form_impor_bdt/{id?}', 'AnalisisResponController@formImporBdt')->name('analisis_respon.form_impor_bdt');
+    Route::post('impor_bdt', 'AnalisisResponController@imporBdt')->name('analisis_respon.impor_bdt');
     Route::group('child', static function (): void {
-        Route::get('form/{id}/{idc?}', 'AnalisisResponChild@formChild')->name('analisis_respon.form_child');
-        Route::post('update/{id}/{idc?}', 'AnalisisResponChild@updateChild')->name('analisis_respon.update_child');
+        Route::get('form/{id}/{idc?}', 'AnalisisResponChildController@formChild')->name('analisis_respon.form_child');
+        Route::post('update/{id}/{idc?}', 'AnalisisResponChildController@updateChild')->name('analisis_respon.update_child');
     });
 });
 
@@ -129,21 +130,21 @@ Route::group('analisis_laporan/{master}', ['namespace' => 'Analisis'], static fu
     Route::get('', 'AnalisisLaporanController@index');
     Route::get('datatables', 'AnalisisLaporanController@datatables')->name('analisis_laporan.datatables');
     Route::get('form/{id}', 'AnalisisLaporanController@form')->name('analisis_laporan.form');
-    Route::get('dialog_kuisioner/{id}/{aksi?}', 'AnalisisLaporanController@dialog_kuisioner')->name('analisis_laporan.dialog_kuisioner');
+    Route::get('dialog_kuisioner/{id}/{aksi?}', 'AnalisisLaporanController@dialogKuisioner')->name('analisis_laporan.dialog_kuisioner');
     Route::post('daftar/{id}/{aksi?}', 'AnalisisLaporanController@daftar')->name('analisis_laporan.daftar');
     Route::get('dialog/{aksi?}', 'AnalisisLaporanController@dialog')->name('analisis_laporan.dialog');
     Route::post('cetak/{aksi?}', 'AnalisisLaporanController@cetak')->name('analisis_laporan.cetak');
     Route::get('multi_jawab', 'AnalisisLaporanController@multi_jawab')->name('analisis_laporan.multi_jawab');
     Route::post('multi_exec', 'AnalisisLaporanController@multi_exec')->name('analisis_laporan.multi_exec');
-    Route::get('ajax_multi_jawab', 'AnalisisLaporanController@ajax_multi_jawab')->name('analisis_laporan.ajax_multi_jawab');
-    Route::post('multi_jawab_proses', 'AnalisisLaporanController@multi_jawab_proses')->name('analisis_laporan.multi_jawab_proses');
+    Route::get('ajax_multi_jawab', 'AnalisisLaporanController@ajaxMultiJawab')->name('analisis_laporan.ajax_multi_jawab');
+    Route::post('multi_jawab_proses', 'AnalisisLaporanController@multiJawabProses')->name('analisis_laporan.multi_jawab_proses');
 });
 
 Route::group('analisis_statistik_jawaban/{master}', ['namespace' => 'Analisis'], static function (): void {
     Route::get('', 'AnalisisStatistikJawabanController@index');
     Route::get('datatables', 'AnalisisStatistikJawabanController@datatables')->name('analisis_statistik_jawaban.datatables');
-    Route::get('grafik_parameter/{id?}', 'AnalisisStatistikJawabanController@grafik_parameter')->name('analisis_statistik_jawaban.grafik_parameter');
-    Route::get('subjek_parameter/{id}/{par}', 'AnalisisStatistikJawabanController@subjek_parameter')->name('analisis_statistik_jawaban.subjek_parameter');
+    Route::get('grafik_parameter/{id?}', 'AnalisisStatistikJawabanController@grafikParameter')->name('analisis_statistik_jawaban.grafik_parameter');
+    Route::get('subjek_parameter/{id}/{par}', 'AnalisisStatistikJawabanController@subjekParameter')->name('analisis_statistik_jawaban.subjek_parameter');
     Route::post('cetak', 'AnalisisStatistikJawabanController@cetak')->name('analisis_statistik_jawaban.cetak');
-    Route::get('cetak_subjek/{id}/{par}/{tipe?}', 'AnalisisStatistikJawabanController@cetak_subjek')->name('analisis_statistik_jawaban.cetak_subjek');
+    Route::get('cetak_subjek/{id}/{par}/{tipe?}', 'AnalisisStatistikJawabanController@cetakSubjek')->name('analisis_statistik_jawaban.cetak_subjek');
 });

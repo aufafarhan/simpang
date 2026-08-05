@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,23 +29,23 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\AgamaEnum;
 use App\Enums\HubunganRTMEnum;
 use App\Enums\JenisKelaminEnum;
+use App\Enums\PekerjaanEnum;
+use App\Enums\PeristiwaKeluargaEnum;
+use App\Enums\PeristiwaPendudukEnum;
 use App\Enums\SHDKEnum;
-use App\Models\Agama;
+use App\Enums\StatusKawinEnum;
 use App\Models\GolonganDarah;
-use App\Models\LogKeluarga;
-use App\Models\LogPenduduk;
-use App\Models\Pekerjaan;
 use App\Models\Pendidikan;
 use App\Models\PendidikanKK;
-use App\Models\StatusKawin;
 use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -236,7 +236,7 @@ function buatIndividu($configId, string $kodeKecamatan, $kkLevel, $statusKawin =
     } elseif (in_array($kkLevel, [SHDKEnum::SUAMI, SHDKEnum::ISTRI, SHDKEnum::SUAMI])) {
         $statusKawin = 2;
     } else {
-        $statusKawin = faker()->numberBetween(2, StatusKawin::count());
+        $statusKawin = faker()->numberBetween(2, StatusKawinEnum::count());
     }
 
     // NIK diambil dari kode kecamatan + 6 digit tgl lahir + 4 digit nomer urut
@@ -260,10 +260,10 @@ function buatIndividu($configId, string $kodeKecamatan, $kkLevel, $statusKawin =
         'sex'                  => $sex,
         'tempatlahir'          => faker()->city,
         'tanggallahir'         => $tanggallahir,
-        'agama_id'             => faker()->numberBetween(1, Agama::count()),
+        'agama_id'             => faker()->numberBetween(1, AgamaEnum::count()),
         'pendidikan_kk_id'     => faker()->numberBetween(1, PendidikanKK::count()),
         'pendidikan_sedang_id' => faker()->numberBetween(1, Pendidikan::count()),
-        'pekerjaan_id'         => faker()->numberBetween(1, Pekerjaan::count()),
+        'pekerjaan_id'         => faker()->numberBetween(1, PekerjaanEnum::count()),
         'status_kawin'         => $statusKawin,
         'id_cluster'           => DB::table('tweb_wil_clusterdesa')->inRandomOrder()->first()->id,
         'warganegara_id'       => 1,
@@ -284,7 +284,7 @@ function buatIndividu($configId, string $kodeKecamatan, $kkLevel, $statusKawin =
     $logPenduduk = [
         'config_id'      => $configId,
         'id_pend'        => $id,
-        'kode_peristiwa' => LogPenduduk::BARU_PINDAH_MASUK,
+        'kode_peristiwa' => PeristiwaPendudukEnum::BARU_PINDAH_MASUK->value,
         'tgl_lapor'      => faker()->dateTimeBetween(configFaker('keluarga')['rentang_awal'] . '-01-01', date('Y') . '-12-31')->format('Y-m-d'),
         'catatan'        => 'Penduduk Baru Pindah Masuk',
     ];
@@ -336,7 +336,7 @@ function buatAnggota($configId, string $kodeKecamatan, $urut)
     $logKeluarga = [
         'config_id'     => $configId,
         'id_kk'         => $idKk,
-        'id_peristiwa'  => LogKeluarga::KELUARGA_BARU,
+        'id_peristiwa'  => PeristiwaKeluargaEnum::KELUARGA_BARU->value,
         'tgl_peristiwa' => $keluarga['tgl_daftar'],
     ];
 

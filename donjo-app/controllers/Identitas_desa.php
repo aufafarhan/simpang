@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,16 +37,23 @@
 
 use App\Models\Config;
 use App\Models\Pamong;
+use App\Models\ProfilDesa;
 use App\Models\Wilayah;
+use App\Traits\Upload;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Image\Image;
+use Spatie\Image\Manipulations;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Identitas_desa extends Admin_Controller
 {
+    use Upload;
+
     public $modul_ini     = 'info-desa';
     public $sub_modul_ini = 'identitas-desa';
-    private $cek_kades;
     protected $identitas_desa;
+    private $cek_kades;
 
     public function __construct()
     {
@@ -54,7 +61,7 @@ class Identitas_desa extends Admin_Controller
         isCan('b');
         $this->cek_kades = Pamong::kepalaDesa()->exists();
         // TODO: Cek bagian ini selalu bermasalah jika model penduduk atau pamong aktifkan global observer config_id
-        $config               = Config::appKey()->first();
+        $config               = Config::appKey()->first()->makeVisible(['nama_kontak', 'hp_kontak', 'jabatan_kontak']);
         $this->identitas_desa = $config ? $config->toArray() : null;
     }
 
@@ -63,9 +70,19 @@ class Identitas_desa extends Admin_Controller
      */
     public function index(): void
     {
+        $cek_profil_desa = false;
+        $profil_desa     = null;
+
+        if (Schema::hasTable('profil_desa')) {
+            $profil_desa     = ProfilDesa::get()->groupBy('kategori');
+            $cek_profil_desa = $profil_desa->isNotEmpty();
+        }
+
         view('admin.identitas_desa.index', [
-            'main'      => $this->identitas_desa,
-            'cek_kades' => $this->cek_kades,
+            'main'            => $this->identitas_desa,
+            'cek_kades'       => $this->cek_kades,
+            'profil_desa'     => $profil_desa,
+            'cek_profil_desa' => $cek_profil_desa,
         ]);
     }
 
@@ -79,6 +96,13 @@ class Identitas_desa extends Admin_Controller
         $data['cek_kades']     = $this->cek_kades;
         $data['form_action']   = ci_route('identitas_desa.update');
         $data['status_pantau'] = checkWebsiteAccessibility(config_item('server_pantau')) ? 1 : 0;
+        if (Schema::hasTable('profil_desa')) {
+            $data['profil_desa']     = ProfilDesa::pluck('value', 'key')->toArray();
+            $data['cek_profil_desa'] = true;
+        } else {
+            $data['profil_desa']     = null;
+            $data['cek_profil_desa'] = false;
+        }
 
         view('admin.identitas_desa.form', $data);
     }
@@ -92,7 +116,7 @@ class Identitas_desa extends Admin_Controller
     {
         isCan('u');
 
-        if (Config::create(static::validate($this->request))) {
+        if (Config::create($this->validate($this->request))) {
             return json([
                 'status' => true,
             ]);
@@ -112,12 +136,55 @@ class Identitas_desa extends Admin_Controller
     {
         isCan('u');
 
+        if (! empty($this->request['email_desa']) && ! filter_var($this->request['email_desa'], FILTER_VALIDATE_EMAIL)) {
+            return json(['status' => false, 'message' => 'Alamat email tidak valid.']);
+        }
+
         $id       = $this->identitas_desa['id'];
         $config   = Config::find($id);
-        $validate = static::validate($this->request, $config);
+        $validate = $this->validate($this->request, $config);
         $cek      = $this->cek_kode_wilayah($validate);
 
         if ($cek['status'] && $config->update($validate)) {
+            if (Schema::hasTable('profil_desa')) {
+                $dataProfil = array_intersect_key($this->request, array_flip([
+                    'jenis_tanah',
+                    'topografi',
+                    'sumber_daya_alam',
+                    'flora_fauna',
+                    'rawan_bencana',
+                    'kearifan_lokal',
+                    'jenis_jaringan',
+                    'provider_internet',
+                    'cakupan_wilayah',
+                    'kecepatan_internet',
+                    'akses_publik',
+                    'status_desa',
+                    'lembaga_adat',
+                    'struktur_adat',
+                    'wilayah_adat',
+                    'peraturan_adat',
+                    'regulasi_penetapan_kampung_adat',
+                    'dokumen_regulasi_penetapan_kampung_adat',
+                ]));
+
+                $oldProfil = ProfilDesa::whereIn('key', ['dokumen_regulasi_penetapan_kampung_adat', 'struktur_adat'])
+                    ->pluck('value', 'key')
+                    ->toArray();
+
+                $dataProfil['dokumen_regulasi_penetapan_kampung_adat'] = $this->upload_dokumen(
+                    'dokumen_regulasi_penetapan_kampung_adat',
+                    $oldProfil['dokumen_regulasi_penetapan_kampung_adat']
+                );
+
+                $dataProfil['struktur_adat'] = $this->upload_dokumen(
+                    'struktur_adat',
+                    $oldProfil['struktur_adat']
+                );
+
+                ProfilDesa::simpanData($dataProfil, $config->id);
+            }
+
             return json(['status' => true]);
         }
 
@@ -139,8 +206,7 @@ class Identitas_desa extends Admin_Controller
         $data['dusun_gis']    = Wilayah::dusun()->get();
         $data['rw_gis']       = Wilayah::rw()->get();
         $data['rt_gis']       = Wilayah::rt()->get();
-        $data['nama_wilayah'] = ucwords(setting('sebutan_desa') . ' ' . $data_desa->nama_desa);
-        $data['wilayah']      = ucwords(setting('sebutan_desa') . ' ' . $data_desa->nama_desa);
+        $data['nama_wilayah'] = ucwords(setting('sebutan_desa') . ' ' . $data_desa['nama_desa']);
         $data['breadcrumb']   = [
             ['link' => ci_route('identitas_desa'), 'judul' => 'Identitas ' . ucwords((string) setting('sebutan_desa'))],
         ];
@@ -192,16 +258,19 @@ class Identitas_desa extends Admin_Controller
         redirect_with('error', 'Gagal Kosongkan Peta');
     }
 
-    // Hanya filter inputan
-    protected static function validate($request = [], $old = null)
+    public function validate($request = [], $old = null)
     {
-        if ($request['ukuran'] == '') {
+        if (empty($request['ukuran'])) {
             $request['ukuran'] = 100;
         }
 
-        return [
-            'logo'              => static::unggah('logo', true, bilangan($request['ukuran'])) ?? $old->logo,
-            'kantor_desa'       => static::unggah('kantor_desa') ?? $old->kantor_desa,
+        $validate = [
+            'logo' => (! empty($_FILES['logo']['name']))
+                ? $this->uploadGambar('logo', LOKASI_LOGO_DESA, $request['ukuran'], false, true)
+                : $old->logo,
+            'kantor_desa' => (! empty($_FILES['kantor_desa']['name']))
+                ? $this->uploadGambar('kantor_desa', LOKASI_LOGO_DESA)
+                : $old->kantor_desa,
             'nama_desa'         => nama_desa($request['nama_desa']),
             'kode_desa'         => substr((string) bilangan($request['kode_desa']), 0, 10),
             'kode_pos'          => bilangan($request['kode_pos']),
@@ -222,60 +291,74 @@ class Identitas_desa extends Admin_Controller
             'hp_kontak'         => bilangan($request['hp_kontak']),
             'jabatan_kontak'    => nama($request['jabatan_kontak']),
         ];
+
+        // Catatan: Ditambahkan pada bagian ini karena terjadi error saat tambah/ubah identitas desa pada instalasi baru
+        if (Schema::hasColumn('config', 'kode_desa_bps')) {
+            $validate['kode_desa_bps'] = substr((string) bilangan($request['kode_desa_bps']), 0, 10);
+        }
+
+        return $validate;
     }
 
-    // TODO : Ganti cara ini
-    protected static function unggah($jenis = '', $resize = false, $ukuran = false)
+    public function reset(): void
     {
-        $CI = &get_instance();
-        $CI->load->library('MY_Upload', null, 'upload');
-        $config = [
-            'upload_path'   => LOKASI_LOGO_DESA,
-            'allowed_types' => 'gif|jpg|jpeg|png',
-            'max_size'      => max_upload() * 1024,
-        ];
-        // Adakah berkas yang disertakan?
-        if (empty($_FILES[$jenis]['name'])) {
-            return null;
-        }
-        // Tes tidak berisi script PHP
-        if (isPHP($_FILES[$jenis]['tmp_name'], $_FILES[$jenis]['name'])) {
-            redirect_with('error', 'Jenis file ini tidak diperbolehkan');
+        isCan('u');
+
+        if (null === $this->identitas_desa) {
+            unlink(DESAPATH . 'app_key');
+            cache()->forget('identitas_desa');
+
+            set_session('error', 'Berhasil Reset AppKey, Silakan Tentukan Identitas Desa');
         }
 
-        $uploadData = null;
-        // Inisialisasi library 'upload'
-        $CI->upload->initialize($config);
-        // Upload sukses
-        if ($CI->upload->do_upload($jenis)) {
-            $uploadData = $CI->upload->data();
-            // Buat nama file unik agar url file susah ditebak dari browser
-            $namaFileUnik = tambahSuffixUniqueKeNamaFile($uploadData['file_name']);
-            // Ganti nama file asli dengan nama unik untuk mencegah akses langsung dari browser
-            $fileRenamed = rename(
-                $CI->uploadConfig['upload_path'] . $uploadData['file_name'],
-                $CI->uploadConfig['upload_path'] . $namaFileUnik
-            );
-            // Ganti nama di array upload jika file berhasil di-rename --
-            // jika rename gagal, fallback ke nama asli
-            $uploadData['file_name'] = $fileRenamed ? $namaFileUnik : $uploadData['file_name'];
-        } else {
-            redirect_with('error', $CI->upload->display_errors(null, null));
+        redirect('identitas_desa');
+    }
+
+    private function upload_dokumen(string $field, ?string $oldFile = null): ?string
+    {
+        $file = request()->file($field);
+
+        if (! $file || ! $file->isValid()) {
+            return $oldFile;
         }
 
-        if (! empty($uploadData)) {
-            if ($resize) {
-                $tipe_file = TipeFile($_FILES['logo']);
-                $dimensi   = ['width' => $ukuran, 'height' => $ukuran];
-                resizeImage(LOKASI_LOGO_DESA . $uploadData['file_name'], $tipe_file, $dimensi);
-                resizeImage(LOKASI_LOGO_DESA . $uploadData['file_name'], $tipe_file, ['width' => 16, 'height' => 16], LOKASI_LOGO_DESA . 'favicon.ico');
-                copyFavicon();
+        $isImage = $field === 'struktur_adat';
+
+        return $this->upload(
+            file: $field,
+            config: [
+                'upload_path'   => LOKASI_DOKUMEN,
+                'allowed_types' => $isImage ? 'jpg|jpeg|png|webp' : 'pdf',
+                'max_size'      => 2048, // 2 MB
+                'overwrite'     => true,
+            ],
+            callback: static function ($uploadData) use ($isImage, $oldFile) {
+                $newFilename = '';
+
+                if ($isImage) {
+                    // Konversi ke .webp
+                    $newFilename = "{$uploadData['raw_name']}.webp";
+                    Image::load($uploadData['full_path'])
+                        ->format(Manipulations::FORMAT_WEBP)
+                        ->save("{$uploadData['file_path']}{$newFilename}");
+
+                    // Hapus file asli (non-webp)
+                    @unlink($uploadData['full_path']);
+                } else {
+                    $newFilename = $uploadData['file_name'];
+                }
+
+                // Hapus file lama (jika ada dan berbeda dari file baru)
+                if (! empty($oldFile)) {
+                    $oldPath = LOKASI_DOKUMEN . $oldFile;
+                    if (file_exists($oldPath) && basename($oldPath) !== $newFilename) {
+                        @unlink($oldPath);
+                    }
+                }
+
+                return $newFilename;
             }
-
-            return $uploadData['file_name'];
-        }
-
-        return null;
+        );
     }
 
     private function cek_kode_wilayah(array $request = []): array
@@ -300,7 +383,7 @@ class Identitas_desa extends Admin_Controller
                 break;
 
             case $db_level == 3 && $request['kode_kabupaten'] != $firstItem->kode_kabupaten:
-                $message = 'Kode Kabupaten Tidak Sesuai, Pastikan Kode Kabupaten Sesuai Dengan Lingkup Wilayah Penggunaan.';
+                $message = 'Kode kabupaten tidak sesuai. Pastikan kode kabupaten sesuai dengan lingkup wilayah penggunaan.';
                 break;
 
             case $db_level == 2 && $request['kode_propinsi'] != $firstItem->kode_propinsi:
@@ -313,19 +396,5 @@ class Identitas_desa extends Admin_Controller
         }
 
         return ['status' => $status, 'message' => $message];
-    }
-
-    public function reset(): void
-    {
-        isCan('u');
-
-        if (null === $this->identitas_desa) {
-            unlink(DESAPATH . 'app_key');
-            cache()->forget('identitas_desa');
-
-            set_session('error', 'Berhasil Reset AppKey, Silahkan Tentukan Identitas Desa');
-        }
-
-        redirect('identitas_desa');
     }
 }

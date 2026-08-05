@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -38,19 +38,18 @@
 use App\Enums\SasaranEnum;
 use App\Models\Bantuan;
 use App\Models\BantuanPeserta;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 
 class Peserta_bantuan extends Admin_Controller
 {
-    public $modul_ini        = 'bantuan';
-    public $akses_modul      = 'peserta-bantuan';
-    private array $_set_page = ['20', '50', '100'];
+    public $modul_ini   = 'bantuan';
+    public $akses_modul = 'peserta-bantuan';
 
     public function __construct()
     {
         parent::__construct();
         isCan('b', 'peserta-bantuan');
-        $this->load->model(['program_bantuan_model']);
     }
 
     public function detail($program_id = 0, $p = 1): void
@@ -85,13 +84,16 @@ class Peserta_bantuan extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . site_url("peserta_bantuan/edit_peserta_form/{$row->id}/{$row->program_id}") . '" class="btn bg-orange btn-sm" title="Ubah" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Data Peserta"><i class="fa fa-edit"></i></a>';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url'   => "peserta_bantuan/edit_peserta_form/{$row->id}/{$row->program_id}",
+                        'modal' => true,
+                        'judul' => 'Ubah Data',
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . site_url("peserta_bantuan/hapus_peserta/{$row->id}/{$row->program_id}") . '" class="btn bg-maroon btn-sm" title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a>';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => site_url("peserta_bantuan/hapus_peserta/{$row->id}/{$row->program_id}"),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -191,7 +193,7 @@ class Peserta_bantuan extends Admin_Controller
         $cek = BantuanPeserta::where('program_id', $program_id)->where('kartu_id_pend', $this->input->post('kartu_id_pend'))->first();
 
         if ($cek) {
-            redirect_with('error', 'Data peserta sudah ada', "peserta_bantuan/detail/{$program_id}");
+            redirect_with('error', __('notification.created.error') . ', data sudah ada', "peserta_bantuan/detail/{$program_id}");
         } else {
             $this->process($program_id);
         }
@@ -200,7 +202,7 @@ class Peserta_bantuan extends Admin_Controller
 
         $this->session->unset_userdata('aksi');
 
-        redirect_with('success', 'Peserta berhasil ditambahkan', $redirect);
+        redirect_with('success', __('notification.created.success'), $redirect);
     }
 
     public function process($program_id, $id = null): void
@@ -252,7 +254,7 @@ class Peserta_bantuan extends Admin_Controller
         isCan('u', 'peserta-bantuan');
         $program_id = $this->input->post('program_id');
         $this->process($program_id, $id);
-        redirect("peserta_bantuan/detail/{$program_id}");
+        redirect_with('success', __('notification.updated.success'), "peserta_bantuan/detail/{$program_id}");
     }
 
     // $id = program_peserta.id
@@ -282,10 +284,10 @@ class Peserta_bantuan extends Admin_Controller
         isCan('h', 'peserta-bantuan');
 
         if (BantuanPeserta::destroy($peserta_id)) {
-            redirect_with('success', 'Berhasil Hapus Data', "peserta_bantuan/detail/{$program_id}");
+            redirect_with('success', __('notification.deleted.success'), "peserta_bantuan/detail/{$program_id}");
         }
 
-        redirect_with('error', 'Gagal Hapus Data', "peserta_bantuan/detail/{$program_id}");
+        redirect_with('error', __('notification.deleted.error'), "peserta_bantuan/detail/{$program_id}");
     }
 
     public function delete_all($program_id): void
@@ -293,10 +295,10 @@ class Peserta_bantuan extends Admin_Controller
         isCan('h', 'peserta-bantuan');
 
         if (BantuanPeserta::destroy($this->request['id_cb'])) {
-            redirect_with('success', 'Berhasil Hapus Data', "peserta_bantuan/detail/{$program_id}");
+            redirect_with('success', __('notification.deleted.success'), "peserta_bantuan/detail/{$program_id}");
         }
 
-        redirect_with('error', 'Gagal Hapus Data', "peserta_bantuan/detail/{$program_id}");
+        redirect_with('error', __('notification.deleted.error'), "peserta_bantuan/detail/{$program_id}");
     }
 
     // aksi cetak/unduh
@@ -304,11 +306,10 @@ class Peserta_bantuan extends Admin_Controller
     {
         if ($program_id > 0) {
             // $data                = $this->modal_penandatangan();
-            $data['aksi']   = $aksi;
-            $data['main']   = Bantuan::getProgramPeserta($program_id);
-            $data['config'] = $this->header['desa'];
-            $data['file']   = 'Peserta Bantuan';
-            $data['isi']    = 'admin.program_bantuan.peserta.cetak';
+            $data['aksi'] = $aksi;
+            $data['main'] = Bantuan::getProgramPeserta($program_id);
+            $data['file'] = 'Peserta Bantuan';
+            $data['isi']  = 'admin.program_bantuan.peserta.cetak';
             // $data['letak_ttd']   = ['2', '2', '9'];
             $data['sasaran'] = unserialize(SASARAN);
 
@@ -318,9 +319,7 @@ class Peserta_bantuan extends Admin_Controller
 
     public function detail_clear($program_id): void
     {
-        $this->session->per_page = $this->_set_page[0];
         $this->session->unset_userdata('cari');
-
-        redirect("peserta_bantuan/detail/{$program_id}");
+        $this->detail($program_id);
     }
 }

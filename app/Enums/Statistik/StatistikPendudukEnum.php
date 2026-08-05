@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -103,10 +103,10 @@ class StatistikPendudukEnum extends BaseEnum
         'slug'  => 'golongan-darah',
         'label' => 'Golongan Darah',
     ];
-    public const PENYANDANG_CACAT = [
+    public const PENYANDANG_DISABILITAS = [
         'key'   => 9,
-        'slug'  => 'penyandang-cacat',
-        'label' => 'Penyandang Cacat',
+        'slug'  => 'penyandang-disabilitas',
+        'label' => 'Penyandang Disabilitas',
     ];
     public const PENYAKIT_MENAHUN = [
         'key'   => 10,
@@ -143,10 +143,30 @@ class StatistikPendudukEnum extends BaseEnum
         'slug'  => 'suku-etnis',
         'label' => 'Suku / Etnis',
     ];
+    public const MARGA = [
+        'key'   => 'marga',
+        'slug'  => 'marga',
+        'label' => 'Marga',
+    ];
+    public const ADAT = [
+        'key'   => 'adat',
+        'slug'  => 'adat',
+        'label' => 'Adat',
+    ];
+    public const PEKERJA_MIGRAN = [
+        'key'   => 'pekerja_migran',
+        'slug'  => 'pekerja_migran',
+        'label' => 'Pekerja Migran',
+    ];
     public const BPJS_KETENAGAKERJAAN = [
         'key'   => 'bpjs-tenagakerja',
         'slug'  => 'bpjs-ketenagakerjaan',
         'label' => 'BPJS Ketenagakerjaan',
+    ];
+    public const STATUS_KEPERSERTAAN_ASURANSI_KESEHATAN = [
+        'key'   => 'status-asuransi-kesehatan',
+        'slug'  => 'status_asuransi_kesehatan',
+        'label' => 'Status Kepersertaan Asuransi Kesehatan',
     ];
     public const STATUS_KEHAMILAN = [
         'key'   => 'hamil',
@@ -177,7 +197,7 @@ class StatistikPendudukEnum extends BaseEnum
         self::WARGA_NEGARA,
         self::STATUS_PENDUDUK,
         self::GOLONGAN_DARAH,
-        self::PENYANDANG_CACAT,
+        self::PENYANDANG_DISABILITAS,
         self::PENYAKIT_MENAHUN,
         self::AKSEPTOR_KB,
         self::AKTA_KELAHIRAN,
@@ -185,7 +205,11 @@ class StatistikPendudukEnum extends BaseEnum
         self::ASURANSI_KESEHATAN,
         self::STATUS_COVID,
         self::SUKU_ETNIS,
+        self::MARGA,
+        self::ADAT,
+        self::PEKERJA_MIGRAN,
         self::BPJS_KETENAGAKERJAAN,
+        self::STATUS_KEPERSERTAAN_ASURANSI_KESEHATAN,
         self::STATUS_KEHAMILAN,
         self::KEPEMILIKAN_KIA,
         self::KEPEMILIKAN_AKTA_KEMATIAN,

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -45,8 +45,8 @@ class AnalisisKlasifikasiController extends AdminModulController
     public $moduleName    = 'Analisis';
     public $modul_ini     = 'analisis';
     public $sub_modul_ini = 'analisis-klasifikasi';
-    private $selectedMenu = 'Data Klasifikasi';
     protected $analisisMaster;
+    private $selectedMenu = 'Data Klasifikasi';
 
     public function __construct()
     {
@@ -60,6 +60,15 @@ class AnalisisKlasifikasiController extends AdminModulController
         ]);
     }
 
+    protected static function validate(array $request = []): array
+    {
+        return [
+            'nama'   => nomor_surat_keputusan($request['nama']),
+            'minval' => bilangan_titik($request['minval']),
+            'maxval' => bilangan_titik($request['maxval']),
+        ];
+    }
+
     public function index($master)
     {
         return view('analisis::klasifikasi.index');
@@ -67,7 +76,7 @@ class AnalisisKlasifikasiController extends AdminModulController
 
     public function datatables($master)
     {
-        if ($this->input->is_ajax_request()) {
+        if (request()->ajax()) {
             $canUpdate = can('u');
             $canDelete = can('h');
 
@@ -146,14 +155,5 @@ class AnalisisKlasifikasiController extends AdminModulController
         }
 
         redirect_with('error', 'Gagal Hapus Data', ci_route('analisis_klasifikasi.' . $master));
-    }
-
-    protected static function validate(array $request = []): array
-    {
-        return [
-            'nama'   => nomor_surat_keputusan($request['nama']),
-            'minval' => bilangan_titik($request['minval']),
-            'maxval' => bilangan_titik($request['maxval']),
-        ];
     }
 }

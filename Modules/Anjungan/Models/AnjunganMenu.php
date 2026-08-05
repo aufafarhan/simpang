@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -50,6 +50,14 @@ class AnjunganMenu extends BaseModel
     use Author;
     use ConfigId;
     use SortableTrait;
+
+    /**
+     * {@inheritDoc}
+     */
+    public $sortable = [
+        'order_column_name'  => 'urut',
+        'sort_when_creating' => true,
+    ];
 
     /**
      * The table associated with the model.
@@ -87,34 +95,6 @@ class AnjunganMenu extends BaseModel
     protected $appends = ['link_url'];
 
     /**
-     * {@inheritDoc}
-     */
-    public $sortable = [
-        'order_column_name'  => 'urut',
-        'sort_when_creating' => true,
-    ];
-
-    /**
-     * Define a one-to-one relationship.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\hasOne
-     */
-    public function createdBy()
-    {
-        return $this->hasOne(User::class, 'id', 'created_by');
-    }
-
-    /**
-     * Define a one-to-one relationship.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\hasOne
-     */
-    public function updatedBy()
-    {
-        return $this->hasOne(User::class, 'id', 'updated_by');
-    }
-
-    /**
      * The "booted" method of the model.
      */
     public static function boot(): void
@@ -138,6 +118,26 @@ class AnjunganMenu extends BaseModel
                 unlink($logo);
             }
         }
+    }
+
+    /**
+     * Define a one-to-one relationship.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\hasOne
+     */
+    public function createdBy()
+    {
+        return $this->hasOne(User::class, 'id', 'created_by');
+    }
+
+    /**
+     * Define a one-to-one relationship.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\hasOne
+     */
+    public function updatedBy()
+    {
+        return $this->hasOne(User::class, 'id', 'updated_by');
     }
 
     public function getLinkUrlAttribute()

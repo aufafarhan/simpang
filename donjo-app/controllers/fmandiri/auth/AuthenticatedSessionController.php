@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,9 +39,11 @@ use App\Models\PendudukMandiri;
 use App\Services\Auth\Traits\LoginRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Anjungan\Models\Anjungan;
 
 class AuthenticatedSessionController extends Web_Controller
 {
@@ -56,9 +58,7 @@ class AuthenticatedSessionController extends Web_Controller
     {
         parent::__construct();
 
-        $this->load->model(['mandiri_model', 'theme_model']);
-
-        if ($this->setting->layanan_mandiri == 0) {
+        if (setting('layanan_mandiri') == 0) {
             show_404();
         }
     }
@@ -72,7 +72,7 @@ class AuthenticatedSessionController extends Web_Controller
         $token      = $this->input->get('token_layanan', true);
 
         // TODO: apa masih digunakan untuk autentikasi dengan mac address?
-        if (($macAddress && $token == $this->setting->layanan_opendesa_token) || Auth::guard($this->guard)->check()) {
+        if (($macAddress && $token == setting('layanan_opendesa_token')) || Auth::guard($this->guard)->check()) {
             $this->session->mac_address = $macAddress;
 
             return redirect('layanan-mandiri/beranda');
@@ -80,7 +80,7 @@ class AuthenticatedSessionController extends Web_Controller
 
         return view('layanan_mandiri.auth.login', [
             'header'              => $this->header,
-            'latar_login_mandiri' => $this->theme_model->latar_login_mandiri(),
+            'latar_login_mandiri' => (new App\Models\Theme())->latarLoginMandiri(),
             'cek_anjungan'        => $this->cek_anjungan,
             'form_action'         => site_url('layanan-mandiri/cek'),
         ]);
@@ -94,7 +94,7 @@ class AuthenticatedSessionController extends Web_Controller
         $macAddress = $this->input->get('mac_address', true);
         $token      = $this->input->get('token_layanan', true);
 
-        if (($macAddress && $token == $this->setting->layanan_opendesa_token) || Auth::guard($this->guard)->check()) {
+        if (($macAddress && $token == setting('layanan_opendesa_token')) || Auth::guard($this->guard)->check()) {
             $this->session->mac_address = $macAddress;
 
             return redirect('layanan-mandiri/beranda');
@@ -102,7 +102,7 @@ class AuthenticatedSessionController extends Web_Controller
 
         return view('layanan_mandiri.auth.login-ektp', [
             'header'              => $this->header,
-            'latar_login_mandiri' => $this->theme_model->latar_login_mandiri(),
+            'latar_login_mandiri' => (new App\Models\Theme())->latarLoginMandiri(),
             'cek_anjungan'        => $this->cek_anjungan,
             'form_action'         => site_url('layanan-mandiri/cek-ektp'),
         ]);
@@ -116,6 +116,19 @@ class AuthenticatedSessionController extends Web_Controller
         $request = request();
 
         if ($request->has('nik') || ($request->has('tag_id_card') && $request->has('password'))) {
+            if ($request->has('anjungan_uuid')) {
+                $anjungan = Anjungan::where('uuid', $request->anjungan_uuid)->first();
+                if (! $anjungan) {
+                    redirect_with('error', 'Anjungan tidak ditemukan.', ci_route('layanan-mandiri/masuk'));
+                }
+
+                if (! $anjungan->status) {
+                    redirect_with('error', 'Anjungan belum diaktifkan oleh admin.', ci_route('layanan-mandiri/masuk'));
+                }
+
+                $this->session->set_userdata('anjungan_uuid', $request->anjungan_uuid);
+            }
+
             // Login menggunakan NIK atau E-KTP dan password
             $this->authenticate([
                 'query' => fn ($q) => $q->when(
@@ -124,6 +137,12 @@ class AuthenticatedSessionController extends Web_Controller
                     static fn ($q) => $q->status(1)
                 ),
             ]);
+
+            if (Hash::needsRehash(Auth::guard($this->guard)->user()->getAuthPassword())) {
+                Auth::guard($this->guard)->user()->forceFill([
+                    'pin' => Hash::make($request->password),
+                ])->save();
+            }
         } elseif ($request->has('tag_id_card')) {
             // Login menggunakan E-KTP tanpa password
             $this->authenticateEktp($request);
@@ -140,14 +159,22 @@ class AuthenticatedSessionController extends Web_Controller
     public function destroy()
     {
         auth('penduduk')->logout();
+        auth('pendudukGuest')->logout();
+
+        $redirect = 'layanan-mandiri/masuk';
+
+        if ($this->session->login_penduduk_guest) {
+            $redirect = 'anjungan-mandiri/penduduk-guest';
+        }
 
         $this->session->unset_userdata([
             'mandiri', 'is_login',
             'is_anjungan', 'data_permohonan',
             'auth_mandiri', 'login_ektp',
+            'login_penduduk_guest',
         ]);
 
-        redirect('layanan-mandiri/masuk');
+        return redirect($redirect);
     }
 
     protected function authenticateEktp(Request $request)

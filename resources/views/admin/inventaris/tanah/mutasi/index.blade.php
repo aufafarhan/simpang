@@ -81,20 +81,20 @@
                         orderable: false
                     },
                     {
-                        data: 'nama_barang',
-                        name: 'nama_barang',
+                        data: 'inventaris.nama_barang',
+                        name: 'inventaris.nama_barang',
                         searchable: true,
                         orderable: true,
                     },
                     {
                         data: 'kode_barang_register',
-                        name: 'kode_barang_register',
+                        name: 'inventaris.kode_barang',
                         searchable: true,
                         orderable: true
                     },
                     {
-                        data: 'tahun_pengadaan',
-                        name: 'tahun_pengadaan',
+                        data: 'inventaris.tahun_pengadaan',
+                        name: 'inventaris.tahun_pengadaan',
                         empty: '-',
                         searchable: true,
                         orderable: true
@@ -107,29 +107,38 @@
                         orderable: true
                     },
                     {
-                        data: 'mutasi.status_mutasi',
-                        name: 'mutasi.status_mutasi',
+                        data: function(row) {
+                            return row.status_mutasi ?? '-';
+                        },
+                        name: 'status_mutasi',
                         empty: '-',
                         searchable: true,
                         orderable: true
                     },
                     {
-                        data: 'mutasi.jenis_mutasi',
-                        name: 'mutasi.jenis_mutasi',
+                        data: function(row) {
+                            if (row.status_mutasi == 'Hapus') {
+                                return row.jenis_mutasi;
+                            }
+                            return '-';
+                        },
+                        name: 'jenis_mutasi',
                         empty: '-',
                         searchable: true,
                         orderable: true
                     },
                     {
-                        data: 'mutasi.keterangan',
-                        name: 'mutasi.keterangan',
+                        data: function(row) {
+                            return row.keterangan ?? '-';
+                        },
+                        name: 'keterangan',
                         empty: '-',
                         searchable: true,
                         orderable: true
                     }
                 ],
                 order: [
-                    [5, 'desc']
+                    [4, 'desc']
                 ],
                 createdRow: function(row, data, dataIndex) {
                     $(row).attr('data-id', data.id)

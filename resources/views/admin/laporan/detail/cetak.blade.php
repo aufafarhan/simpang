@@ -1,13 +1,18 @@
+<style>
+    .textx {
+        mso-number-format: "\@";
+    }
+</style>
 <table>
     <tbody>
         <tr>
             <td>
                 @if ($aksi != 'unduh')
-                    <img class="logo" src="{{ gambar_desa($config['logo']) }}" alt="logo-desa">
+                    <img class="logo" src="{{ gambar_desa($desa['logo']) }}" alt="logo-desa">
                 @endif
                 <h1 class="judul">
                     PEMERINTAH
-                    {!! strtoupper(setting('sebutan_kabupaten') . ' ' . $config['nama_kabupaten'] . ' <br>' . setting('sebutan_kecamatan') . ' ' . $config['nama_kecamatan'] . ' <br>' . setting('sebutan_desa') . ' ' . $config['nama_desa']) !!}
+                    {!! strtoupper(setting('sebutan_kabupaten') . ' ' . $desa['nama_kabupaten'] . ' <br>' . setting('sebutan_kecamatan') . ' ' . $desa['nama_kecamatan'] . ' <br>' . setting('sebutan_desa') . ' ' . $desa['nama_desa']) !!}
                 </h1>
             </td>
         </tr>
@@ -43,7 +48,7 @@
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $data->nama }}</td>
-                                <td>{{ $sensor_nik ? sensor_nik_kk($data->nik) : $data->nik }}</td>
+                                <td class="textx">{{ $sensor_nik ? sensor_nik_kk($data->nik) : $data->nik }}</td>
                                 <td>{{ $data->tempatlahir }}</td>
                                 <td>{{ $data->tanggallahir?->format('Y-m-d') }}</td>
                                 <td>{{ $data->nama_ayah }}</td>

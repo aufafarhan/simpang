@@ -18,7 +18,7 @@
             <div align="center">
                 <h3>KARTU RUMAH TANGGA</h3>
                 <h4>SALINAN</h4>
-                <h5>No. {{ $main['no_kk'] }} </h5>
+                <h5>No. {{ $kepala_kk['no_kk'] }} </h5>
             </div>
             <br>
             <table width="100%" cellpadding="3" cellspacing="4">
@@ -71,12 +71,12 @@
                             <td>{{ strtoupper($data['nama']) }}</td>
                             <td>{{ $data['nik'] }}</td>
                             <td>{{ $data['keluarga']['no_kk'] ?? '' }}</td>
-                            <td>{{ strtoupper(App\Enums\JenisKelaminEnum::valueOf($data['sex'])) }}</td>
+                            <td>{{ $data['jenis_kelamin'] }}</td>
                             <td>{{ $data['tempatlahir'] }}</td>
-                            <td>{{ $data['tanggallahir'] }}</td>
-                            <td>{{ $data['agama']['nama'] ?? '' }}</td>
-                            <td>{{ $data['pendidikan_k_k']['nama'] ?? '' }}</td>
-                            <td>{{ $data['pekerjaan']['nama'] ?? '' }}</td>
+                            <td>{{ tgl_indo_out($data['tanggallahir']) }}</td>
+                            <td>{{ $data['agama'] }}</td>
+                            <td>{{ $data['pendidikan_kk'] }}</td>
+                            <td>{{ $data['pekerjaan'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -100,10 +100,10 @@
                             <td align="center" width="2">{{ $key + 1 }}</td>
                             <td>{{ $data['status_perkawinan'] ?? '' }}</td>
                             <td>{{ App\Enums\HubunganRTMEnum::valueOf($data['rtm_level']) }}</td>
-                            <td>{{ $data['warga_negara']['nama'] ?? '' }}</td>
+                            <td>{{ $data['warganegara'] }}</td>
                             <td>{{ strtoupper($data['nama_ayah']) }}</td>
                             <td>{{ strtoupper($data['nama_ibu']) }}</td>
-                            <td align="center">{{ $data['golongan_darah']['nama'] ?? '' }}</td>
+                            <td align="center">{{ $data['golongan_darah'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,8 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Modules\Anjungan\Models\Anjungan;
 use Modules\Kehadiran\Models\AlasanKeluar;
 use Modules\Kehadiran\Models\HariLibur;
 use Modules\Kehadiran\Models\JamKerja;
@@ -46,6 +48,7 @@ defined('BASEPATH') || exit('No direct script access allowed');
 
 class PerangkatController extends WebModulController
 {
+    public $moduleName = 'Kehadiran';
     private string $tgl;
     private string $jam;
     private $ip;
@@ -127,7 +130,7 @@ class PerangkatController extends WebModulController
             return redirect($this->url);
         }
 
-        if (! $ektp && ! password_verify($password, $user->password)) {
+        if (! $ektp && ! Hash::check($password, $user->password)) {
             set_session('error', 'Username atau Password Salah');
 
             return redirect($this->url);
@@ -215,7 +218,8 @@ class PerangkatController extends WebModulController
         $ip_address    = (setting('ip_adress_kehadiran') === $this->ip && setting('ip_adress_kehadiran') !== null);
         $mac_adress    = (setting('mac_adress_kehadiran') === $this->mac && setting('mac_adress_kehadiran') !== null);
         $id_pengunjung = (setting('id_pengunjung_kehadiran') === $this->pengunjung && setting('id_pengunjung_kehadiran') !== null);
-        $cek_gawai     = ($ip_address || $mac_adress || $id_pengunjung);
+        $anjungan      = in_array(Anjungan::KEHADIRAN, $this->cek_anjungan['tipe'] ?? []);
+        $cek_gawai     = ($ip_address || $mac_adress || $id_pengunjung || $anjungan);
         $cek_hari      = HariLibur::where('tanggal', '=', date('Y-m-d'))->first();
         $cek_weekend   = JamKerja::libur()->first();
         $cek_jam       = JamKerja::jamKerja()->first();
@@ -246,11 +250,11 @@ class PerangkatController extends WebModulController
                 break;
 
             case $cek['cek_weekend'] !== null:
-                $pesan = "Hari {$cek['cek_weekend']->nama_hari} libur!";
+                $pesan = "Hari {$cek['cek_weekend']->nama_hari} adalah hari libur!";
                 break;
 
             case $cek['cek_jam'] !== null:
-                $pesan = "Jam kerja hari ini di mulai dari {$cek['cek_jam']->jam_masuk_normal} hingga {$cek['cek_jam']->jam_keluar_normal}";
+                $pesan = "Jam kerja hari ini dimulai dari {$cek['cek_jam']->jam_masuk_normal} hingga {$cek['cek_jam']->jam_keluar_normal}";
                 break;
 
             default:

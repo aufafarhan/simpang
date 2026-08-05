@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,11 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
+
+use App\Models\DokumenHidup;
+use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -46,7 +49,6 @@ class Api_informasi_publik extends Api_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('web_dokumen_model');
     }
 
     public function index(): void
@@ -65,14 +67,26 @@ class Api_informasi_publik extends Api_Controller
                 ],
             ];
         } else {
-            $jenis_kirim = empty($get['tgl_dari']) ? 'semua' : 'perubahan';
-            $data        = $this->web_dokumen_model->data_ppid($tgl_dari);
-            $json_send   = ['status' => 'success',
-                'data'               => ['ppid' => $data,
-                    'tanggal'                   => date('d-m-Y h:i:s', time()),
-                    'pengiriman'                => $jenis_kirim,
-                    'tgl_dari'                  => $tgl_dari,
-                    'total data'                => count($data),
+            $jenis_kirim    = empty($get['tgl_dari']) ? 'semua' : 'perubahan';
+            $kodeDesa       = setting('kode_desa');
+            $lokasi_dokumen = base_url('dokumen_web/unduh_berkas/');
+            $data           = DokumenHidup::selectRaw("id, '{$kodeDesa}' as kode_desa, CONCAT('{$lokasi_dokumen}', id) as dokumen, nama, tgl_upload, updated_at, enabled, kategori_info_publik as kategori, tahun,
+                (CASE when deleted = 1
+                    then '3'
+                    else
+                        case when DATE(tgl_upload) > STR_TO_DATE('{$tgl_dari}', '%d-%m-%Y')
+                            then '1'
+                            else '2'
+                        end
+                    end) as aksi
+            ")->whereRaw(DB::raw("DATE(updated_at) > STR_TO_DATE('{$tgl_dari}', '%d-%m-%Y')"))->get()->toArray();
+
+            $json_send = ['status' => 'success',
+                'data'             => ['ppid' => $data,
+                    'tanggal'                 => date('d-m-Y h:i:s', time()),
+                    'pengiriman'              => $jenis_kirim,
+                    'tgl_dari'                => $tgl_dari,
+                    'total data'              => count($data),
                 ],
             ];
         }

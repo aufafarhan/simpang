@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,12 +29,13 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use Admin_Controller;
 use App\Enums\AgamaEnum;
 use App\Enums\JenisKelaminEnum;
 use App\Enums\PekerjaanEnum;
@@ -48,7 +49,6 @@ use App\Models\Garis;
 use App\Models\Lokasi;
 use App\Models\Pembangunan;
 use App\Models\Penduduk;
-use App\Models\PendudukStatus;
 use App\Models\Persil;
 use App\Models\Wilayah;
 
@@ -100,10 +100,9 @@ class Gis extends Admin_Controller
         $filterPenduduk['dusun']      = $data['dusun'];
         $filterPenduduk['rw']         = $data['rw'];
         $filterPenduduk['rt']         = $data['rt'];
-        $data['list_status_penduduk'] = PendudukStatus::get()->toArray();
+        $data['list_status_penduduk'] = StatusPendudukEnum::all();
         $data['list_jenis_kelamin']   = JenisKelaminEnum::all();
         $data['wilayah']              = Wilayah::where('zoom', '>', 0)->get()->toArray();
-        $data['desa']                 = $this->header['desa'];
         $data['lokasi']               = Lokasi::activeLocationMap();
         $data['garis']                = Garis::activeGarisMap();
         $data['area']                 = Area::activeAreaMap();

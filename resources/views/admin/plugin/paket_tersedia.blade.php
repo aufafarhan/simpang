@@ -25,9 +25,44 @@
     </div>
 </div>
 
+<!-- Modal Persetujuan Instalasi Paket Premium -->
+<div class="modal fade" id="modalPersetujuanPaket" tabindex="-1" role="dialog" aria-labelledby="modalPersetujuanLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                <h4 class="modal-title" id="modalPersetujuanLabel">
+                    <i class="fa fa-exclamation-triangle"></i> &nbsp;Perhatian: Paket Premium
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fa fa-info-circle"></i> <strong>Penting:</strong> Pastikan Anda siap melanjutkan langganan Premium untuk terus mendapatkan manfaat penuh dari modul ini.
+                </div>
+                <h5>Paket Premium: <strong id="paketNamaPendaftaran"></strong></h5>
+                <p>Modul ini memerlukan <strong>Langganan Premium yang Aktif</strong>. Berikut yang perlu Anda ketahui:</p>
+                <ul>
+                    <li><strong>Dengan Premium Aktif:</strong> Akses penuh ke modul dengan update versi terbaru</li>
+                    <li><strong>Premium Berakhir:</strong> Modul tidak akan menerima update versi terbaru</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-social btn-warning btn-sm" data-dismiss="modal"><i class="fa fa-sign-out"></i>
+                    Tutup
+                </button>
+                <button type="button" class="btn btn-social btn-success btn-sm" id="btnSetujuPasang">
+                    <i class="fa fa-check"></i> Setuju & Lanjutkan Instalasi
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
     <script>
         $(function() {
+            let pendingInstallValue = null;
+
             function compareVersions(version1, version2) {
                 const splitVersion1 = version1.split('.');
                 const splitVersion2 = version2.split('.');
@@ -125,25 +160,35 @@
                     type: 'GET',
                     contentType: 'application/json',
                     headers: {
-                        'Authorization': 'Bearer {{ $token_layanan }}'
+                        'Authorization': 'Bearer {{ $token_layanan }}',
+                        'Accept': 'application/json'
+                    },
+                    error: function(response) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal Memuat Data',
+                            text: response.responseJSON.message
+                        })
                     },
                     success: function(response) {
                         const data = response.data
                         for (let i in data) {
                             templateTmp = templateCard
                             disabledPaket = ''
-                            buttonInstall = `<button type="submit" ${disabledPaket} name="pasang" value="${data[i].name}___${data[i].url}" class="btn btn-primary">Pasang</button>`
+                            const installValue = `${data[i].name}___${data[i].url}___${data[i].version}`
+                            buttonInstall = `<button type="button" ${disabledPaket} name="pasang" value="${installValue}" class="btn btn-primary btn-pasang-paket">Pasang</button>`
                             if (paketTerpasang[data[i].name] !== undefined) {
                                 versionCheck = compareVersions(data[i].version, paketTerpasang[data[i].name].version)
                                 if (versionCheck > 0) {
-                                    buttonInstall = `<button type="submit" ${disabledPaket} name="pasang" value="${data[i].name}___${data[i].url}___${data[i].version}" class="btn btn-primary">Tingkatkan Versi</button>`
+                                    buttonInstall = `<button type="button" ${disabledPaket} name="pasang" value="${installValue}" class="btn btn-primary btn-pasang-paket">Tingkatkan Versi</button>`
                                 } else {
                                     disabledPaket = 'disabled'
-                                    buttonInstall = `<button type="button" ${disabledPaket} name="pasang" value="${data[i].name}___${data[i].url}" class="btn btn-primary">Pasang</button>`
+                                    buttonInstall = `<button type="button" ${disabledPaket} name="pasang" value="${installValue}" class="btn btn-primary">Pasang</button>`
                                 }
                             }
 
                             templateTmp = templateTmp.replace('__name__', data[i].name)
+                            templateTmp = templateTmp.replace('__version__', data[i].version)
                             templateTmp = templateTmp.replace('__description__', data[i].description)
                             templateTmp = templateTmp.replace('__button__', buttonInstall)
                             templateTmp = templateTmp.replace('__thumbnail__', data[i].thumbnail)
@@ -152,22 +197,45 @@
                             cardView.push(templateTmp)
                         }
                         $('div#list-paket').find('form').append(cardView.join(''))
-                        $('div#list-paket').find('form').find('button:submit').click(function() {
-                            Swal.fire({
-                                title: 'Sedang Memproses',
-                                allowOutsideClick: false,
-                                allowEscapeKey: false,
-                                showConfirmButton: false,
-                                didOpen: () => {
-                                    Swal.showLoading()
-                                }
-                            });
-                        })
+                        
+                        // Event listener untuk tombol pasang paket
+                        $('div#list-paket').find('.btn-pasang-paket').click(function(e) {
+                            e.preventDefault();
+                            const paketName = $(this).val().split('___')[0];
+                            pendingInstallValue = $(this).val();
+                            
+                            // Tampilkan modal persetujuan
+                            $('#paketNamaPendaftaran').text(paketName);
+                            $('#modalPersetujuanPaket').modal('show');
+                        });
 
                         displayPagination(response)
                     }
                 })
             }
+
+            // Handle tombol setuju di modal
+            $('#btnSetujuPasang').click(function() {
+                if (pendingInstallValue) {
+                    $('#modalPersetujuanPaket').modal('hide');
+                    
+                    // Submit form dengan nilai paket
+                    Swal.fire({
+                        title: 'Sedang Memproses',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading()
+                        }
+                    });
+                    
+                    // Create hidden input dan submit
+                    const input = $('<input>').attr('type', 'hidden').attr('name', 'pasang').val(pendingInstallValue);
+                    $('#mainform').append(input);
+                    $('#mainform').submit();
+                }
+            });
 
             $('#tipe').on('change', function() {
                 loadModule(1, $(this).val())

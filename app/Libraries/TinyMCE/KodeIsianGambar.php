@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -44,88 +44,122 @@ class KodeIsianGambar
 {
     private $urls_id;
 
-    /**
-     * @var CI_Controller
-     */
-    protected $ci;
-
     public function __construct(private $request, private $result, private $surat = null, private $lampiran = false)
     {
-        $this->ci = &get_instance();
-        $this->ci->load->model('surat_model');
     }
 
     public static function set($request, $result, $surat = null, $lampiran = false): array
     {
+        $result = str_replace(['alt="[logo]"', 'alt="[logo_bsre]"', 'alt="[foto_penduduk]"'], 'alt=""', $result);
+
         return (new self($request, $result, $surat, $lampiran))->setKodeIsianGambar();
     }
 
     public function setKodeIsianGambar(): array
     {
         // Logo Surat
-        $file_logo    = ($this->request['logo_garuda'] ? FCPATH . LOGO_GARUDA : gambar_desa(identitas()->logo, false, true));
-        $logo         = (is_file($file_logo)) ? '<img src="' . $file_logo . '" width="90" height="90" alt="logo-surat" />' : '';
-        $this->result = str_ireplace('[logo]', $logo, $this->result);
+        $file_logo = $this->request['logo_garuda'] ? FCPATH . LOGO_GARUDA : gambar_desa(identitas()->logo, false, true);
+        $this->replacePlaceholder('[logo]', $file_logo, 90, 90);
 
         // Logo BSrE
-        $file_logo_bsre = FCPATH . LOGO_BSRE;
-        $bsre           = (is_file($file_logo_bsre) && setting('tte') == 1) ? '<img src="' . $file_logo_bsre . '" height="90" alt="logo-bsre" />' : '';
-        $this->result   = str_ireplace('[logo_bsre]', $bsre, $this->result);
+        if (setting('tte') == 1) {
+            $this->replacePlaceholder('[logo_bsre]', FCPATH . LOGO_BSRE, height: 50 );
+        }
 
         // Foto Penduduk
-        // TODO:: Sederhanakan cara ini, seharusnya key dan value dari kode isian berada di 1 tempat yang sama
-        $foto = Penduduk::find($this->surat['id_pend'])->foto;
-        if (file_exists(FCPATH . LOKASI_USER_PICT . $foto)) {
-            $file_foto     = FCPATH . LOKASI_USER_PICT . $foto;
-            $foto_penduduk = '<img src="' . $file_foto . '" width="90" height="auto" alt="foto-penduduk" />';
-            $this->result  = str_ireplace('[foto_penduduk]', $foto_penduduk, $this->result);
-        } else {
-            $this->result = str_ireplace('[foto_penduduk]', '', $this->result);
-        }
+        $fotoPath = FCPATH . LOKASI_USER_PICT . Penduduk::find($this->surat['id_pend'])->foto;
+        $this->replacePlaceholder('[foto_penduduk]', $fotoPath, 90, 'auto');
 
         // QR_Code Surat
-        if ($this->surat && $this->request['qr_code']) {
-            // dd('in', $this->request, $this->result, $this->surat);
-            $cek    = $this->surat_model->buatQrCode($this->surat->nama_surat);
-            $qrcode = ($cek['viewqr']) ? '<img src="' . $cek['viewqr'] . '" width="90" height="90" alt="qrcode-surat" />' : '';
-            preg_match('/<img[^>]+src="([^"]*qrcode[^"]*temp[^"]*)"/i', $this->result, $matches);
-
-            if (isset($matches[1])) {
-                $src = $matches[1];
-                if (! file_exists($src)) {
-                    $this->result = str_replace($src, $cek['viewqr'], $this->result);
-                    $this->surat->update(['isi_surat' => $this->result]);
-                }
-            } else {
-                // cek juga jika lampiran true maka tidak perlu verifikasi_kades
-                if ((setting('tte') == 1 && ($this->surat->verifikasi_kades == LogSurat::TERIMA || $this->lampiran)) || setting('tte') == 0) {
-                    $this->result = str_replace('[qr_code]', $qrcode, $this->result);
-                }
-            }
-
-            $this->urls_id = $cek['urls_id'];
-        } else {
-            $qrcode = '';
-            if ($this->request['qr_code']) {
-                $cek    = dummyQrCode($this->header['desa']['logo']);
-                $qrcode = ($cek['viewqr']) ? '<img src="' . $cek['viewqr'] . '" width="90" height="90" alt="qrcode-surat" />' : '';
-            }
-            $this->result = str_replace('[qr_code]', $qrcode, $this->result);
-        }
+        $this->handleQrCode();
 
         return [
             'result'  => $this->result,
-            'urls_id' => $this->urls_id,
+            'urls_id' => $this->urls_id ?? null,
         ];
     }
 
-    public function __get($name)
+    /**
+     * Mengganti placeholder dengan tag gambar berformat base64 jika file tersedia.
+     */
+    private function replacePlaceholder(string $placeholder, string $filePath, int $width = 90, mixed $height = 90): void
     {
-        return $this->ci->{$name};
+        $realPath = realpath($filePath);
+        $imgTag   = ''; // Placeholder dihapus jika gambar tidak tersedia
+        if ($realPath && file_exists($realPath)) {
+            $base64   = base64_encode(file_get_contents($realPath));
+            $mimeType = mime_content_type($realPath);
+            $imgSrc   = "data:{$mimeType};base64,{$base64}";
+            $imgTag   = "<img src=\"{$imgSrc}\" width=\"{$width}\" height=\"{$height}\" />";
+        }
+
+        $this->result = str_replace($placeholder, $imgTag, $this->result);
     }
 
-    public function __call($method, $arguments)
+    /**
+     * Menangani logika kode QR, memastikan kompatibilitas dengan Html2Pdf.
+     */
+    private function handleQrCode(): void
     {
-        return $this->ci->{$method}(...$arguments);
+        // Jika tidak ada tag [qr_code] dalam result, langsung return
+        if (! str_contains($this->result, '[qr_code]')) {
+            return;
+        }
+
+        // Default: jika qr_code tidak diset, anggap true (null coalescing)
+        $qr_code_enabled = $this->request['qr_code'] ?? true;
+
+        // Jika explicitly disabled, hapus tag
+        if (! $qr_code_enabled) {
+            $this->result = str_replace('[qr_code]', '', $this->result);
+
+            return;
+        }
+
+        // Generate kode QR (dari surat atau dummy)
+        $cek = $this->surat ? LogSurat::buatQrCode($this->surat->nama_surat, identitas('logo')) : dummyQrCode(identitas('logo'));
+
+        // Pastikan gambar kode QR valid sebelum diproses
+        $qrcodePath = $cek['viewqr'] ?? null;
+
+        // PERBAIKAN UTAMA: Jika file QR tidak ada, JANGAN HAPUS TAG, biarkan untuk diproses nanti
+        if (! $qrcodePath || ! file_exists($qrcodePath)) {
+            $this->urls_id = $cek['urls_id'] ?? null;
+
+            return; // Keluar tanpa menghapus tag [qr_code]
+        }
+
+        // Generate base64 image
+        $base64   = base64_encode(file_get_contents($qrcodePath));
+        $mimeType = mime_content_type($qrcodePath);
+        $qrcode   = "<img src=\"data:{$mimeType};base64,{$base64}\" width=\"90\" height=\"90\" alt=\"qrcode-surat\" />";
+
+        if ($this->surat) {
+            // Periksa apakah ada kode QR yang sudah ada dalam hasil
+            preg_match('/<img[^>]+src="([^"]*qrcode[^"]*temp[^"]*)"/i', (string) $this->result, $matches);
+
+            if (isset($matches[1]) && ! file_exists($matches[1])) {
+                // Ganti kode QR yang tidak valid dengan yang baru
+                $this->result = str_replace($matches[1], $qrcode, $this->result);
+                $this->surat->update(['isi_surat' => $this->result]);
+            } elseif ($this->shouldIncludeQrCode()) {
+                // Ganti tag dengan QR code
+                $this->result = str_replace('[qr_code]', $qrcode, $this->result);
+            }
+            // PERBAIKAN: Hapus else block yang sebelumnya return tanpa action
+        } else {
+            // Langsung ganti placeholder jika tidak ada surat yang diberikan
+            $this->result = str_replace('[qr_code]', $qrcode, $this->result);
+        }
+
+        $this->urls_id = $cek['urls_id'] ?? null;
+    }
+
+    /**
+     * Menentukan apakah kode QR harus dimasukkan dalam hasil.
+     */
+    private function shouldIncludeQrCode(): bool
+    {
+        return (setting('tte') == 1 && ($this->surat->verifikasi_kades == LogSurat::TERIMA || $this->lampiran)) || setting('tte') == 0;
     }
 }

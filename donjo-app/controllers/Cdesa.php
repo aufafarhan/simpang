@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,6 +39,7 @@ use App\Models\Cdesa as CdesaModel;
 use App\Models\Pamong;
 use App\Models\Penduduk;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -81,16 +82,24 @@ class Cdesa extends Admin_Controller
                 })
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
-                    $aksi = '<a href="' . ci_route('cdesa.rincian', $row->id) . '" class="btn bg-purple btn-sm"><i class="fa fa-bars"></i></a> ';
+                    $aksi = '';
+                    $aksi .= View::make('admin.layouts.components.buttons.rincian', [
+                        'url' => "cdesa/rincian/{$row->id}",
+                    ])->render();
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . route('cdesa.create_mutasi', ['id_cdesa' => $row->id]) . '" class="btn btn-success btn-sm"  title="Tambah Data"><i class="fa fa-plus"></i></a> ';
-                        $aksi .= '<a href="' . ci_route('cdesa.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.tambah', [
+                        'url'        => 'cdesa/mutasi/' . $row->id . '/form',
+                        'buttonOnly' => true,
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('cdesa.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'cdesa/form/' . $row->id,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('cdesa.delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })->addColumn('nama_pemilik', static fn ($row) => $row->nama_pemilik)
@@ -149,7 +158,9 @@ class Cdesa extends Admin_Controller
         $data->fill($req['data']);
 
         if ($req['data']['jenis_pemilik'] == 1) {
-            $data->cdesaPenduduk ? $data->cdesaPenduduk->update($req['penduduk']) : $data->cdesaPenduduk()->create($req['penduduk']);
+            $data->cdesaPenduduk
+                ? $data->cdesaPenduduk->update([...$req['penduduk'], 'id_cdesa' => $data->id])
+                : $data->cdesaPenduduk()->create($req['penduduk']);
         } else {
             $data->cdesaPenduduk?->delete();
         }
@@ -181,23 +192,6 @@ class Cdesa extends Admin_Controller
         redirect_with('success', 'Berhasil Hapus Data');
     }
 
-    protected function validate()
-    {
-        $data = $this->input->post();
-
-        $penduduk = [];
-        if ($data['jenis_pemilik'] == 1) {
-            $penduduk['id_pend']  = $data['id_penduduk'];
-            $penduduk['id_cdesa'] = $data['id_cdesa'];
-        }
-        unset($data['id_penduduk']);
-
-        $cdesa['data']     = $data;
-        $cdesa['penduduk'] = $penduduk;
-
-        return $cdesa;
-    }
-
     public function dialog($aksi = 'cetak'): void
     {
         $data                = $this->modal_penandatangan();
@@ -210,7 +204,6 @@ class Cdesa extends Admin_Controller
     {
         $data                   = $this->modal_penandatangan();
         $data['aksi']           = $aksi;
-        $data['config']         = $this->header['desa'];
         $data['pamong_ttd']     = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong_ttd')])->first()->toArray();
         $data['pamong_ketahui'] = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong_ketahui')])->first()->toArray();
         $data['main']           = CdesaModel::listCdesa();
@@ -220,7 +213,14 @@ class Cdesa extends Admin_Controller
         $data['isi']       = 'admin.pertanahan.cdesa.cetak';
         $data['letak_ttd'] = ['1', '2', '12'];
 
-        return view('admin.layouts.components.format_cetak', $data);
+        if ($aksi == 'unduh') {
+            header('Content-type: application/octet-stream');
+            header('Content-Disposition: attachment; filename=data_persil.xls');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+        }
+
+        view('admin.layouts.components.format_cetak', $data);
     }
 
     public function apipendudukdesa()
@@ -272,7 +272,6 @@ class Cdesa extends Admin_Controller
         $data['kering'] = CdesaModel::cetakMutasi($id, 'KERING');
 
         $data['aksi'] = 'cetak';
-        $data['desa'] = $this->header['desa'];
 
         $data['file'] = 'Form C-Desa ' . date('Y-m-d');
 
@@ -281,5 +280,22 @@ class Cdesa extends Admin_Controller
         $data['letak_ttd'] = [];
 
         return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    protected function validate()
+    {
+        $data = $this->input->post();
+
+        $penduduk = [];
+        if ($data['jenis_pemilik'] == 1) {
+            $penduduk['id_pend']  = $data['id_penduduk'];
+            $penduduk['id_cdesa'] = $data['id_cdesa'];
+        }
+        unset($data['id_penduduk']);
+
+        $cdesa['data']     = $data;
+        $cdesa['penduduk'] = $penduduk;
+
+        return $cdesa;
     }
 }

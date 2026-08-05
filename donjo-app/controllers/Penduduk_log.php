@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 use App\Enums\AgamaEnum;
 use App\Enums\JenisKelaminEnum;
+use App\Enums\PeristiwaPendudukEnum;
 use App\Enums\PindahEnum;
 use App\Enums\StatusDasarEnum;
 use App\Models\LogPenduduk;
@@ -45,6 +46,7 @@ use App\Models\Wilayah;
 use App\Traits\Upload;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -52,10 +54,9 @@ class Penduduk_log extends Admin_Controller
 {
     use Upload;
 
-    public $modul_ini           = 'kependudukan';
-    public $sub_modul_ini       = 'peristiwa';
-    public $kategori_pengaturan = 'log_penduduk';
-    private $pertanyaan         = 'Apakah Anda yakin ingin mengembalikan status data penduduk ini?<br> Perubahan ini akan mempengaruhi laporan penduduk bulanan.';
+    public $modul_ini     = 'kependudukan';
+    public $sub_modul_ini = 'peristiwa';
+    private $pertanyaan   = 'Apakah Anda yakin ingin mengembalikan status data penduduk ini?<br> Perubahan ini akan mempengaruhi laporan penduduk bulanan.';
     private $judulStatistik;
     private $statistikFilter = [];
 
@@ -68,10 +69,8 @@ class Penduduk_log extends Admin_Controller
     public function index(): void
     {
         $tglLaporAwal  = LogPenduduk::whereNotNull('tgl_lapor')->min('tgl_lapor');
-        $defaultFilter = [
-            'tahun' => date('Y'),
-            'bulan' => date('m'),
-        ];
+        $defaultFilter = [];
+
         if ($this->statistikFilter) {
             $defaultFilter = $this->statistikFilter;
         }
@@ -100,51 +99,89 @@ class Penduduk_log extends Admin_Controller
                 ->addColumn('foto', static fn ($row) => '<img class="penduduk_kecil" src="' . AmbilFoto($row->penduduk->foto, '', $row->penduduk->sex) . '" alt="Foto Penduduk" />')->addIndexColumn()
                 ->addColumn('aksi', static function ($row) use ($dataLengkap, $pertanyaan, $ubah) {
                     if ($ubah) {
-                        $aksi = '<a href="' . ci_route("penduduk_log.edit.{$row->id}") . '" class="btn bg-orange btn-sm"  title="Ubah Log Penduduk" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Log Penduduk" ><i class="fa fa-edit"></i></a>';
-                        if (! in_array($row->kode_peristiwa, [LogPenduduk::BARU_LAHIR, LogPenduduk::BARU_PINDAH_MASUK, LogPenduduk::TIDAK_TETAP_PERGI])) {
+                        $aksi = View::make('admin.layouts.components.buttons.edit', [
+                            'url'   => 'penduduk_log/edit/' . $row->id,
+                            'modal' => true,
+                        ])->render();
+                        if (! in_array($row->kode_peristiwa, [PeristiwaPendudukEnum::BARU_LAHIR->value, PeristiwaPendudukEnum::BARU_PINDAH_MASUK->value, PeristiwaPendudukEnum::TIDAK_TETAP_PERGI->value])) {
                             if ($dataLengkap) {
-                                $aksi .= ' <a href="#" data-href="' . ci_route("penduduk_log.kembalikan_status.{$row->id}") . '" class="btn bg-olive btn-sm" title="Kembalikan Status"  data-remote="false"  data-toggle="modal" data-body="' . $pertanyaan . '" data-target="#confirm-status"><i class="fa fa-undo"></i></a>';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'         => '#',
+                                    'judul'       => 'Kembalikan Status',
+                                    'icon'        => 'fa fa-undo',
+                                    'type'        => 'bg-olive',
+                                    'modal'       => true,
+                                    'buttonOnly'  => true,
+                                    'modalTarget' => 'confirm-status',
+                                    'dataHref'    => ci_route("penduduk_log.kembalikan_status.{$row->id}"),
+                                    'dataBody'    => $pertanyaan,
+                                ])->render();
+
                                 if ($row->isKembaliDatang() && $row->isLogPergiTerakhir() && in_array($row->penduduk->status_dasar, [StatusDasarEnum::PINDAH, StatusDasarEnum::PERGI])) {
-                                    $aksi .= ' <a href="' . ci_route("penduduk_log.ajax_kembalikan_status_pergi.{$row->id}") . '" class="btn bg-purple btn-sm" title="Datang Kembali"  data-remote="false"  data-toggle="modal" data-target="#modalBox" data-title="Kembalikan Penduduk"><i class="fa fa-angle-double-left"></i></a>';
+                                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                        'url'         => ci_route("penduduk_log.ajax_kembalikan_status_pergi.{$row->id}"),
+                                        'judul'       => 'Kembalikan Penduduk',
+                                        'icon'        => 'fa fa-angle-double-left',
+                                        'type'        => 'bg-purple',
+                                        'modal'       => true,
+                                        'buttonOnly'  => true,
+                                        'modalTarget' => 'modalBox',
+                                    ])->render();
                                 }
                             }
                         }
                     }
 
-                    if ($row->kode_peristiwa == LogPenduduk::MATI) {
-                        $aksi .= ' <a target="_blank" href="' . ci_route("penduduk_log.dokumen.{$row->id}") . '" class="btn btn-info btn-sm" title="Lihat File Akta Kematian"><i class="fa fa-eye"></i></a>';
+                    if ($row->kode_peristiwa == PeristiwaPendudukEnum::MATI->value) {
+                        $aksi .= View::make('admin.layouts.components.buttons.lihat', [
+                            'url'   => ci_route("penduduk_log.dokumen.{$row->id}"),
+                            'blank' => true,
+                            'judul' => 'Lihat File Akta Kematian',
+                        ])->render();
                     }
 
                     if ($ubah) {
-                        switch($row->kode_peristiwa) {
-                            case LogPenduduk::BARU_LAHIR:
+                        switch ($row->kode_peristiwa) {
+                            case PeristiwaPendudukEnum::BARU_LAHIR->value:
                                 $suratTerkait = json_decode(setting('surat_kelahiran_terkait_penduduk'), 1);
                                 break;
 
-                            case LogPenduduk::MATI:
+                            case PeristiwaPendudukEnum::MATI->value:
                                 $suratTerkait = json_decode(setting('surat_kematian_terkait_penduduk'), 1);
                                 break;
 
-                            case LogPenduduk::PINDAH_KELUAR:
+                            case PeristiwaPendudukEnum::PINDAH_KELUAR->value:
                                 $suratTerkait = json_decode(setting('surat_pindah_keluar_terkait_penduduk'), 1);
                                 break;
 
-                            case LogPenduduk::HILANG:
+                            case PeristiwaPendudukEnum::HILANG->value:
                                 $suratTerkait = json_decode(setting('surat_hilang_terkait_penduduk'), 1);
                                 break;
 
-                            case LogPenduduk::BARU_PINDAH_MASUK:
+                            case PeristiwaPendudukEnum::BARU_PINDAH_MASUK->value:
                                 $suratTerkait = json_decode(setting('surat_pindah_masuk_terkait_penduduk'), 1);
                                 break;
 
-                            case LogPenduduk::TIDAK_TETAP_PERGI:
+                            case PeristiwaPendudukEnum::TIDAK_TETAP_PERGI->value:
                                 $suratTerkait = json_decode(setting('surat_pergi_terkait_penduduk'), 1);
                                 break;
                         }
 
                         if ($suratTerkait) {
                             foreach ($suratTerkait as $item) {
-                                $aksi .= ' <a target="_blank" href="' . ci_route("surat.form.{$item}") . '#' . $row->penduduk->id . '#' . $row->penduduk->nik . '#' . $row->penduduk->nama . '" class="btn btn-social bg-purple btn-sm" title="' . str_replace('-', ' ', $item) . '"><i class="fa fa-file-word-o"></i>' . str_replace('-', ' ', $item) . '</a>';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url' => ci_route("surat.form.{$item}")
+                                                    . '#' . $row->penduduk->id
+                                                    . '#' . $row->penduduk->nik
+                                                    . '#' . $row->penduduk->nama,
+                                    'judul'      => str_replace('-', ' ', $item),
+                                    'icon'       => 'fa fa-file-word-o',
+                                    'type'       => 'bg-purple',
+                                    'blank'      => true,
+                                    'buttonOnly' => false,
+                                    'modal'      => false,
+                                    'slug'       => true,
+                                ])->render();
                             }
                         }
                     }
@@ -160,67 +197,6 @@ class Penduduk_log extends Admin_Controller
         }
 
         return show_404();
-    }
-
-    private function sumberData()
-    {
-        $kodePeristiwa   = $this->input->get('kode_peristiwa') ?? null;
-        $bulan           = $this->input->get('bulan') ?? null;
-        $tahun           = $this->input->get('tahun') ?? null;
-        $sex             = $this->input->get('jenis_kelamin') ?? null;
-        $dusun           = $this->input->get('dusun') ?? null;
-        $rw              = $this->input->get('rw') ?? null;
-        $rt              = $this->input->get('rt') ?? null;
-        $agama           = $this->input->get('agama') ?? null;
-        $statistikFilter = $this->input->get('statistikfilter') ?? null;
-
-        if ($statistikFilter) {
-            $dusun  = $statistikFilter['dusun'];
-            $rw     = $statistikFilter['dusun'] . '__' . $statistikFilter['rw'];
-            $namaRw = $statistikFilter['rw'];
-            $namaRt = $statistikFilter['rt'];
-            if ($namaRt) {
-                $rt = Wilayah::whereDusun($dusun)->whereRw($namaRw)->whereRt($namaRt)->select(['id'])->first()->id;
-            }
-        }
-
-        $idCluster = $rt ? [$rt] : [];
-
-        if (empty($idCluster) && ! empty($rw)) {
-            [$namaDusun,$namaRw] = explode('__', $rw);
-            $idCluster           = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        if (empty($idCluster) && ! empty($dusun)) {
-            $idCluster = Wilayah::whereDusun($dusun)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        return LogPenduduk::with(['penduduk', 'keluarga', 'pergiTerakhir'])
-            ->when($kodePeristiwa, static fn ($r) => $r->whereKodePeristiwa($kodePeristiwa))
-            ->when($tahun, static fn ($r) => $r->whereYear('tgl_lapor', $tahun))
-            ->when($bulan, static fn ($r) => $r->whereMonth('tgl_lapor', $bulan))
-            ->when($statistikFilter, static function ($q) use ($statistikFilter) {
-                $kriteria = $statistikFilter['value'];
-
-                switch($kriteria) {
-                    case TOTAL:
-                        return $q;
-
-                    case BELUM_MENGISI:
-                        return $q->whereNull('akta_mati');
-
-                    case JUMLAH:
-                        return $q->whereNotNull('akta_mati');
-                }
-            })
-            ->whereHas(
-                'penduduk',
-                static function ($r) use ($idCluster, $sex, $agama) {
-                $r->when($idCluster, static fn ($s) => $s->whereIn('id_cluster', $idCluster))
-                    ->when($agama, static fn ($s) => $s->whereAgamaId($agama))
-                    ->when($sex, static fn ($s) => $s->whereSex($sex));
-            }
-            );
     }
 
     public function dokumen($id): void
@@ -257,6 +233,10 @@ class Penduduk_log extends Admin_Controller
         $data['catatan'] = htmlentities($this->input->post('catatan'));
         if ($this->input->post('alamat_tujuan')) {
             $data['alamat_tujuan'] = htmlentities($this->input->post('alamat_tujuan'));
+        }
+
+        if ($this->input->post('ref_pindah')) {
+            $data['ref_pindah'] = (int) $this->input->post('ref_pindah');
         }
 
         if ($this->input->post('meninggal_di')) {
@@ -302,17 +282,6 @@ class Penduduk_log extends Admin_Controller
         $log->update($data);
 
         redirect_with('success', 'Berhasil ubah data catatan peristiwa');
-    }
-
-    private function uploadAktaMati($idLog)
-    {
-        $config['upload_path']   = LOKASI_DOKUMEN;
-        $config['allowed_types'] = 'jpg|jpeg|png|pdf';
-        $config['max_size']      = 1024 * 10;
-        $config['file_name']     = 'akta_mati_' . $idLog . '_' . time();
-        $config['overwrite']     = true;
-
-        return $this->upload('nama_file', $config);
     }
 
     public function kembalikan_status($id): void
@@ -393,14 +362,15 @@ class Penduduk_log extends Admin_Controller
     {
         $query = datatables($this->sumberData())
             ->filter(function ($query) {
-                $query->when($this->input->post('id_cb'), static function ($query, $id) {
-                    $query->whereIn('id', $id);
+                $query->when($this->input->post('id_cb'), static function ($query, $ids) {
+                    $query->whereIn('id', json_decode($ids));
                 });
             });
 
         $data = [
             'main'  => $query->prepareQuery()->results(),
             'judul' => $this->input->post('judul'),
+            'aksi'  => $aksi,
         ];
         if ($privasi_nik == 1) {
             $data['privasi_nik'] = true;
@@ -428,7 +398,7 @@ class Penduduk_log extends Admin_Controller
         $rw                             = $this->input->get('rw');
         $rt                             = $this->input->get('rt');
         $this->statistikFilter['sex']   = ($sex == 0) ? null : $sex;
-        $judulJenisKelamin              = $sex ? ' - ' . strtoupper(JenisKelaminEnum::valueOf($sex)) : '';
+        $judulJenisKelamin              = $sex ? ' - ' . JenisKelaminEnum::valueToUpper($sex) : '';
         $this->statistikFilter['dusun'] = $dusun;
         $this->statistikFilter['rw']    = $rw;
         $this->statistikFilter['rt']    = $rt;
@@ -436,10 +406,10 @@ class Penduduk_log extends Admin_Controller
         if ((string) $tipe === 'akta-kematian') {
             $kategori                                = 'AKTA KEMATIAN : ';
             $this->statistikFilter['status_dasar']   = StatusDasarEnum::MATI;
-            $this->statistikFilter['kode_peristiwa'] = LogPenduduk::MATI;
+            $this->statistikFilter['kode_peristiwa'] = PeristiwaPendudukEnum::MATI->value;
         }
 
-        switch($nomor) {
+        switch ($nomor) {
             case BELUM_MENGISI:
                 $this->judulStatistik = $kategori . 'BELUM MENGISI';
                 break;
@@ -461,5 +431,111 @@ class Penduduk_log extends Admin_Controller
         }
         $this->judulStatistik .= $judulJenisKelamin;
         $this->index();
+    }
+
+    private function sumberData()
+    {
+        $kodePeristiwa   = $this->input->get('kode_peristiwa') ?? null;
+        $bulan           = $this->input->get('bulan') ?? null;
+        $tahun           = $this->input->get('tahun') ?? null;
+        $sex             = $this->input->get('jenis_kelamin') ?? null;
+        $dusun           = $this->input->get('dusun') ?? null;
+        $rw              = $this->input->get('rw') ?? null;
+        $rt              = $this->input->get('rt') ?? null;
+        $agama           = $this->input->get('agama') ?? null;
+        $statistikFilter = $this->input->get('statistikfilter') ?? null;
+
+        if ($statistikFilter) {
+            $dusun  = $statistikFilter['dusun'];
+            $rw     = $statistikFilter['dusun'] . '__' . $statistikFilter['rw'];
+            $namaRw = $statistikFilter['rw'];
+            $namaRt = $statistikFilter['rt'];
+            if ($namaRt) {
+                $rt = Wilayah::whereDusun($dusun)->whereRw($namaRw)->whereRt($namaRt)->select(['id'])->first()->id;
+            }
+        }
+
+        $idCluster = $rt ? [$rt] : [];
+
+        if (empty($idCluster) && ! empty($rw)) {
+            [$namaDusun, $namaRw] = explode('__', $rw);
+            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
+        }
+
+        if (empty($idCluster) && ! empty($dusun)) {
+            $idCluster = Wilayah::whereDusun($dusun)->select(['id'])->get()->pluck('id')->toArray();
+        }
+
+        return LogPenduduk::with([
+            'penduduk.keluarga.kepalaKeluarga', // Eager load nested untuk mencegah N+1 query
+            'penduduk.keluarga.wilayah',        // Eager load untuk accessor getAlamatWilayahAttribute
+            'penduduk.wilayah',                 // Eager load wilayah penduduk
+            'penduduk.rtm',                     // Eager load rtm untuk accessor getLokasiAttribute
+            'keluarga',
+            'pergiTerakhir',
+        ])
+            ->when($kodePeristiwa, static fn ($r) => $r->whereKodePeristiwa($kodePeristiwa))
+            ->when($tahun, static fn ($r) => $r->whereYear('tgl_lapor', $tahun))
+            ->when($bulan, static fn ($r) => $r->whereMonth('tgl_lapor', $bulan))
+            ->when($statistikFilter, static function ($q) use ($statistikFilter) {
+                $kriteria = $statistikFilter['value'];
+
+                switch ($kriteria) {
+                    case TOTAL:
+                        return $q;
+
+                    case BELUM_MENGISI:
+                        return $q->whereNull('file_akta_mati');
+
+                    case JUMLAH:
+                        return $q->whereNotNull('file_akta_mati');
+
+                    default:
+                        return $q->whereNotNull('file_akta_mati');
+                }
+            })
+            ->whereHas(
+                'penduduk',
+                static function ($r) use ($idCluster, $sex, $agama, $statistikFilter) {
+                    $r->when($idCluster, static fn ($s) => $s->whereIn('id_cluster', $idCluster))
+                        ->when($agama, static fn ($s) => $s->whereAgamaId($agama))
+                        ->when($sex, static fn ($s) => $s->whereSex($sex));
+
+                    $kriteria = $statistikFilter['value'];
+
+                    switch ($kriteria) {
+                        case TOTAL:
+                        case BELUM_MENGISI:
+                        case JUMLAH:
+                            // Untuk kasus khusus ini, logika bisa kamu tambahkan sendiri
+                            break;
+
+                        default:
+                            $judul = RentangUmur::find($kriteria);
+
+                            if ($judul && is_numeric($judul->dari) && is_numeric($judul->sampai)) {
+                                $dari   = $judul->dari;
+                                $sampai = $judul->sampai;
+
+                                $r->whereRaw("(
+                (DATE_FORMAT(FROM_DAYS(TO_DAYS(NOW()) - TO_DAYS(tanggallahir)), '%Y') + 0)
+                BETWEEN {$dari} AND {$sampai}
+            )");
+                            }
+                            break;
+                    }
+                }
+            );
+    }
+
+    private function uploadAktaMati($idLog)
+    {
+        $config['upload_path']   = LOKASI_DOKUMEN;
+        $config['allowed_types'] = 'jpg|jpeg|png|pdf';
+        $config['max_size']      = 1024 * 10;
+        $config['file_name']     = 'akta_mati_' . $idLog . '_' . time();
+        $config['overwrite']     = true;
+
+        return $this->upload('nama_file', $config);
     }
 }

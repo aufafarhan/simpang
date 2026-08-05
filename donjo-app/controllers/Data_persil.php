@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -41,6 +41,7 @@ use App\Models\Persil;
 use App\Models\RefPersilKelas;
 use App\Models\Wilayah;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -72,23 +73,33 @@ class Data_persil extends Admin_Controller
 
             return datatables()->of($this->sumberData())
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row) use ($canUpdate, $canDelete): string {
+                ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
                     if ($row->mutasi_count) {
-                        $aksi .= '<a href="' . ci_route('data_persil.rincian', $row->id) . '" class="btn bg-purple btn-sm" title="Rincian"><i class="fa fa-bars"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.rincian', [
+                            'url' => "data_persil/rincian/{$row->id}",
+                        ])->render();
                     } else {
-                        $aksi .= '<a class="btn bg-purple btn-sm" disabled title="Rincian"><i class="fa fa-bars"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.rincian', [
+                            'url'      => '#',
+                            'attribut' => 'disabled',
+                        ])->render();
                     }
 
-                    if ($canUpdate) {
-                        $aksi .= '<a href="' . ci_route('data_persil.form', $row->id) . '" class="btn bg-orange btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
-                    if ($canDelete) {
-                        if ($row->mutasi_count) {
-                            $aksi .= '<a class="btn bg-maroon btn-sm" disabled><i class="fa fa-trash-o"></i></a>';
-                        } else {
-                            $aksi .= '<a href="#" data-href="' . ci_route('data_persil.delete', $row->id) . '" class="btn bg-maroon btn-sm" title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a>';
-                        }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'data_persil/form/' . $row->id,
+                    ])->render();
+
+                    if ($row->mutasi_count) {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'      => '#',
+                            'attribut' => 'disabled',
+                        ])->render();
+                    } else {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => ci_route('data_persil.delete', $row->id),
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;
@@ -102,41 +113,6 @@ class Data_persil extends Admin_Controller
         }
 
         return show_404();
-    }
-
-    private function sumberData()
-    {
-        $dusun   = $this->input->get('dusun') ?? null;
-        $rw      = $this->input->get('rw') ?? null;
-        $rt      = $this->input->get('rt') ?? null;
-        $wilayah = $this->input->get('lokasi') ?? null;
-        $kelas   = $this->input->get('kelas') ?? null;
-        $tipe    = $this->input->get('tipe') ?? null;
-
-        $idCluster = $rt ? [$rt] : [];
-        if (empty($idCluster) && ! empty($rw)) {
-            [$namaDusun, $namaRw] = explode('__', $rw);
-            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        if (empty($idCluster) && ! empty($dusun)) {
-            $idCluster = Wilayah::whereDusun($dusun)->select(['id'])->get()->pluck('id')->toArray();
-        }
-        $query = Persil::withCount('mutasi')->with(['refKelas', 'cdesa', 'wilayah'])
-            ->when($kelas, static fn ($q) => $q->where('kelas', $kelas))
-            ->when($tipe, static fn ($q) => $q->whereIn('kelas', static function ($r) use ($tipe) {
-                $r->select('id')->from('ref_persil_kelas')->where('tipe', $tipe);
-            }))
-            ->when($wilayah, static function ($q) use ($wilayah) {
-                if ($wilayah == 1) {
-                    return $q->whereNotNull('id_wilayah');
-                }
-                if ($wilayah == 2) {
-                    return $q->whereNull('id_wilayah');
-                }
-            })->when($idCluster, static fn ($q) => $q->whereIn('id_wilayah', $idCluster));
-
-        return $query;
     }
 
     public function rincian($id): void
@@ -194,7 +170,7 @@ class Data_persil extends Admin_Controller
             if (! $this->request['id_persil'] && $cdesa_awal) {
                 redirect_with('success', 'Data persil berhasil disimpan', ci_route("cdesa.mutasi.{$cdesa_awal}.{$persil->id}"));
             } else {
-                redirect_with('success', 'Data persil berhasil ditambahkan');
+                redirect_with('success', 'Data persil berhasil diubah');
             }
 
         } catch (Exception $e) {
@@ -219,7 +195,6 @@ class Data_persil extends Admin_Controller
 
         $data                 = $this->modal_penandatangan();
         $data['aksi']         = $aksi;
-        $data['config']       = $this->header['desa'];
         $data['persil']       = $this->sumberData()->get();
         $data['persil_kelas'] = RefPersilKelas::get()->keyBy('id')->toArray();
 
@@ -282,9 +257,45 @@ class Data_persil extends Admin_Controller
         $data['luas_persil']       = bilangan($post['luas_persil']) ?: null;
         $data['lokasi']            = $post['lokasi'] ?: null;
         $data['path']              = $post['path'];
+        $data['is_publik']         = $post['is_publik'];
         $data['id_peta']           = ($post['area_tanah'] == 1 || $post['area_tanah'] == null) ? (empty($post['id_peta']) ? null : $post['id_peta']) : null;
 
         return $data;
+    }
+
+    private function sumberData()
+    {
+        $dusun   = $this->input->get('dusun') ?? null;
+        $rw      = $this->input->get('rw') ?? null;
+        $rt      = $this->input->get('rt') ?? null;
+        $wilayah = $this->input->get('lokasi') ?? null;
+        $kelas   = $this->input->get('kelas') ?? null;
+        $tipe    = $this->input->get('tipe') ?? null;
+
+        $idCluster = $rt ? [$rt] : [];
+        if (empty($idCluster) && ! empty($rw)) {
+            [$namaDusun, $namaRw] = explode('__', $rw);
+            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
+        }
+
+        if (empty($idCluster) && ! empty($dusun)) {
+            $idCluster = Wilayah::whereDusun($dusun)->select(['id'])->get()->pluck('id')->toArray();
+        }
+        $query = Persil::withCount('mutasi')->with(['refKelas', 'cdesa', 'wilayah'])
+            ->when($kelas, static fn ($q) => $q->where('kelas', $kelas))
+            ->when($tipe, static fn ($q) => $q->whereIn('kelas', static function ($r) use ($tipe) {
+                $r->select('id')->from('ref_persil_kelas')->where('tipe', $tipe);
+            }))
+            ->when($wilayah, static function ($q) use ($wilayah) {
+                if ($wilayah == 1) {
+                    return $q->whereNotNull('id_wilayah');
+                }
+                if ($wilayah == 2) {
+                    return $q->whereNull('id_wilayah');
+                }
+            })->when($idCluster, static fn ($q) => $q->whereIn('id_wilayah', $idCluster));
+
+        return $query;
     }
 
     private function dataMutasi($data)

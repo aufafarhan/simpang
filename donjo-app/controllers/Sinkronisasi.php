@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -61,7 +61,6 @@ class Sinkronisasi extends Admin_Controller
         isCan('b');
         $this->kode_desa = kode_wilayah($this->header['desa']['kode_desa']);
         $this->load->library('zip');
-        $this->load->model('ekspor_model');
         $this->sterilkan();
     }
 
@@ -118,9 +117,16 @@ class Sinkronisasi extends Admin_Controller
         }
     }
 
-    public function kirim($modul): void
+    public function kirim($modul)
     {
         isCan('u');
+
+        if (! setting('sinkronisasi_opendk') || ! $this->list_setting->firstWhere('key', 'api_opendk_key')?->value) {
+            return redirect_with('notif', [
+                'status' => 'danger',
+                'pesan'  => 'Sinkronisasi ke OpenDK tidak dapat dilakukan. Pastikan fitur sinkronisasi OpenDK sudah diaktifkan dan API key OpenDK sudah dikonfigurasi.',
+            ]);
+        }
 
         switch ($modul) {
             case 'penduduk':
@@ -148,7 +154,7 @@ class Sinkronisasi extends Admin_Controller
                 break;
         }
 
-        redirect_with('notif', $notif);
+        return redirect_with('notif', $notif);
     }
 
     public function unduh($modul): void
@@ -254,77 +260,6 @@ class Sinkronisasi extends Admin_Controller
         return (new DokumentasiPembangunanOpendkExport($p))->zip();
     }
 
-    // TODO:: Ganti dan sesuaikan cara sinkronisasi ini dengan yang baru
-    private function sinkronisasi_data_penduduk()
-    {
-        $filename = $this->eksporPenduduk();
-
-        //Tambah/Ubah Data
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => "{$this->setting->api_opendk_server}/api/v1/penduduk/storedata",
-            // Jika http gunakan url ini :
-            //CURLOPT_URL => $this->setting->api_opendk_server."/api/v1/penduduk/storedata?token=".$this->setting->api_opendk_key,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_MAXREDIRS      => 10,
-            CURLOPT_TIMEOUT        => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST  => 'POST',
-            CURLOPT_POSTFIELDS     => ['file' => new CURLFILE(LOKASI_SINKRONISASI_ZIP . $filename)],
-            CURLOPT_HTTPHEADER     => [
-                'content-Type: multipart/form-data',
-                "Authorization: Bearer {$this->setting->api_opendk_key}",
-            ],
-        ]);
-
-        $response  = json_decode(curl_exec($curl), null);
-        $http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-
-        curl_close($curl);
-
-        //Hapus Data
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => "{$this->setting->api_opendk_server}/api/v1/penduduk",
-            // Jika http gunakan url ini :
-            //CURLOPT_URL => $this->setting->api_opendk_server."/api/v1/penduduk?token=".$this->setting->api_opendk_key,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_MAXREDIRS      => 10,
-            CURLOPT_TIMEOUT        => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST  => 'POST',
-            CURLOPT_POSTFIELDS     => json_encode(DataEkspor::hapus_penduduk_sinkronasi_opendk(), JSON_THROW_ON_ERROR),
-            CURLOPT_HTTPHEADER     => [
-                'Accept: application/json',
-                'Content-Type: application/json',
-                "Authorization: Bearer {$this->setting->api_opendk_key}",
-            ],
-        ]);
-
-        $response  = json_decode(curl_exec($curl), null);
-        $http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-
-        if (curl_errno($curl) || $http_code === 422) {
-            $notif = [
-                'status' => 'danger',
-                'pesan'  => '<b> ' . curl_error($curl) . "</b><br/>{$response->message}<br/>{$response->errors}",
-            ];
-        } else {
-            $notif = [
-                'status' => $response->status,
-                'pesan'  => $response->message,
-            ];
-        }
-
-        curl_close($curl);
-
-        return $notif;
-    }
-
     public function total()
     {
         if ($this->input->is_ajax_request()) {
@@ -342,19 +277,6 @@ class Sinkronisasi extends Admin_Controller
 
             return json(ceil($model::count() / 100));
         }
-    }
-
-    // MULAI IDENTITAS DESA
-    private function sinkronisasi_identitas_desa()
-    {
-        return opendk_api('/api/v1/identitas-desa', [
-            'form_params' => [
-                'kode_desa'    => $this->kode_desa,
-                'sebutan_desa' => $this->setting->sebutan_desa,
-                'website'      => empty($this->header['desa']['website']) ? base_url() : $this->header['desa']['website'],
-                'path'         => $this->header['desa']['path'],
-            ],
-        ], 'post');
     }
     // SELESAI IDENTITAS DESA
 
@@ -473,6 +395,90 @@ class Sinkronisasi extends Admin_Controller
         }
 
         return json($notif);
+    }
+
+    // TODO:: Ganti dan sesuaikan cara sinkronisasi ini dengan yang baru
+    private function sinkronisasi_data_penduduk()
+    {
+        $filename = $this->eksporPenduduk();
+
+        //Tambah/Ubah Data
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL => setting('api_opendk_server') . '/api/v1/penduduk/storedata',
+            // Jika http gunakan url ini :
+            //CURLOPT_URL => setting('api_opendk_server')."/api/v1/penduduk/storedata?token=".setting('api_opendk_key'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_MAXREDIRS      => 10,
+            CURLOPT_TIMEOUT        => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST  => 'POST',
+            CURLOPT_POSTFIELDS     => ['file' => new CURLFILE(LOKASI_SINKRONISASI_ZIP . $filename)],
+            CURLOPT_HTTPHEADER     => [
+                'content-Type: multipart/form-data',
+                'Authorization: Bearer ' . setting('api_opendk_key'),
+            ],
+        ]);
+
+        $response  = json_decode(curl_exec($curl), null);
+        $http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+
+        curl_close($curl);
+
+        //Hapus Data
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL => "{setting('api_opendk_server')}/api/v1/penduduk",
+            // Jika http gunakan url ini :
+            //CURLOPT_URL => setting('api_opendk_server')."/api/v1/penduduk?token=".setting('api_opendk_key'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_MAXREDIRS      => 10,
+            CURLOPT_TIMEOUT        => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST  => 'POST',
+            CURLOPT_POSTFIELDS     => json_encode(DataEkspor::hapus_penduduk_sinkronasi_opendk(), JSON_THROW_ON_ERROR),
+            CURLOPT_HTTPHEADER     => [
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . setting('api_opendk_key'),
+            ],
+        ]);
+
+        $response  = json_decode(curl_exec($curl), null);
+        $http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+
+        if (curl_errno($curl) || $http_code === 422) {
+            $notif = [
+                'status' => 'danger',
+                'pesan'  => '<b> ' . curl_error($curl) . "</b><br/>{$response->message}<br/>{$response->errors}",
+            ];
+        } else {
+            $notif = [
+                'status' => $response->status,
+                'pesan'  => $response->message,
+            ];
+        }
+
+        curl_close($curl);
+
+        return $notif;
+    }
+
+    // MULAI IDENTITAS DESA
+    private function sinkronisasi_identitas_desa()
+    {
+        return opendk_api('/api/v1/identitas-desa', [
+            'form_params' => [
+                'kode_desa'    => $this->kode_desa,
+                'sebutan_desa' => setting('sebutan_desa'),
+                'website'      => empty($this->header['desa']['website']) ? base_url() : $this->header['desa']['website'],
+                'path'         => $this->header['desa']['path'],
+            ],
+        ], 'post');
     }
     // SELESAI PEMBANGUNAN
 }

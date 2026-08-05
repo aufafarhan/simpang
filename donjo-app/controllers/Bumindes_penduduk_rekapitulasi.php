@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -80,16 +80,6 @@ class Bumindes_penduduk_rekapitulasi extends Admin_Controller
         return show_404();
     }
 
-    private function sumberData()
-    {
-        $filters = [
-            'tahun' => empty($this->input->get('tahun')) ? null : $this->input->get('tahun'),
-            'bulan' => empty($this->input->get('bulan')) ? null : $this->input->get('bulan'),
-        ];
-
-        return LogPenduduk::rekapitulasiList($filters)->get()->toArray();
-    }
-
     public function dataProcess($rekap)
     {
         return collect($rekap)->map(static function (array $item): array {
@@ -122,15 +112,15 @@ class Bumindes_penduduk_rekapitulasi extends Admin_Controller
 
     public function cetak($aksi = '')
     {
-        $paramDatatable        = json_decode((string) $this->input->post('params'), 1);
-        $_GET                  = $paramDatatable;
-        $rekap                 = $this->sumberData();
-        $data                  = $this->modal_penandatangan();
-        $data['aksi']          = $aksi;
-        $data['tahun']         = empty($_GET['tahun']) ? date('Y') : $_GET['tahun'];
-        $data['bulan']         = empty($_GET['bulan']) ? date('m') : $_GET['bulan'];
-        $data['main']          = $this->dataProcess($rekap);
-        $data['config']        = $this->header['desa'];
+        $paramDatatable = json_decode((string) $this->input->post('params'), 1);
+        $_GET           = $paramDatatable;
+        $rekap          = $this->sumberData();
+        $data           = $this->modal_penandatangan();
+        $data['aksi']   = $aksi;
+        $data['tahun']  = empty($_GET['tahun']) ? date('Y') : $_GET['tahun'];
+        $data['bulan']  = empty($_GET['bulan']) ? date('m') : $_GET['bulan'];
+        $data['main']   = $this->dataProcess($rekap);
+
         $data['tgl_cetak']     = $this->input->post('tgl_cetak');
         $data['tampil_jumlah'] = $this->input->post('tampil_jumlah');
         $data['file']          = 'Buku Rekapitulasi Jumlah Penduduk';
@@ -142,6 +132,16 @@ class Bumindes_penduduk_rekapitulasi extends Admin_Controller
         }
 
         return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    private function sumberData()
+    {
+        $filters = [
+            'tahun' => empty($this->input->get('tahun')) ? null : $this->input->get('tahun'),
+            'bulan' => empty($this->input->get('bulan')) ? null : $this->input->get('bulan'),
+        ];
+
+        return LogPenduduk::rekapitulasiList($filters)->get()->toArray();
     }
 
     private function laporan_pdf(array $data): void

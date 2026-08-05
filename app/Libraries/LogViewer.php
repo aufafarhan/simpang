@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 namespace App\Libraries;
 
+use App\Traits\Download;
 use Exception;
 use Illuminate\Support\Facades\Config;
 
@@ -44,6 +45,8 @@ defined('BASEPATH') || exit('No direct script access allowed');
 
 class LogViewer
 {
+    use Download;
+
     public const LOG_LINE_START_PATTERN = '/^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\] \\w+\\.((INFO)|(ERROR)|(DEBUG)|(ALL)|(NOTICE)):/';
     public const LOG_DATE_PATTERN       = ['/^\\[/', '/\\]\\s\\w+\\.((INFO)|(ERROR)|(DEBUG)|(ALL)|(NOTICE)):/'];
     public const LOG_LEVEL_PATTERN      = '/\\b((INFO)|(ERROR)|(DEBUG)|(ALL)|(NOTICE))\\b/';
@@ -96,23 +99,6 @@ class LogViewer
     public function __construct()
     {
         $this->init();
-    }
-
-    /**
-     * Bootstrap the library
-     * sets the configuration variables
-     *
-     * @throws Exception
-     */
-    private function init(): void
-    {
-        $configLog = Config::get('app.log');
-        //configure the log folder path and the file pattern for all the logs in the folder
-        $this->logFolderPath  = null !== $configLog[self::LOG_FOLDER_PATH_CONFIG_KEY] ? rtrim($configLog[self::LOG_FOLDER_PATH_CONFIG_KEY], '/') : rtrim(APPPATH, '/') . '/logs';
-        $this->logFilePattern = $configLog[self::LOG_FILE_PATTERN_CONFIG_KEY] ?? 'opensid-*.log';
-
-        //concatenate to form Full Log Path
-        $this->fullLogFilePath = $this->logFolderPath . '/' . $this->logFilePattern;
     }
 
     /**
@@ -177,6 +163,23 @@ class LogViewer
         $data['currentFile'] = null !== $currentFile ? basename($currentFile) : '';
 
         return $data;
+    }
+
+    /**
+     * Bootstrap the library
+     * sets the configuration variables
+     *
+     * @throws Exception
+     */
+    private function init(): void
+    {
+        $configLog = Config::get('app.log');
+        //configure the log folder path and the file pattern for all the logs in the folder
+        $this->logFolderPath  = null !== $configLog[self::LOG_FOLDER_PATH_CONFIG_KEY] ? rtrim($configLog[self::LOG_FOLDER_PATH_CONFIG_KEY], '/') : rtrim(APPPATH, '/') . '/logs';
+        $this->logFilePattern = $configLog[self::LOG_FILE_PATTERN_CONFIG_KEY] ?? 'opensid-*.log';
+
+        //concatenate to form Full Log Path
+        $this->fullLogFilePath = $this->logFolderPath . '/' . $this->logFilePattern;
     }
 
     private function processAPIRequests(string $command): string
@@ -486,28 +489,6 @@ class LogViewer
         } else {
             unlink($this->logFolderPath . '/' . basename($fileName));
         }
-    }
-
-    /**
-     * Download a particular file to local disk
-     * This should only be called if the file exists
-     * hence, the file exist check has ot be done by the caller
-     *
-     * @param       $fileName the complete file path
-     * @param mixed $file
-     */
-    private function downloadFile(string $file): void
-    {
-        header('Content-Description: File Transfer');
-        header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($file) . '"');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        readfile($file);
-
-        exit;
     }
 
     /**

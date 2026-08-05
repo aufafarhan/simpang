@@ -4,8 +4,8 @@
             <label for="kk_level">Hubungan Dalam Keluarga</label>
             <select id="kk_level" class="form-control input-sm required select2" name="kk_level">
                 @foreach ($hubungan as $key => $value)
-                    <option value="{{ $key }}">
-                        {{ strtoupper($value) }}</option>
+                <option value="{{ $key }}">
+                    {{ strtoupper($value) }}</option>
                 @endforeach
             </select>
         </div>
@@ -22,7 +22,7 @@
         $.post('periksaKepalaKeluargaGanda/ubahShdk', {
             id: {{ $id }},
             kk_level: $('#kk_level').val(),
-            {{ $ci->security->get_csrf_token_name() }}: '{{ $ci->security->get_csrf_hash() }}'
+            {{ $token_name }}: '{{ $token_value }}'
         }, function(data) {
             let _message = 'Data SHDK gagal diubah'
             let _messageClass = 'danger'

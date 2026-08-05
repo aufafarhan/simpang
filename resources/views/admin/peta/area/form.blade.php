@@ -22,9 +22,7 @@
             {!! form_open_multipart($form_action, 'class="form-horizontal" id="validasi"') !!}
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ ci_route('area.index') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                        <i class="fa fa-arrow-circle-left "></i>Kembali ke Area
-                    </a>
+                    <x-kembali-button judul="Kembali Ke Area" url="area" />
                 </div>
                 <div class="box-body">
                     <div class="form-group">
@@ -33,17 +31,34 @@
                             <input name="nama" class="form-control input-sm nomor_sk required" maxlength="100" type="text" value="{{ $area->nama }}" />
                         </div>
                     </div>
+                    
+                    <!-- DROPDOWN JENIS (ROOT) -->
+                    <div class="form-group">
+                        <label class="control-label col-sm-3">Jenis</label>
+                        <div class="col-sm-7">
+                            <select class="form-control input-sm select2 required" id="jenis" name="jenis">
+                                <option value="">Pilih Jenis</option>
+                                @foreach ($list_jenis as $data)
+                                    <option value="{{ $data->id }}" @selected($data->id == $parent)>{{ $data->nama }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- DROPDOWN KATEGORI (CHILD) -->
                     <div class="form-group">
                         <label class="control-label col-sm-3">Kategori</label>
                         <div class="col-sm-7">
                             <select class="form-control input-sm select2 required" id="ref_polygon" name="ref_polygon">
                                 <option value="">Pilih Kategori</option>
-                                @foreach ($list_polygon as $data)
+                                @foreach ($list_kategori as $data)
                                     <option value="{{ $data->id }}" @selected($data->id == $area->ref_polygon)>{{ $data->nama }}</option>
                                 @endforeach
                             </select>
+                            <p class="help-block small text-muted">Pilih Jenis terlebih dahulu untuk menampilkan Kategori</p>
                         </div>
                     </div>
+                    
                     <?php if ($area->foto_area) : ?>
                     <div class="form-group">
                         <label class="control-label col-sm-3"></label>
@@ -57,7 +72,7 @@
                         <div class="col-sm-7">
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" id="file_path">
-                                <input id="file" type="file" class="hidden" name="foto" accept=".gif,.jpg,.jpeg,.png">
+                                <input id="file" type="file" class="hidden" name="foto" accept=".gif,.jpg,.jpeg,.png,.webp">
                                 <span class="input-group-btn">
                                     <button type="button" class="btn btn-info " id="file_browser"><i class="fa fa-search"></i> Browse</button>
                                 </span>
@@ -72,32 +87,15 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="col-xs-12 col-sm-3 col-lg-3 control-label" for="status">Status</label>
-                        <div class="btn-group col-xs-12 col-sm-9" data-toggle="buttons">
-                            <label id="sx3" class="btn btn-info  btn-sm col-xs-6 col-sm-4 col-lg-2 form-check-label @active($area->enabled == \App\Models\Area::UNLOCK || $area->enabled == null)">
-                                <input
-                                    id="sx1"
-                                    type="radio"
-                                    name="enabled"
-                                    class="form-check-input"
-                                    type="radio"
-                                    value="{{ \App\Models\Area::UNLOCK }}"
-                                    @checked($area->enabled == \App\Models\Area::UNLOCK || $area->enabled == null)
-                                    autocomplete="off"
-                                > Aktif
-                            </label>
-                            <label id="sx4" class="btn btn-info  btn-sm col-xs-6 col-sm-4 col-lg-2 form-check-label @active($area->enabled == \App\Models\Area::LOCK)">
-                                <input
-                                    id="sx2"
-                                    type="radio"
-                                    name="enabled"
-                                    class="form-check-input"
-                                    type="radio"
-                                    value="{{ \App\Models\Area::LOCK }}"
-                                    @checked($area->enabled == \App\Models\Area::LOCK)
-                                    autocomplete="off"
-                                > Tidak Aktif
-                            </label>
+                        <label class="col-sm-3 control-label" for="enabled">Status</label>
+                        <div class="col-sm-6">
+                            <select name="enabled" id="enabled" class="form-control input-sm required">
+                                @foreach (\App\Enums\AktifEnum::all() as $value => $label)
+                                <option value="{{ $value }}" @selected($area->enabled==$value)>
+                                    {{ $label }}
+                                </option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -112,12 +110,87 @@
             </form>
         </div>
     </div>
-@endsection
 
-@push('scripts')
+    @push('scripts')
     <script>
         $(document).ready(function() {
+            // Simpan nilai kategori yang harus di-select (dari database saat edit)
+            var selectedKategori = '{{ $area->ref_polygon ?? "" }}';
 
-        })
+            // Function untuk load kategori berdasarkan jenis
+            function loadKategori(jenisId) {
+                var $kategori = $('#ref_polygon');
+
+                // Show loading state
+                $kategori.html('<option value="">Memuat...</option>').prop('disabled', true);
+
+                if (!jenisId) {
+                    $kategori.html('<option value="">Pilih Kategori</option>').prop('disabled', false);
+                    return;
+                }
+
+                // AJAX untuk mengambil kategori
+                $.ajax({
+                    url: "{{ ci_route('area.ajax_get_kategori') }}",
+                    type: 'GET',
+                    data: {
+                        jenis_id: jenisId
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        // Reset dropdown
+                        $kategori.html('<option value="">Pilih Kategori</option>');
+
+                        if (response.success && response.data.length > 0) {
+                            // Loop dan tambahkan option
+                            $.each(response.data, function(key, value) {
+                                var isSelected = (selectedKategori && value.id == selectedKategori);
+                                var option = $('<option></option>')
+                                    .attr('value', value.id)
+                                    .text(value.nama);
+
+                                // Set selected jika sesuai dengan data yang harus dipilih
+                                if (isSelected) {
+                                    option.prop('selected', true);
+                                }
+
+                                $kategori.append(option);
+                            });
+                        } else {
+                            $kategori.html('<option value="">Tidak ada kategori</option>');
+                        }
+
+                        // Enable dropdown dan refresh select2
+                        $kategori.prop('disabled', false);
+
+                        // Refresh select2 dengan nilai yang sudah dipilih
+                        if (typeof $kategori.select2 === 'function') {
+                            $kategori.select2().trigger('change');
+                        } else {
+                            $kategori.trigger('change');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading kategori:', error);
+                        $kategori.html('<option value="">Error memuat data</option>').prop('disabled', false);
+                    }
+                });
+            }
+
+            // Event saat dropdown Jenis berubah
+            $('#jenis').on('change', function() {
+                var jenisId = $(this).val();
+                loadKategori(jenisId);
+            });
+
+            // Auto-load kategori saat edit (jika parent sudah ada)
+            @if($parent > 0)
+            var jenisId = $('#jenis').val();
+            if (jenisId) {
+                loadKategori(jenisId);
+            }
+            @endif
+        });
     </script>
-@endpush
+    @endpush
+@endsection

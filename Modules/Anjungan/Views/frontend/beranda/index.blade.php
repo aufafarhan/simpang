@@ -5,13 +5,13 @@
     <meta charset="UTF-8">
     <meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=0'>
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Layanan Mandiri {{ ucwords($setting->sebutan_desa . ' ' . ($desa['nama_desa'] ?? '')) . get_dynamic_title_page_from_path() }}</title>
+    <title>Layanan Mandiri {{ ucwords(setting('sebutan_desa') . ' ' . ($desa['nama_desa'] ?? '')) . get_dynamic_title_page_from_path() }}</title>
 
     <link rel="shortcut icon" href="{{ favico_desa() }}" />
 
     <link rel="stylesheet" href="{{ asset('js/sweetalert2/sweetalert2.min.css') }}">
-    <link href="{{ asset('buku_tamu/css/style.css') }}" rel="stylesheet">
-    <link href="{{ asset('buku_tamu/css/screen.css') }}" rel="stylesheet">
+    <link href="{{ module_asset('anjungan', 'css/custom/style.css') }}" rel="stylesheet">
+    <link href="{{ module_asset('anjungan', 'css/custom/screen.css') }}" rel="stylesheet">
 
     <!-- Bootstrap 3.3.7 -->
     <link rel="stylesheet" href="{{ asset('bootstrap/css/bootstrap.min.css') }}">
@@ -179,7 +179,7 @@
                                 @if (!$beranda)
                                     <div class="side-menu-wrapper">
                                         <div class="form-group text-center">
-                                            <a href="{{ route('anjungan.beranda.index') }}" class="btn bg-aqua btn-social">
+                                            <a href="{{ auth()->guard('pendudukGuest')->check() ? route('layanan-mandiri.beranda.keluar') : route('anjungan.beranda.index') }}" class="btn bg-aqua btn-social">
                                                 <i class="fa fa-arrow-circle-left"></i>Kembali
                                             </a>
                                         </div>

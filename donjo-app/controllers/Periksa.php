@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,84 +29,103 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Libraries\Periksa as LibrariesPeriksa;
 use App\Models\Config;
+use App\Models\Menu;
 use App\Models\Penduduk;
 use App\Models\SuplemenTerdata;
 use App\Models\User;
 use App\Models\UserGrup;
+use App\Models\Wilayah;
+use App\Repositories\SettingAplikasiRepository;
 use App\Services\Auth\Traits\LoginRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
-class Periksa extends CI_Controller
+class Periksa extends MY_Controller
 {
     use LoginRequest;
 
-    protected $guard = 'admin_periksa';
     public $setting;
     public $header;
     public $latar_login;
+    protected $guard = 'admin_periksa';
+    private string $collate;
 
     public function __construct()
     {
         parent::__construct();
 
-        $this->load->database();
-        $this->load->model(['setting_model', 'periksa_model']);
-
         if ($this->session->db_error['code'] === 1049) {
             redirect('koneksi-database');
         }
 
-        $this->setting_model->init();
+        $this->collate = DB::connection('default')->getConfig('collation');
 
         $this->header      = Config::appKey()->first();
-        $this->latar_login = default_file(LATAR_LOGIN . $this->setting->latar_login, DEFAULT_LATAR_SITEMAN);
+        $latar_login       = (new SettingAplikasiRepository())->firstByKey('latar_login');
+        $this->latar_login = default_file(LATAR_LOGIN . $latar_login, DEFAULT_LATAR_SITEMAN);
+
+        view()->share('list_setting', $this->list_setting);
     }
 
     public function index()
     {
-        $this->cek_user();
+        $this->cekUser();
 
         if ($this->session->message_query || $this->session->message_exception) {
             log_message('error', $this->session->message_query);
             log_message('error', $this->session->message_exception);
         }
 
-        return view('periksa.index', array_merge($this->periksa_model->periksa, ['header' => $this->header]));
-    }
-
-    private function cek_user(): void
-    {
-        if (! Auth::guard($this->guard)->check()) {
-            redirect('periksa/login');
-        }
+        return view('periksa.index', array_merge((new LibrariesPeriksa())->getPeriksa(), ['header' => $this->header, 'collation' => $this->collate]));
     }
 
     public function perbaiki(): void
     {
-        $this->cek_user();
-        $this->periksa_model->perbaiki();
+        $this->cekUser();
+        (new LibrariesPeriksa())->perbaiki();
         $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
 
         redirect('/');
     }
 
-    public function perbaiki_sebagian($masalah): void
+    public function perbaikiSebagian($masalah): void
     {
-        $this->cek_user();
-        $this->periksa_model->perbaiki_sebagian($masalah);
+        $this->cekUser();
+        (new LibrariesPeriksa())->perbaikiSebagian($masalah);
         $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
 
         redirect('/');
+    }
+
+    public function perbaikiPilihan()
+    {
+        $this->cekUser();
+
+        $pilihan = $this->input->post('pilihan');
+
+        try {
+            foreach ($pilihan as $masalah) {
+                (new LibrariesPeriksa())->perbaikiSebagian($masalah);
+            }
+            $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
+        } catch (Exception $e) {
+            logger()->error($e);
+
+            return json(['status' => 0, 'message' => 'Terjadi kesalahan saat memproses permintaan.']);
+        }
+
+        return json(['status' => 1]);
     }
 
     // Login khusus untuk periksa
@@ -148,35 +167,10 @@ class Periksa extends CI_Controller
         redirect('periksa');
     }
 
-    protected function rules()
-    {
-        $captcha = [];
-
-        if ($this->setting->google_recaptcha) {
-            $captcha = [
-                'g-recaptcha-response' => 'required|captcha',
-            ];
-        }
-
-        return [
-            'username' => ['required', 'string'],
-            'password' => ['required', 'string'],
-            ...$captcha,
-        ];
-    }
-
-    /**
-     * Get the rate limiting throttle key for the request.
-     */
-    protected function throttleKey()
-    {
-        return Str::transliterate(Str::lower(request('username')) . '|' . request()->ip());
-    }
-
     // Periksa tanggal lahir null atau kosong
     public function tanggallahir()
     {
-        $this->cek_user();
+        $this->cekUser();
 
         $dataPenduduk = array_combine($this->input->post('id'), $this->input->post('tanggallahir'));
 
@@ -186,17 +180,124 @@ class Periksa extends CI_Controller
 
         $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
 
-        return $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode([
-                'status' => 1,
-            ], JSON_THROW_ON_ERROR));
+        return json(['status' => 1]);
+    }
+
+    public function datanull()
+    {
+        $this->cekUser();
+
+        $fields = [
+            'nama', 'nik', 'sex', 'kk_level', 'tempatlahir', 'tanggallahir',
+            'agama_id', 'pendidikan_kk_id', 'pekerjaan_id', 'golongan_darah_id',
+            'status_kawin', 'warganegara_id', 'nama_ayah', 'nama_ibu',
+            'dokumen_pasport', 'dokumen_kitas',
+        ];
+
+        $updateData = [];
+
+        foreach ($fields as $field) {
+            $value = $this->input->post($field);
+            if (! empty($value)) {
+            $updateData[$field] = $value;
+            }
+        }
+
+        if (! empty($updateData)) {
+            Penduduk::where('id', $this->input->post('id'))->update($updateData);
+        }
+
+        $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
+
+        return json(['status' => 1]);
+    }
+
+    public function datacluster()
+    {
+        $this->cekUser();
+        $dusun = $this->input->post('dusun');
+
+        if (! empty($dusun)) {
+            $duplikat_sama = DB::table('tweb_wil_clusterdesa as w1')
+                ->where('w1.config_id', identitas('id'))
+                ->join('tweb_wil_clusterdesa as w2', static function ($join) {
+                    $join->on(DB::raw('LOWER(TRIM(w1.dusun))'), '=', DB::raw('LOWER(TRIM(w2.dusun))'))
+                        ->whereRaw('BINARY TRIM(w1.dusun) <> BINARY TRIM(w2.dusun)')
+                        ->whereColumn('w1.rw', '=', 'w2.rw')
+                        ->whereColumn('w1.rt', '=', 'w2.rt');
+                })
+                ->whereRaw('LOWER(TRIM(w1.dusun)) = LOWER(TRIM(?))', [$dusun])
+                ->whereRaw('BINARY TRIM(w1.dusun) <> BINARY TRIM(?)', [$dusun])
+                ->select('w1.id', 'w1.dusun', 'w1.rw', 'w1.rt')
+                ->distinct()
+                ->orderByRaw('TRIM(w1.dusun)')
+                ->get()
+                ->map(static fn ($i) => (array) $i)->toArray();
+
+            foreach ($duplikat_sama as $item) {
+                if (Penduduk::where('id_cluster', $item['id'])->count() == 0) {
+                    Wilayah::where('id', $item['id'])->delete();
+                } else {
+                    $id_cluster = Wilayah::whereRaw('BINARY dusun = ?', [$dusun])->where('rw', $item['rw'])->where('rt', $item['rt'])->first()->id;
+                    Penduduk::where('id_cluster', $item['id'])->update(['id_cluster' => $id_cluster]);
+                    Wilayah::where('id', $item['id'])->delete();
+                }
+            }
+
+            $duplikat_tidak_sama = DB::table('tweb_wil_clusterdesa as w1')
+                ->where('w1.config_id', identitas('id'))
+                ->join('tweb_wil_clusterdesa as w2', static function ($join) {
+                    $join->on(DB::raw('LOWER(TRIM(w1.dusun))'), '=', DB::raw('LOWER(TRIM(w2.dusun))'))
+                        ->whereRaw('BINARY TRIM(w1.dusun) <> BINARY TRIM(w2.dusun)');
+                })
+                ->whereRaw('LOWER(TRIM(w1.dusun)) = LOWER(TRIM(?))', [$dusun])
+                ->whereRaw('BINARY TRIM(w1.dusun) <> BINARY TRIM(?)', [$dusun])
+                ->select('w1.id', 'w1.dusun', 'w1.rw', 'w1.rt')
+                ->distinct()
+                ->orderByRaw('TRIM(w1.dusun)')
+                ->get()
+                ->map(static fn ($i) => (array) $i)->toArray();
+
+            foreach ($duplikat_tidak_sama as $item) {
+                Wilayah::where('id', $item['id'])->update(['dusun' => $dusun]);
+            }
+        }
+
+        $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
+
+        return json(['status' => 1]);
+    }
+
+    public function menuTanpaParent()
+    {
+        $this->cekUser();
+
+        $ids     = (array) $this->input->post('id');
+        $parents = (array) $this->input->post('parrent');
+
+        // pastikan jumlah sama
+        if (! empty($ids) && ! empty($parents) && count($ids) === count($parents)) {
+            $dataMenu = array_combine($ids, $parents);
+
+            foreach ($dataMenu as $id => $parrent) {
+                if (! empty($parrent)) {
+                    Menu::where('id', $id)->update(['parrent' => $parrent]);
+                }
+            }
+        }
+
+        $this->session->unset_userdata([
+            'db_error', 'message', 'message_query',
+            'heading', 'message_exception',
+        ]);
+
+        return json(['status' => 1]);
     }
 
     // Periksa tanggal lahir null atau kosong
     public function suplemenTerdata()
     {
-        $this->cek_user();
+        $this->cekUser();
 
         $suplemenTerdataSasaran = $this->input->post('suplemen_terdata');
         $listIdTerdata          = [];
@@ -218,10 +319,38 @@ class Periksa extends CI_Controller
 
         $this->session->unset_userdata(['db_error', 'message', 'message_query', 'heading', 'message_exception']);
 
-        return $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode([
-                'status' => 1,
-            ], JSON_THROW_ON_ERROR));
+        return json(['status' => 1]);
+    }
+
+    protected function rules()
+    {
+        $captcha = [];
+
+        if (setting('google_recaptcha')) {
+            $captcha = [
+                'g-recaptcha-response' => 'required|captcha',
+            ];
+        }
+
+        return [
+            'username' => ['required', 'string'],
+            'password' => ['required', 'string'],
+            ...$captcha,
+        ];
+    }
+
+    /**
+     * Get the rate limiting throttle key for the request.
+     */
+    protected function throttleKey()
+    {
+        return Str::transliterate(Str::lower(request('username')) . '|' . request()->ip());
+    }
+
+    private function cekUser(): void
+    {
+        if (! Auth::guard($this->guard)->check()) {
+            redirect('periksa/login');
+        }
     }
 }

@@ -1,40 +1,11 @@
-Di rilis ini, versi 2412.0.2 berisi [untuk diisi] dan perbaikan lain yang diminta Komunitas SID.
+Rilis versi 2607.0.1 ini berisi [untuk diisi] dan perbaikan lainnya yang diminta oleh komunitas SID.
 
-Terima kasih pada [untuk diisi] telah ikut berkontribusi.
+## KEAMANAN
 
-### BUG
-
-1. [#8761](https://github.com/OpenSID/OpenSID/issues/8761) Perbaikan tambah default surat bawaan layanan dan dinas saat migrasi.
-2. [#8767](https://github.com/OpenSID/OpenSID/issues/8767) Perbaikan sebutan nama bulan.
-3. [#8770](https://github.com/OpenSID/OpenSID/issues/8770) Perbaikan daftar nama pemilik pada form tambah/ubah c-desa.
-4. [#8640](https://github.com/OpenSID/OpenSID/issues/8640) Perbaikan latar kehadiran sesuai dengan pengaturan pada aplikasi.
-5. [#8787](https://github.com/OpenSID/OpenSID/issues/8787) Perbaikan tooltip pada tombol ubah data suplemen.
-6. [#8783](https://github.com/OpenSID/OpenSID/issues/8783) Perbaikan link shorcut penduduk dan lembaga.
-7. [#8788](https://github.com/OpenSID/OpenSID/issues/8788) Perbaikan menampilkan lokasi penduduk hidup pada peta.
-8. [#8791](https://github.com/OpenSID/OpenSID/issues/8791) Perbaikan backup database .sid dengan penambahan pengecekan grup akses pada halaman periksa.
-9. [#8776](https://github.com/OpenSID/OpenSID/issues/8776) Perbaikan tambah subdata pada pengaturan tipe garis dan tipe area.
-10. [#8657](https://github.com/OpenSID/OpenSID/issues/8657) Perbaikan alur pecah anggota keluarga dengan kepala keluarga perempuan.
-11. [#8794](https://github.com/OpenSID/OpenSID/issues/8794) Perbaikan urutan tahun pada halaman peraturan desa.
-12. [#8798](https://github.com/OpenSID/OpenSID/issues/8798) Perbaikan fungsi checkbox dan delete pada modul sesuai hak aksesnya.
-13. [#8792](https://github.com/OpenSID/OpenSID/issues/8792) Perbaikan menampilkan data c-desa.
-14. [#8793](https://github.com/OpenSID/OpenSID/issues/8793) Perbaikan tampilan halaman inventaris.
-15. [#8799](https://github.com/OpenSID/OpenSID/issues/8799) Perbaikan link dan data komentar yang ditampilkan dari notifikasi.
-16. [#8800](https://github.com/OpenSID/OpenSID/issues/8800) Perbaikan notifikasi gagal input password.
-
-
-### TEKNIS
-
-1. [#8785](https://github.com/OpenSID/OpenSID/issues/8785) Penyesuaian collation database menggunakan utf8mb4_general_ci.
-2. [#8789](https://github.com/OpenSID/OpenSID/issues/8789) Penyesuaian lokasi anggota keluarga saat lokasi kepala keluarga diubah.
-3. [#8790](https://github.com/OpenSID/OpenSID/issues/8790) Penyesuaian link kategori artikel statis yang tidak digunakan.
-4. [#8801](https://github.com/OpenSID/OpenSID/issues/8801) Gunakan format log laravel agar seragam.
-5. [#8782](https://github.com/OpenSID/OpenSID/issues/8782) Penyesuaian penggunaan data null pada tabel tweb_surat_format.
-
-
-### KEAMANAN
-
-1. [#4308](https://github.com/OpenSID/premium/issues/4308) Peningkatan pembatasan akses pada folder .git dan .github.
-
-
-### LAYANAN
-1. [#8775](https://github.com/OpenSID/OpenSID/issues/8775) Penyesuaian status pesanan pada layanan pelanggan.
+1. [#6671](https://github.com/OpenSID/premium/issues/6671) Perbaikan keamanan untuk mengatasi celah Privilege Escalation (eskalasi hak akses) serta optimalisasi Mass Assignment pada model User.
+2. [#6680](https://github.com/OpenSID/premium/issues/6680) Perbaikan kerentanan enumerasi pengguna (user enumeration) pada endpoint /siteman/otp.
+3. [#6675](https://github.com/OpenSID/premium/issues/6675) Perbaikan 2FA Toggle Without Password Verification — Pengguna::update_keamanan().
+4. [#6672](https://github.com/OpenSID/premium/issues/6672) Perbaikan keamanan IDOR — Citizen Portal Surat Proses.
+5. [#6673](https://github.com/OpenSID/premium/issues/6673) Perbaikan keamanan IDOR — Citizen Portal (fmandiri) Surat Cetak, Unauthorized Letter Download.
+6. [#6674](https://github.com/OpenSID/premium/issues/6674) Perbaikan keamanan IDOR — Citizen Portal (fmandiri) Pesan Baca, Read Any Citizen's Messages.
+7. [#6341](https://github.com/OpenSID/premium/issues/6341) Perbaikan keamanan Unauthenticated Arbitrary Artisan Command Execution via PlaywrightController.

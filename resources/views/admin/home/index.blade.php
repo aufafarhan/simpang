@@ -17,12 +17,15 @@
 
 @section('title')
     <h1>
-        Tentang <?= config_item('nama_aplikasi') ?>
+        Tentang
+        <?= config_item('nama_aplikasi') ?>
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="active">Tentang <?= config_item('nama_aplikasi') ?></li>
+    <li class="active">Tentang
+        <?= config_item('nama_aplikasi') ?>
+    </li>
 @endsection
 
 @section('content')
@@ -33,10 +36,12 @@
     @include('admin.home.premium')
 
     @include('admin.home.rilis')
+    
+    @include('admin.home.percobaan')
 
     <div class="row">
         @foreach ($shortcut as $sc)
-            @can($sc['akses'] . ':baca')
+            @can("{$sc['akses']}:baca")
                 <div class="col-lg-3 col-sm-6 col-xs-12">
                     <div class="small-box" style="background-color: {!! $sc['warna'] !!}; border-radius: 5px;">
                         <div class="inner">

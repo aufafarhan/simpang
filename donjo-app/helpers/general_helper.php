@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,17 +29,20 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Models\Config;
+use App\Models\Komentar;
 use App\Models\Menu;
 use App\Models\Modul;
 use App\Models\SettingAplikasi;
 use App\Models\User;
+use App\Models\Widget;
+use App\Repositories\SettingAplikasiRepository;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -82,10 +85,14 @@ if (! function_exists('can')) {
      *
      * @return array|bool
      */
-    function can($akses = null, $slugModul = null, $adminOnly = false, $demoOnly = false)
+    function can($akses = null, $slugModul = null, $adminOnly = false, $demoOnly = false, ?User $user = null)
     {
         if (null === $slugModul) {
             $slugModul = ci()->akses_modul ?? (ci()->sub_modul_ini ?? ci()->modul_ini);
+        }
+
+        if (null !== $user) {
+            return Gate::forUser($user)->allows("{$slugModul}:{$akses}", [$akses, $slugModul, $adminOnly, $demoOnly]);
         }
 
         return Gate::allows("{$slugModul}:{$akses}", [$akses, $slugModul, $adminOnly, $demoOnly]);
@@ -101,15 +108,33 @@ if (! function_exists('isCan')) {
      * @param bool        $adminOnly
      * @param mixed       $demoOnly
      */
-    function isCan($akses = null, $slugModul = null, $adminOnly = false, $demoOnly = false): void
+    function isCan($akses = null, $slugModul = null, $adminOnly = false, $demoOnly = false, ?User $user = null): void
     {
         $pesan = 'Anda tidak memiliki akses untuk halaman tersebut!';
-        if (! can('b', $slugModul, $adminOnly, $demoOnly)) {
+        if (! can('b', $slugModul, $adminOnly, $demoOnly, $user)) {
             set_session('error', $pesan);
             session_error($pesan);
 
             redirect('beranda');
-        } elseif (! can($akses, $slugModul, $adminOnly, $demoOnly)) {
+        } elseif (! can($akses, $slugModul, $adminOnly, $demoOnly, $user)) {
+            set_session('error', $pesan);
+            session_error($pesan);
+
+            redirect(ci()->controller);
+        }
+    }
+}
+
+if (! function_exists('isMultiDB')) {
+    /**
+     * Cek apakah aplikasi menggunakan multi database
+     *
+     * @return void
+     */
+    function isMultiDB()
+    {
+        if (setting('multi_desa')) {
+            $pesan = 'Anda tidak memiliki akses untuk halaman tersebut!';
             set_session('error', $pesan);
             session_error($pesan);
 
@@ -150,17 +175,45 @@ if (! function_exists('redirect_with')) {
     }
 }
 
-// ci_route('example');
 if (! function_exists('ci_route')) {
+    /**
+     * Mengkonversi dot notation menjadi path URL dan mendukung parameter tambahan.
+     *
+     * @param string|null       $to     Route destination (dapat menggunakan dot notation seperti 'controller.method')
+     * @param array|string|null $params Parameter tambahan untuk URL (array akan di-implode dengan '/')
+     *
+     * @return string
+     *
+     * @example
+     * ```php
+     * // Basic usage
+     * echo ci_route(); // Output: site_url()
+     * echo ci_route('home'); // Output: site_url('home')
+     *
+     * // Dot notation conversion
+     * echo ci_route('user.profile'); // Output: site_url('user/profile')
+     *
+     * // With parameters
+     * echo ci_route('user.edit', '123'); // Output: site_url('user/edit/123')
+     * echo ci_route('user.edit', ['123', 'profile']); // Output: site_url('user/edit/123/profile')
+     *
+     * // Bypass processing for index.php routes
+     * echo ci_route('index.php/database'); // Output: site_url('index.php/database')
+     * ```
+     */
     function ci_route($to = null, $params = null)
     {
         if (in_array($to, [null, '', '/'])) {
             return site_url();
         }
 
+        if (strpos($to, 'index.php') !== false) {
+            return site_url($to);
+        }
+
         $to = str_replace('.', '/', $to);
 
-        if (null !== $params) {
+        if ($params !== null) {
             if (is_array($params)) {
                 $params = implode('/', $params);
             }
@@ -171,40 +224,32 @@ if (! function_exists('ci_route')) {
     }
 }
 
-// setting('sebutan_desa');
 if (! function_exists('setting')) {
-    function setting($params = null)
-    {
-        $getSetting = ci()->setting;
-
-        if ($params && ! empty($getSetting)) {
-            if (property_exists($getSetting, $params)) {
-                return $getSetting->{$params};
-            }
-
-            return null;
-        }
-
-        return $getSetting;
-    }
-}
-
-// identitas('nama_desa');
-if (! function_exists('identitas')) {
     /**
-     * Get identitas desa.
+     * Mengambil nilai dari pengaturan aplikasi.
      *
-     * @return object|string
+     * @param mixed|null $key
+     * @param mixed|null $value
+     *
+     * @return mixed|null
      */
-    function identitas(?string $params = null)
+    function setting($key = null, $value = null)
     {
-        $identitas = cache()->remember('identitas_desa', 604800, static fn () => Config::appKey()->first());
-
-        if ($params) {
-            return $identitas->{$params};
+        if (! ci()->setting) {
+            SettingAplikasiRepository::applySettingCI(ci());
         }
 
-        return $identitas;
+        $setting = ci()->setting;
+
+        if (null === $key) {
+            return $setting;
+        }
+
+        if (null === $value) {
+            return $setting->{$key} ?? null;
+        }
+
+        return $setting->{$key} = $value;
     }
 }
 
@@ -212,6 +257,8 @@ if (! function_exists('identitas')) {
 if (! function_exists('hapus_cache')) {
     function hapus_cache($params = null)
     {
+        ci()->load->driver('cache', ['adapter' => 'file', 'backup' => 'dummy']);
+
         if ($params) {
             return ci()->cache->hapus_cache_untuk_semua($params);
         }
@@ -275,15 +322,23 @@ if (! function_exists('parsedown')) {
     }
 }
 
-// SebutanDesa('Surat [Desa]');
 if (! function_exists('SebutanDesa')) {
+    /**
+     * Mengganti kata [Desa], [desa], [Pemerintah Desa], [dusun] sesuai pengaturan.
+     *
+     * @param string|null $params
+     *
+     * @return string|null
+     */
     function SebutanDesa($params = null)
     {
         $replaceWord = ['[Desa]', '[desa]', '[Pemerintah Desa]', '[dusun]'];
-        if (! Str::contains($params, $replaceWord)) return $params;
+        if (! Str::contains($params, $replaceWord)) {
+            return $params;
+        }
 
         // Tidak bisa gunakan helper setting karena value belum di load
-        $setting = SettingAplikasi::whereIn('key', ['sebutan_desa', 'sebutan_pemerintah_desa', 'sebutan_dusun'])->pluck('value', 'key')->toArray();
+        $setting = SettingAplikasi::whereIn('key', ['sebutan_desa', 'sebutan_pemerintah_desa', 'sebutan_dusun', 'default_tampil_peta_infrastruktur'])->pluck('value', 'key')->toArray();
 
         return str_replace(
             $replaceWord,
@@ -348,28 +403,32 @@ if (! function_exists('folder')) {
      */
     function folder($folder = null, $permissions = 0755, $htaccess = null, array $extra = []): bool
     {
-        $hasil = true;
+        if (empty($folder) || ! is_string($folder)) {
+            return false;
+        }
 
         ci()->load->helper('file');
 
-        $folder = FCPATH . $folder;
+        $folderPath = FCPATH . $folder;
 
         // Buat folder
-        $hasil = is_dir($folder) || mkdir($folder, $permissions, true);
+        $hasil = is_dir($folderPath) || mkdir($folderPath, $permissions, true);
 
         if ($hasil) {
             if ($htaccess !== null) {
-                write_file($folder . '.htaccess', config_item($htaccess), 'x');
+                write_file($folderPath . '.htaccess', config_item($htaccess), 'x');
             }
 
             // File index.html
-            write_file($folder . 'index.html', config_item('index_html'), 'x');
+            write_file($folderPath . 'index.html', config_item('index_html'), 'x');
 
             foreach ($extra as $value) {
                 $file    = realpath($value);
-                $newfile = realpath($folder) . DIRECTORY_SEPARATOR . basename($value);
+                $newfile = realpath($folderPath) . DIRECTORY_SEPARATOR . basename($value);
 
-                copy($file, $newfile);
+                if ($file && $newfile) {
+                    copy($file, $newfile);
+                }
             }
 
             return true;
@@ -431,18 +490,21 @@ if (! function_exists('ci_db')) {
     }
 }
 
-/**
- * Dipanggil untuk setiap kode isian ditemukan,
- * dan diganti dengan kata pengganti yang huruf besar/kecil mengikuti huruf kode isian.
- * Berdasarkan contoh di http://stackoverflow.com/questions/19317493/php-preg-replace-case-insensitive-match-with-case-sensitive-replacement
- *
- * @param string $dari
- * @param string $ke
- * @param string $str
- *
- * @return void
- */
 if (! function_exists('case_replace')) {
+    /**
+     * Melakukan penggantian teks dengan mempertahankan pola huruf besar/kecil dari teks asli.
+     *
+     * Fungsi ini mencari kemunculan pola tertentu dan menggantinya dengan string pengganti,
+     * sambil mempertahankan pola huruf (besar/kecil) dari teks yang cocok asli.
+     *
+     * @param string $dari Pola/teks pencarian yang akan diganti
+     * @param string $ke   Teks pengganti
+     * @param string $str  String input tempat penggantian akan dilakukan
+     *
+     * @return string String yang telah dimodifikasi dengan penggantian diterapkan, mempertahankan pola huruf
+     *
+     * @see http://stackoverflow.com/questions/19317493/php-preg-replace-case-insensitive-match-with-case-sensitive-replacement
+     */
     function case_replace($dari, $ke, $str)
     {
         $replacer = static function (array $matches) use ($ke) {
@@ -578,10 +640,10 @@ if (! function_exists('generatePengikut')) {
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:3%">' . $no++ . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:18%">' . $data->nik . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%" nowrap>' . $data->nama . '</td>
-                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:7%" nowrap>' . $data->jenisKelamin->nama . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:7%" nowrap>' . $data->jenis_kelamin . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:10%" nowrap>' . $data->tempatlahir . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:5%" nowrap>' . tgl_indo_out($data->tanggallahir) . '</td>
-                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:8%" nowrap>' . $data->pendudukHubungan->nama . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:8%" nowrap>' . $data->penduduk_hubungan . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:20%">' . ($keterangan[$data->id] ?? '') . '</td>
                             </tr>
                             ';
@@ -619,9 +681,9 @@ if (! function_exists('generatePengikutSuratKIS')) {
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:3%">' . $no++ . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:18%">' . $data->nama . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:16%" nowrap>' . $data->nik . '</td>
-                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:11%" nowrap>' . $data->jenisKelamin->nama . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:11%" nowrap>' . $data->jenis_kelamin . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:11%" nowrap>' . $data->tempatlahir . ', ' . tgl_indo_out($data->tanggallahir) . '</td>
-                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%" nowrap>' . $data->pekerjaan->nama . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%" nowrap>' . $data->pekerjaan . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:20%">' . $data->alamat_wilayah . '</td>
                             </tr>
                             ';
@@ -674,6 +736,153 @@ if (! function_exists('generatePengikutKartuKIS')) {
     }
 }
 
+if (! function_exists('generatePengikutSuratPI')) {
+    function generatePengikutSuratPI($pengikut): string
+    {
+        $html = '
+                <table width="100%" border=1 style="font-size:8pt;text-align:center; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="border-color: #000000; border-style: solid; border-collapse: collapse">NO</th>
+                            <th style="border-color: #000000; border-style: solid; border-collapse: collapse">NAMA</th>
+                            <th style="border-color: #000000; border-style: solid; border-collapse: collapse">NIK</th>
+                            <th style="border-color: #000000; border-style: solid; border-collapse: collapse">SHDK</th>
+                            <th style="border-color: #000000; border-style: solid; border-collapse: collapse">Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+        $no = 1;
+
+        foreach ($pengikut as $data) {
+            $html .= '
+                            <tr>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:3%">' . $no++ . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:18%">' . $data->nama . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:16%" nowrap>' . $data->nik . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:20%">' . $data->penduduk_hubungan . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:20%">' . $data->ket . '</td>
+                            </tr>
+                            ';
+        }
+
+        return $html . '
+                    </tbody>
+                </table>
+            ';
+    }
+}
+
+// perubahan identitas penduduk - Pendidikan dan Pekerjaan
+if (! function_exists('generatePengikutPiPendidikanPekerjaan')) {
+    function generatePengikutPiPendidikanPekerjaan($semua_anggota, $perubahan_data): string
+    {
+        $html = '
+                <table width="100%" border=1 style="font-size:8pt;text-align:center; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th rowspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">No</th>
+                            <th colspan="6" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Elemen Data</th>
+                            <th rowspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Keterangan</th>
+                        </tr>
+                        <tr>
+                            <th colspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Pendidikan</th>
+                            <th colspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Pekerjaan </th>
+                        </tr>
+                        <tr>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Semula</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Menjadi</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Dasar Perubahan</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Semula</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Menjadi</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Dasar Perubahan</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+        $no = 1;
+        if (! empty($semua_anggota)) {
+            foreach ($semua_anggota as $anggota) {
+                $perubahan = $perubahan_data[$anggota->nik] ?? null;
+                $html .= '
+                    <tr>
+                        <td style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse; width:3%; font-size: 8pt;">' . $no++ . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:18%; font-size: 8pt;">' . ($perubahan['pendidikan_semula'] ?? '-') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%; font-size: 8pt;">' . ($perubahan['pendidikan_menjadi'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:17%; font-size: 8pt;">' . ($perubahan['pendidikan_dasar_perubahan'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:16%; font-size: 8pt;">' . ($perubahan['pekerjaan_semula'] ?? '-') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:16%; font-size: 8pt;">' . ($perubahan['pekerjaan_menjadi'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%; font-size: 8pt;">' . ($perubahan['pekerjaan_dasar_perubahan'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:13%; font-size: 8pt;">' . ($perubahan['keterangan'] ?? '') . '</td>
+                    </tr>
+                    ';
+            }
+        }
+
+        return $html . '
+                    </tbody>
+                </table>
+            ';
+    }
+}
+
+// perubahan identitas penduduk - Agama dan Lainnya
+if (! function_exists('generatePengikutPiAgamaLainnya')) {
+    function generatePengikutPiAgamaLainnya($semua_anggota, $perubahan_data, $lainnya_pilihan = []): string
+    {
+        $lainnya_text = 'Lainnya, yaitu: ';
+        if (! empty($lainnya_pilihan)) {
+            $enum_values     = App\Enums\PerubahanDataPiEnum::valuesToUpper();
+            $selected_values = array_map(static fn ($key) => $enum_values[$key] ?? '', $lainnya_pilihan);
+            $lainnya_text .= implode(', ', array_filter($selected_values));
+        }
+
+        $html = '
+                <table width="100%" border=1 style="font-size:8pt;text-align:center; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th rowspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">No</th>
+                            <th colspan="6" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Elemen Data</th>
+                            <th rowspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Keterangan</th>
+                        </tr>
+                        <tr>
+                            <th colspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Agama</th>
+                            <th colspan="3" style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">' . $lainnya_text . '</th>
+                        </tr>
+                        <tr>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Semula</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Menjadi</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Dasar Perubahan</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Semula</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Menjadi</th>
+                            <th style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse">Dasar Perubahan</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+        $no = 1;
+        if (! empty($semua_anggota)) {
+            foreach ($semua_anggota as $anggota) {
+                $perubahan = $perubahan_data[$anggota->nik] ?? null;
+                $html .= '
+                    <tr>
+                        <td style="text-align: center;border-color: #000000; border-style: solid; border-collapse: collapse; width:3%; font-size: 8pt;">' . $no++ . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:18%; font-size: 8pt;">' . ((! empty($perubahan['agama_menjadi']) && ! empty($perubahan['agama_dasar_perubahan'])) ? ($perubahan['agama_semula'] ?? '-') : '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%; font-size: 8pt;">' . ($perubahan['agama_menjadi'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:17%; font-size: 8pt;">' . ($perubahan['agama_dasar_perubahan'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:16%; font-size: 8pt;">' . ($perubahan['lainnya_semula'] ?? '-') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:16%; font-size: 8pt;">' . ($perubahan['lainnya_menjadi'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:15%; font-size: 8pt;">' . ($perubahan['lainnya_dasar_perubahan'] ?? '') . '</td>
+                        <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:13%; font-size: 8pt;">' . ($perubahan['keterangan'] ?? '') . '</td>
+                    </tr>
+                    ';
+            }
+        }
+
+        return $html . '
+                    </tbody>
+                </table>
+            ';
+    }
+}
+
 if (! function_exists('generatePengikutPindah')) {
     function generatePengikutPindah($pengikut): string
     {
@@ -698,7 +907,7 @@ if (! function_exists('generatePengikutPindah')) {
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:25%" nowrap>' . $data->nik . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:25%">' . $data->nama . '</td>
                                 <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:22%" nowrap> Seumur Hidup</td>
-                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:25%">' . $data->pendudukHubungan->nama . '</td>
+                                <td style="border-color: #000000; border-style: solid; border-collapse: collapse; width:25%">' . $data->penduduk_hubungan . '</td>
                             </tr>
                             ';
         }
@@ -775,24 +984,38 @@ if (! function_exists('config_email')) {
     }
 }
 
-// source: https://stackoverflow.com/questions/12553160/getting-visitors-country-from-their-ip
 if (! function_exists('geoip_info')) {
+    /**
+     * Mengambil informasi geolokasi berdasarkan alamat IP menggunakan layanan.
+     *
+     * @param string|null $ip          Alamat IP yang ingin dicek. Jika null, akan menggunakan IP dari request.
+     * @param string      $purpose     Tujuan pengambilan data: location, address, city, state, region, country, countrycode.
+     * @param bool        $deep_detect Jika true, akan memeriksa HTTP_X_FORWARDED_FOR dan HTTP_CLIENT_IP untuk IP asli.
+     *
+     * @see https://api.ipbase.com/v1/json/
+     *
+     * @return array|string|null
+     */
     function geoip_info($ip = null, $purpose = 'location', $deep_detect = true)
     {
         $output = null;
-        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            $ip = $_SERVER['REMOTE_ADDR'];
+
+        if (! filter_var($ip, FILTER_VALIDATE_IP)) {
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+
             if ($deep_detect) {
-                if (filter_var(@$_SERVER['HTTP_X_FORWARDED_FOR'], FILTER_VALIDATE_IP)) {
+                if (filter_var($_SERVER['HTTP_X_FORWARDED_FOR'] ?? null, FILTER_VALIDATE_IP)) {
                     $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-                }
-                if (filter_var(@$_SERVER['HTTP_CLIENT_IP'], FILTER_VALIDATE_IP)) {
+                } elseif (filter_var($_SERVER['HTTP_CLIENT_IP'] ?? null, FILTER_VALIDATE_IP)) {
                     $ip = $_SERVER['HTTP_CLIENT_IP'];
                 }
             }
         }
-        $purpose    = str_replace(['name', "\n", "\t", ' ', '-', '_'], null, strtolower(trim($purpose)));
-        $support    = ['country', 'countrycode', 'state', 'region', 'city', 'location', 'address'];
+
+        $purpose = str_replace(['name', "\n", "\t", ' ', '-', '_'], '', strtolower(trim($purpose)));
+        $support = ['country', 'countrycode', 'state', 'region', 'city', 'location', 'address'];
+
+        // Mapping country code to continent
         $continents = [
             'AF' => 'Africa',
             'AN' => 'Antarctica',
@@ -802,50 +1025,79 @@ if (! function_exists('geoip_info')) {
             'NA' => 'North America',
             'SA' => 'South America',
         ];
+
+        // Simple continent detection based on country code
+        $countryContinentMap = [
+            'ID' => 'AS', 'MY' => 'AS', 'SG' => 'AS', 'TH' => 'AS', 'VN' => 'AS', 'PH' => 'AS',
+            'CN' => 'AS', 'JP' => 'AS', 'KR' => 'AS', 'IN' => 'AS', 'BD' => 'AS', 'PK' => 'AS',
+            'US' => 'NA', 'CA' => 'NA', 'MX' => 'NA', 'BR' => 'SA', 'AR' => 'SA', 'CL' => 'SA',
+            'GB' => 'EU', 'DE' => 'EU', 'FR' => 'EU', 'IT' => 'EU', 'ES' => 'EU', 'NL' => 'EU',
+            'AU' => 'OC', 'NZ' => 'OC', 'EG' => 'AF', 'ZA' => 'AF', 'NG' => 'AF', 'KE' => 'AF',
+        ];
+
         if (filter_var($ip, FILTER_VALIDATE_IP) && in_array($purpose, $support)) {
-            $ipdat = @json_decode(file_get_contents('http://www.geoplugin.net/json.gp?ip=' . $ip));
-            if (@strlen(trim($ipdat->geoplugin_countryCode)) == 2) {
+            try {
+                $client = new GuzzleHttp\Client([
+                    'timeout' => 1.5,
+                ]);
+
+                $response = $client->get("https://api.ipbase.com/v1/json/{$ip}");
+                $ipdat    = json_decode($response->getBody()->getContents());
+
+                if (empty($ipdat->country_code)) {
+                    return null;
+                }
+
+                // Determine continent based on country code
+                $continentCode = $countryContinentMap[$ipdat->country_code] ?? null;
+                $continent     = $continentCode ? $continents[$continentCode] : null;
+
                 switch ($purpose) {
                     case 'location':
                         $output = [
-                            'city'           => @$ipdat->geoplugin_city,
-                            'state'          => @$ipdat->geoplugin_regionName,
-                            'country'        => @$ipdat->geoplugin_countryName,
-                            'country_code'   => @$ipdat->geoplugin_countryCode,
-                            'continent'      => @$continents[strtoupper($ipdat->geoplugin_continentCode)],
-                            'continent_code' => @$ipdat->geoplugin_continentCode,
+                            'city'           => $ipdat->city ?? null,
+                            'state'          => $ipdat->region_name ?? null,
+                            'country'        => $ipdat->country_name ?? null,
+                            'country_code'   => $ipdat->country_code ?? null,
+                            'continent'      => $continent,
+                            'continent_code' => $continentCode,
                         ];
                         break;
 
                     case 'address':
-                        $address = [$ipdat->geoplugin_countryName];
-                        if (@$ipdat->geoplugin_regionName !== '') {
-                            $address[] = $ipdat->geoplugin_regionName;
-                        }
-                        if (@$ipdat->geoplugin_city !== '') {
-                            $address[] = $ipdat->geoplugin_city;
-                        }
-                        $output = implode(', ', array_reverse($address));
+                        $address = array_filter([
+                            $ipdat->city ?? null,
+                            $ipdat->region_name ?? null,
+                            $ipdat->country_name ?? null,
+                        ]);
+                        $output = $address ? implode(', ', array_reverse($address)) : null;
                         break;
 
                     case 'city':
-                        $output = @$ipdat->geoplugin_city;
+                        $output = $ipdat->city ?? null;
                         break;
 
                     case 'state':
-
                     case 'region':
-                        $output = @$ipdat->geoplugin_regionName;
+                        $output = $ipdat->region_name ?? null;
                         break;
 
                     case 'country':
-                        $output = @$ipdat->geoplugin_countryName;
+                        $output = $ipdat->country_name ?? null;
                         break;
 
                     case 'countrycode':
-                        $output = @$ipdat->geoplugin_countryCode;
+                        $output = $ipdat->country_code ?? null;
+                        break;
+
+                    default:
+                        $output = null;
                         break;
                 }
+            } catch (GuzzleHttp\Exception\RequestException $e) {
+                logger()->warning($e->getMessage());
+            } catch (Throwable $e) {
+                logger()->error($e->getMessage());
             }
         }
 
@@ -854,6 +1106,9 @@ if (! function_exists('geoip_info')) {
 }
 
 if (! function_exists('batal')) {
+    /**
+     * Generate a cancel/reset button.
+     */
     function batal(): string
     {
         return '<button type="reset" class="btn btn-social btn-danger btn-sm pull-left"><i class="fa fa-times"></i> Batal</button>';
@@ -879,7 +1134,7 @@ if (! function_exists('sensorEmail')) {
 if (! function_exists('gis_simbols')) {
     function gis_simbols()
     {
-        $simbols = DB::table('gis_simbol')->get('simbol');
+        $simbols = DB::table('gis_simbol')->where('config_id', identitas('id'))->get('simbol');
 
         return $simbols->map(static fn ($item): array => (array) $item)->toArray();
     }
@@ -1055,6 +1310,14 @@ if (! function_exists('total_jumlah')) {
 }
 
 if (! function_exists('truncateText')) {
+    /**
+     * Memotong teks jika melebihi panjang maksimum dan menambahkan elipsis.
+     *
+     * @param string $text      Teks yang akan dipotong
+     * @param int    $maxLength Panjang maksimum teks
+     *
+     * @return string Teks yang sudah dipotong
+     */
     function truncateText($text, $maxLength)
     {
         if (strlen($text) > $maxLength) {
@@ -1065,8 +1328,14 @@ if (! function_exists('truncateText')) {
     }
 }
 
-// auth_mandiri
 if (! function_exists('auth_mandiri')) {
+    /**
+     * Ambil data auth mandiri dari session.
+     *
+     * @param string|null $params (optional) Nama properti spesifik yang ingin diambil
+     *
+     * @return mixed Objek auth_mandiri atau nilai properti spesifik
+     */
     function auth_mandiri($params = null)
     {
         $CI = &get_instance();
@@ -1079,8 +1348,16 @@ if (! function_exists('auth_mandiri')) {
     }
 }
 
-// format_penomoran_surat
 if (! function_exists('format_penomoran_surat')) {
+    /**
+     * Memilih format penomoran surat berdasarkan pengaturan global atau lokal.
+     *
+     * @param bool   $isGlobal     Menentukan apakah menggunakan format global (true) atau lokal (false)
+     * @param string $formatGlobal Format penomoran surat global
+     * @param string $formatLocal  Format penomoran surat lokal
+     *
+     * @return string Format penomoran surat yang dipilih
+     */
     function format_penomoran_surat($isGlobal = false, $formatGlobal = '', $formatLocal = '')
     {
         if ($isGlobal == false && ! empty($formatLocal)) {
@@ -1091,15 +1368,14 @@ if (! function_exists('format_penomoran_surat')) {
     }
 }
 
-/**
- * Fungsi untuk menghapus folder beserta isinya
- * Termasuk folder tersembunyi
- *
- * @param string $dirPath
- *
- * @return bool
- */
 if (! function_exists('deleteDir')) {
+    /**
+     * Menghapus direktori beserta isinya secara rekursif.
+     *
+     * @param string $dirPath Path direktori yang akan dihapus
+     *
+     * @return bool True jika berhasil, false jika gagal
+     */
     function deleteDir($dirPath)
     {
         if (! is_dir($dirPath)) {
@@ -1131,6 +1407,14 @@ if (! function_exists('deleteDir')) {
 }
 
 if (! function_exists('create_tree_file')) {
+    /**
+     * Membuat struktur pohon file dan folder dalam format HTML.
+     *
+     * @param array  $arr     Array yang berisi struktur file dan folder
+     * @param string $baseDir Direktori dasar untuk path file
+     *
+     * @return string|null HTML yang merepresentasikan struktur pohon
+     */
     function create_tree_file($arr, string $baseDir)
     {
         if (! empty($arr)) {
@@ -1147,5 +1431,148 @@ if (! function_exists('create_tree_file')) {
 
             return $tmp . '</ul>';
         }
+    }
+}
+
+if (! function_exists('getWidgetSetting')) {
+    /**
+     * Ambil setting widget
+     *
+     * @param int $namaWidget
+     * @param int $opsi       (optional)
+     */
+    function getWidgetSetting($namaWidget, $opsi = null)
+    {
+        return Widget::getSetting($namaWidget, $opsi);
+    }
+}
+
+if (! function_exists('bacaKomentar')) {
+    /**
+     * jumlah baca komentar pada artikel
+     *
+     * @param int $idArtikel
+     */
+    function bacaKomentar($idArtikel)
+    {
+        return Komentar::jumlahBaca($idArtikel);
+    }
+}
+
+if (! function_exists('buildTree')) {
+    /**
+     * Membangun struktur pohon dari array datar berdasarkan kolom parent dan referensi.
+     *
+     * @param array  $elements        Array data datar
+     * @param string $parentColumn    Nama kolom yang menunjukkan parent (default: 'parent_id')
+     * @param string $referenceColumn Nama kolom yang menjadi referensi (default: 'id')
+     * @param mixed  $parentId        ID parent untuk memulai (default: null)
+     *
+     * @return array Struktur pohon
+     */
+    function buildTree(array $elements, $parentColumn = 'parent_id', $referenceColumn = 'id', $parentId = null)
+    {
+        $branch = [];
+
+        foreach ($elements as &$element) {
+            if ($element[$parentColumn] === $parentId) {
+                $children = buildTree($elements, $parentColumn, $referenceColumn, $element[$referenceColumn]);
+                if ($children) {
+                    $element['children'] = $children;
+                } else {
+                    $element['children'] = [];
+                }
+                $branch[] = $element;
+            }
+        }
+
+        return $branch;
+    }
+}
+
+if (! function_exists('compressPng')) {
+    /**
+     * Kompresi gambar PNG
+     *
+     * @param string $path    Path file gambar PNG
+     * @param int    $quality Kualitas kompresi (0-9), default 9 (terbaik)
+     *
+     * @return void
+     */
+    function compressPng($path, $quality = 9)
+    {
+        $image = imagecreatefrompng($path);
+        if ($image) {
+            // Simpan ulang dengan kompresi maksimal (9 = terbaik)
+            imagepng($image, $path, $quality);
+            imagedestroy($image);
+        }
+    }
+
+    if (! function_exists('unserialize_flip')) {
+    /**
+     * Unserialize string lalu balik key <-> value
+     *
+     * @param string $str
+     *
+     * @return array
+     */
+    function unserialize_flip($str)
+    {
+        $arr = @unserialize($str);
+
+        if (is_array($arr)) {
+            return array_flip($arr);
+        }
+
+        return [];
+    }
+}
+
+}
+
+if (! function_exists('unserialize_flip')) {
+    /**
+     * Unserialize string lalu balik key <-> value
+     *
+     * @param string $str
+     *
+     * @return array
+     */
+    function unserialize_flip($str)
+    {
+        $arr = @unserialize($str);
+
+        if (is_array($arr)) {
+            return array_flip($arr);
+        }
+
+        return [];
+    }
+}
+
+if (! function_exists('sensorNama')) {
+    /**
+     * Sensor nama dengan mengganti karakter tengah dengan '*'
+     *
+     * @param string $nama
+     * @param string $replaceChar Karakter pengganti, default '*'
+     *
+     * @return string
+     */
+    function sensorNama($nama, $replaceChar = '*')
+    {
+        if (! $nama) return '';
+
+        $nama    = trim($nama); // Hapus spasi depan/belakang
+        $panjang = strlen($nama);
+
+        if ($panjang <= 1) return $nama;
+
+        $pertama  = $nama[0];
+        $terakhir = $nama[$panjang - 1];
+        $tengah   = str_repeat($replaceChar, $panjang - 2);
+
+        return $pertama . $tengah . $terakhir;
     }
 }

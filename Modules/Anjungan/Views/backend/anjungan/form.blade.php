@@ -15,16 +15,33 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.layouts.components.konfirmasi_hapus')
 
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('anjungan') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                <i class="fa fa-arrow-circle-left "></i>Kembali ke Anjungan
+            @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('anjungan'), 'label' => 'Anjungan'])
+            <a href="#" title="Hapus Device anjungan" data-href="{{ ci_route('anjungan.delete_device') }}" data-toggle="modal" data-target="#confirm-delete" class="btn btn-social btn-danger btn-sm" id="hapus-device-anjungan" style="display: none;">
+                <i class='fa fa-trash-o'></i> Hapus Device terpasang
             </a>
         </div>
         <div class="box-body">
             {!! form_open($form_action, 'class="form-horizontal" id="validasi"') !!}
             <div class="box-body">
+                <div class="form-group">
+                    <label class="col-sm-3 control-label">Anjungna UUID</label>
+                    <div class="col-sm-7">
+                        <input
+                            id="anjungan_id"
+                            class="form-control input-sm"
+                            type="text"
+                            placeholder="ad02c373c2a8745d108aff863712fe92"
+                            onkeyup="wajib()"
+                            name="uuid"
+                            value="{{ $anjungan->uuid ?? null }}"
+                            readonly
+                        >
+                    </div>
+                </div>
                 <div class="form-group">
                     <label class="col-sm-3 control-label" for="ip_address">IP Address</label>
                     <div class="col-sm-7">
@@ -54,20 +71,6 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="col-sm-3 control-label" for="id_pengunjung">ID Pengunjung</label>
-                    <div class="col-sm-7">
-                        <input
-                            id="id_pengunjung"
-                            class="form-control input-sm alfanumerik"
-                            type="text"
-                            onkeyup="wajib()"
-                            placeholder="ad02c373c2a8745d108aff863712fe92"
-                            name="id_pengunjung"
-                            value="{{ $anjungan->id_pengunjung ?? null }}"
-                        >
-                    </div>
-                </div>
-                <div class="form-group">
                     <label class="col-sm-3 control-label" for="ip_address">IP Address Printer</label>
                     <div class="col-sm-7">
                         <input class="form-control input-sm ip_address" type="text" placeholder="IP address statis untuk printer anjungan" name="printer_ip" value="{{ $anjungan->printer_ip }}">
@@ -80,9 +83,37 @@
                     </div>
                 </div>
                 <div class="form-group">
+                    <label class="col-sm-3 control-label" for="user_agent">User Agent</label>
+                    <div class="col-sm-7">
+                        <textarea id="user_agent" name="user_agent" class="form-control input-sm" maxlength="300" placeholder="User Agent" rows="3" style="resize:none;" readonly>{{ $anjungan->user_agent }}</textarea>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label class="col-sm-3 control-label" for="keterangan">Keterangan</label>
                     <div class="col-sm-7">
                         <textarea name="keterangan" class="form-control input-sm" maxlength="300" placeholder="Keterangan" rows="3" style="resize:none;">{{ $anjungan->keterangan }}</textarea>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="col-sm-3 control-label" for="keyboard">Orientasi Layar</label>
+                    <div class="btn-group col-sm-7" data-toggle="buttons">
+                        <label id="sx5" class="btn btn-info btn-sm col-xs-6 col-sm-5 col-lg-3 form-check-label {{ jecho($anjungan->orientasi_layar, '1', 'active') }}">
+                            <input type="radio" name="orientasi_layar" class="form-check-input" type="radio" value="1" {{ jecho($anjungan->orientasi_layar, '1', 'checked') }}> Lanskap
+                        </label>
+                        <label id="sx6" class="btn btn-info btn-sm col-xs-6 col-sm-5 col-lg-3 form-check-label {{ jecho($anjungan->orientasi_layar != '1', true, 'active') }}">
+                            <input type="radio" name="orientasi_layar" class="form-check-input" type="radio" value="0" {{ jecho($anjungan->orientasi_layar != '1', true, 'checked') }}> Potret
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="col-sm-3 control-label" for="tipe">Gunakan Sebagai Rekam Kehadiran</label>
+                    <div class="btn-group col-sm-7" data-toggle="buttons">
+                        <label id="sx7" class="btn btn-info btn-sm col-xs-6 col-sm-5 col-lg-3 form-check-label {{ is_array($anjungan->tipe ?? null) && in_array(3, $anjungan->tipe) ? 'active' : '' }}">
+                            <input type="radio" name="rekam_kehadiran" class="form-check-input" value="1" {{ is_array($anjungan->tipe ?? null) && in_array(3, $anjungan->tipe) ? 'checked' : '' }}> Aktif
+                        </label>
+                        <label id="sx8" class="btn btn-info btn-sm col-xs-6 col-sm-5 col-lg-3 form-check-label {{ !is_array($anjungan->tipe ?? null) || !in_array(3, $anjungan->tipe) ? 'active' : '' }}">
+                            <input type="radio" name="rekam_kehadiran" class="form-check-input" value="0" {{ !is_array($anjungan->tipe ?? null) || !in_array(3, $anjungan->tipe) ? 'checked' : '' }}> Tidak Aktif
+                        </label>
                     </div>
                 </div>
                 <div class="form-group">
@@ -96,10 +127,21 @@
                         </label>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label class="col-sm-3 control-label" for="permohonan_surat_tanpa_akun">Permohonan Surat Tanpa Akun</label>
+                    <div class="btn-group col-sm-7" data-toggle="buttons">
+                        <label id="btnAktifSuratTanpaAkun" class="btn btn-info btn-sm col-xs-6 col-sm-5 col-lg-3 form-check-label {{ jecho($anjungan->permohonan_surat_tanpa_akun, '1', 'active') }}">
+                            <input type="radio" name="permohonan_surat_tanpa_akun" class="form-check-input" type="radio" value="1" {{ jecho($anjungan->permohonan_surat_tanpa_akun, '1', 'checked') }}> Aktif
+                        </label>
+                        <label class="btn btn-info btn-sm col-xs-6 col-sm-5 col-lg-3 form-check-label {{ jecho($anjungan->permohonan_surat_tanpa_akun != '1', true, 'active') }}">
+                            <input type="radio" name="permohonan_surat_tanpa_akun" class="form-check-input" type="radio" value="0" {{ jecho($anjungan->permohonan_surat_tanpa_akun != '1', true, 'checked') }}> Tidak Aktif
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class="box-footer">
                 <button type="reset" class="btn btn-social btn-danger btn-sm" onclick="reset_form($(this).val());"><i class="fa fa-times"></i> Batal</button>
-                <button type="submit" class="btn btn-social btn-info btn-sm pull-right"><i class="fa fa-check"></i>
+                <button type="submit" id="tambahDaftarAnjungan" class="btn btn-social btn-info btn-sm pull-right"><i class="fa fa-check"></i>
                     Simpan</button>
             </div>
             </form>
@@ -107,14 +149,87 @@
     </div>
 @endsection
 @push('scripts')
+    @if($action == 'Tambah')
+        <script src="{{ asset('front/js/anjungan-client.js') }}"></script>
+    @endif
     <script>
         $(document).ready(function() {
+            const anjunganUuid = localStorage.getItem('anjungan_uuid');
+            if (anjunganUuid) {
+                // Cek ke server apakah UUID ini ada di database
+                $.ajax({
+                    url: `{{ ci_route('anjungan.verify') }}?uuid=${anjunganUuid}`,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status == 'valid') {
+                            const deleteUrl = `{{ ci_route('anjungan.delete_device') }}/${anjunganUuid}`;
+                            $('#hapus-device-anjungan').attr('data-href', deleteUrl).show();
+                        }else{
+                            $('#hapus-device-anjungan').hide();
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error saat cek UUID anjungan:", error);
+                    }
+                });
+            }
+
+            // Event handler untuk modal konfirmasi hapus
+            $('#confirm-delete').on('show.bs.modal', function(e) {
+                $(this).find('.btn-ok').attr('href', $(e.relatedTarget).data('href'));
+                localStorage.removeItem('anjungan_uuid');
+            });
+
             wajib();
+
+            $('#btnAktifSuratTanpaAkun').on('click', function(e) {
+                e.preventDefault();
+
+                Swal.fire({
+                    title: 'Aktifkan Permohonan Surat Tanpa Akun?',
+                    html: `
+                        <div class="text-left">
+                            <p>
+                                Dengan mengaktifkan fitur ini, warga <strong>dapat mengajukan permohonan surat tanpa akun</strong>, dengan terlebih dahulu melakukan verifikasi sebagai berikut:
+                            </p>
+                            <ul>
+                                <li>Melakukan <strong>pindai KTP-el</strong>. Sistem akan menampilkan data penduduk hasil pemindaian, dan warga harus mengonfirmasi bahwa itu adalah dirinya.</li>
+                                <li>Atau, mengetik <strong>nama depan</strong> secara lengkap, memilih data penduduk dari hasil pencarian, lalu memasukkan <strong>tanggal lahir</strong> yang benar untuk verifikasi identitas.</li>
+                            </ul>
+                            <p>
+                                Setelah berhasil diverifikasi, warga dapat langsung membuat permohonan surat dan mencetaknya di Anjungan tanpa akun.
+                            </p>
+                            <p class="text-danger">
+                                <strong>Peringatan:</strong> Fitur ini berpotensi menimbulkan <strong>pelanggaran privasi</strong> jika tidak disosialisasikan dan diawasi dengan baik. Pastikan perangkat dan lingkungan Anjungan tetap aman dan tidak disalahgunakan.
+                            </p>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, aktifkan',
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (!result.isConfirmed) {
+                        const radioGroup = $('input[name="permohonan_surat_tanpa_akun"]');
+                        const tidakAktif = radioGroup.filter('[value="0"]');
+
+                        // Reset semua opsi
+                        radioGroup.prop("checked", false).closest('label').removeClass('active');
+
+                        // Pilih "Tidak Aktif"
+                        tidakAktif.prop("checked", true)
+                            .closest('label').addClass('active')
+                            .find('input').trigger('change');
+                    }
+                });
+            });
         });
 
         function reset_form() {
             var keyboard = "{{ $anjungan->keyboard }}";
             var status = "{{ $anjungan->status }}";
+            var orientasi_layar = "{{ $anjungan->orientasi_layar }}";
 
             if (keyboard == 1) {
                 $("#sx1").addClass('active');
@@ -130,6 +245,24 @@
             } else {
                 $("#sx3").removeClass('active');
                 $("#sx4").addClass('active');
+            }
+
+            if (orientasi_layar == 1) {
+                $("#sx5").addClass('active');
+                $("#sx6").removeClass('active');
+            } else {
+                $("#sx5").removeClass('active');
+                $("#sx6").addClass('active');
+            }
+
+            // Set radio rekam kehadiran sesuai tipe
+            var tipe = @json($anjungan->tipe ?? [1]);
+            if (Array.isArray(tipe) && tipe.includes(3)) {
+                $("#sx7 input").prop('checked', true);
+                $("#sx8 input").prop('checked', false);
+            } else {
+                $("#sx7 input").prop('checked', false);
+                $("#sx8 input").prop('checked', true);
             }
         };
 
@@ -150,5 +283,6 @@
                 $("#ip_address").addClass('required');
             }
         }
+
     </script>
 @endpush

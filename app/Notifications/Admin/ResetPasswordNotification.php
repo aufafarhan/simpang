@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -44,13 +44,6 @@ use Illuminate\Support\Facades\Lang;
 
 class ResetPasswordNotification extends Notification
 {
-    /**
-     * The password reset token.
-     *
-     * @var string
-     */
-    public $token;
-
     /**
      * The callback that should be used to create the reset password URL.
      *
@@ -72,19 +65,40 @@ class ResetPasswordNotification extends Notification
      *
      * @return void
      */
-    public function __construct($token)
+    public function __construct(
+        /**
+         * The password reset token.
+         */
+        public $token
+    ) {
+    }
+
+    /**
+     * Set a callback that should be used when creating the reset password button URL.
+     *
+     * @param Closure(mixed, string): string $callback
+     */
+    public static function createUrlUsing($callback): void
     {
-        $this->token = $token;
+        static::$createUrlCallback = $callback;
+    }
+
+    /**
+     * Set a callback that should be used when building the notification mail message.
+     *
+     * @param Closure(mixed, string): (\Illuminate\Contracts\Mail\Mailable|\Illuminate\Notifications\Messages\MailMessage) $callback
+     */
+    public static function toMailUsing($callback): void
+    {
+        static::$toMailCallback = $callback;
     }
 
     /**
      * Get the notification's channels.
      *
-     * @param mixed $notifiable
-     *
      * @return array|string
      */
-    public function via($notifiable)
+    public function via(mixed $notifiable): array
     {
         return ['mail'];
     }
@@ -92,11 +106,9 @@ class ResetPasswordNotification extends Notification
     /**
      * Build the mail representation of the notification.
      *
-     * @param mixed $notifiable
-     *
      * @return MailMessage
      */
-    public function toMail($notifiable)
+    public function toMail(mixed $notifiable)
     {
         if (static::$toMailCallback) {
             return call_user_func(static::$toMailCallback, $notifiable, $this->token);
@@ -125,40 +137,14 @@ class ResetPasswordNotification extends Notification
     /**
      * Get the reset URL for the given notifiable.
      *
-     * @param mixed $notifiable
-     *
      * @return string
      */
-    protected function resetUrl($notifiable)
+    protected function resetUrl(mixed $notifiable)
     {
         if (static::$createUrlCallback) {
             return call_user_func(static::$createUrlCallback, $notifiable, $this->token);
         }
 
         return site_url("siteman/reset_kata_sandi/{$this->token}?email={$notifiable->getEmailForPasswordReset()}");
-    }
-
-    /**
-     * Set a callback that should be used when creating the reset password button URL.
-     *
-     * @param Closure(mixed, string): string $callback
-     *
-     * @return void
-     */
-    public static function createUrlUsing($callback)
-    {
-        static::$createUrlCallback = $callback;
-    }
-
-    /**
-     * Set a callback that should be used when building the notification mail message.
-     *
-     * @param Closure(mixed, string): (\Illuminate\Contracts\Mail\Mailable|\Illuminate\Notifications\Messages\MailMessage) $callback
-     *
-     * @return void
-     */
-    public static function toMailUsing($callback)
-    {
-        static::$toMailCallback = $callback;
     }
 }

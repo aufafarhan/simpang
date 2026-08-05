@@ -20,7 +20,7 @@
 
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('surat_masuk') }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Surat Masuk</a>
+            @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('surat_masuk'), 'label' => 'Daftar Surat Masuk'])
         </div>
         {!! form_open($form_action, 'class="form-horizontal" enctype="multipart/form-data" id="validasi"') !!}
         <div class="box-body">
@@ -52,7 +52,6 @@
                         @else
                             <i class="fa fa-picture-o pop-up-images" style="font-size: 60px;" aria-hidden="true" data-title="Berkas {{ $surat_masuk->nomor_surat }}" data-url="{{ site_url("surat_masuk/berkas/{$surat_masuk->id}") }}" src="{{ site_url("'surat_masuk/berkas/{$surat_masuk->id}") }}"></i>
                         @endif
-                        <p><label class="control-label"><input type="checkbox" name="gambar_hapus" value="{{ $surat_masuk->berkas_scan }}" /> Hapus Berkas Lama</label></p>
                     </div>
                 </div>
             @endif
@@ -61,7 +60,7 @@
                 <div class="col-sm-6">
                     <div class="input-group input-group-sm col-sm-12">
                         <input type="text" class="form-control" id="file_path">
-                        <input type="file" class="hidden" id="file" name="satuan" accept=".gif,.jpg,.jpeg,.png,.pdf">
+                        <input type="file" class="hidden @if ($action === 'Tambah') required @endif" id="file" name="satuan" accept=".gif,.jpg,.jpeg,.png,.pdf">
                         <span class="input-group-btn">
                             <button type="button" class="btn btn-info btn-flat" id="file_browser"><i class="fa fa-search"></i> Browse</button>
                         </span>
@@ -124,18 +123,30 @@
                 <label class="col-sm-3 control-label" for="disposisi_kepada">Disposisi Kepada</label>
                 <div class="col-sm-8 col-lg-8">
                     <div id="op_item" class="checkbox-group required">
-                        @foreach ($ref_disposisi as $id => $nama)
-                            <div class="col-sm-12 col-lg-6 checkbox">
-                                <label style="padding: 5px;">
-                                    <input class="akas" type="checkbox" name="disposisi_kepada[]" onclick="cek()" value="{{ $id }}" {{ selected(is_array($disposisi_surat_masuk) && in_array($id, $disposisi_surat_masuk), true, true) }}>{{ strtoupper($nama) }}
-                                </label>
-                            </div>
-                        @endforeach
+                        <table class="table table-borderless" style="margin-bottom: 0;">
+                            <tbody>
+                                @foreach ($ref_disposisi as $id => $nama)
+                                    @if ($loop->iteration % 2 == 1)
+                                        <tr>
+                                    @endif
+                                        <td style="padding: 5px 10px; vertical-align: top;">
+                                            <label class="checkbox-inline" style="font-weight: normal;">
+                                                <input type="checkbox" name="disposisi_kepada[]" value="{{ $id }}"
+                                                    {{ selected(is_array($disposisi_surat_masuk) && in_array($id, $disposisi_surat_masuk), true, true) }}>
+                                                {{ strtoupper($nama) }}
+                                            </label>
+                                        </td>
+                                    @if ($loop->iteration % 2 == 0 || $loop->last)
+                                        </tr>
+                                    @endif
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 <label class="col-sm-3 control-label"></label>
                 <div class="col-sm-8 col-lg-8">
-                    <label id="msg_disposisi" class="error">Kolom ini diperlukan.</label>
+                    <label id="msg_disposisi" class="has-error">Kolom ini diperlukan.</label>
                 </div>
             </div>
             <div class="form-group">
@@ -152,37 +163,78 @@
         </form>
     </div>
 @endsection
-
 @push('scripts')
-    <script src="{{ asset('js/custom-select2.js') }}"></script>
-    <script>
-        $(function() {
-            var keyword = @json($pengirim);
-            $("#pengirim").autocomplete({
-                source: keyword,
-                maxShowItems: 10,
-            });
+<script src="{{ asset('js/custom-select2.js') }}"></script>
+<script>
+    $(function () {
+        var keyword = @json($pengirim);
+        $("#pengirim").autocomplete({
+            source: keyword,
+            maxShowItems: 10,
         });
-
-        function submit_form() {
-            if ($('div.checkbox-group.required :checkbox:checked').length > 0) {
-                $("#validasi").submit();
-            }
-            event.preventDefault();
-
-            cek();
-        }
 
         $("#msg_disposisi").hide();
 
-        function cek() {
-            if ($('div.checkbox-group.required :checkbox:checked').length > 0) {
+        // Hide error saat checkbox disposisi diubah
+        $('input[name="disposisi_kepada[]"]').on('change', function () {
+            if ($('input[name="disposisi_kepada[]"]:checked').length > 0) {
                 $("#msg_disposisi").hide();
-                $("#grp_disposisi").closest(".form-group").removeClass("has-error");
-            } else {
-                $("#msg_disposisi").show();
-                $("#grp_disposisi").closest(".form-group").addClass("has-error");
+                $("#grp_disposisi").removeClass("has-error");
             }
+        });
+
+        // Cegah submit default (karena kita submit manual)
+        $('#validasi').on('submit', function (e) {
+            e.preventDefault(); // agar tidak double submit
+        });
+    });
+
+    function resetValidationErrors() {
+        $("#msg_disposisi").hide();
+        $(".form-group").removeClass("has-error");
+        $(".error-message").remove();
+    }
+
+    function validateForm() {
+        resetValidationErrors();
+        let isValid = true;
+
+        // Validasi input/select/textarea (kecuali checkbox group)
+        $('.form-control.required, .required select, .required textarea').each(function () {
+            const el = $(this);
+            if (!el.val() || el.val().trim() === '') {
+                el.closest('.form-group').addClass('has-error');
+                isValid = false;
+            }
+        });
+
+        // Validasi Disposisi Kepada (minimal 1 checkbox dicentang)
+        if ($('input[name="disposisi_kepada[]"]:checked').length === 0) {
+            $("#msg_disposisi").show();
+            $("#grp_disposisi").addClass("has-error");
+            isValid = false;
         }
-    </script>
+
+        if (!isValid) {
+            scrollToError();
+        }
+
+        return isValid;
+    }
+
+    function scrollToError() {
+        const firstError = $('.has-error').first();
+        if (firstError.length) {
+            $('html, body').animate({
+                scrollTop: firstError.offset().top - 100
+            }, 500);
+        }
+    }
+
+    function submit_form() {
+        if (validateForm()) {
+            document.getElementById('validasi').submit();
+        }
+    }
+</script>
 @endpush

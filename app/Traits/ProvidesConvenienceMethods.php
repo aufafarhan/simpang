@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -101,6 +101,31 @@ trait ProvidesConvenienceMethods
         }
 
         return $this->extractInputFromRules($request, $rules);
+    }
+
+    /**
+     * Dispatch a job to its appropriate handler.
+     *
+     * @param mixed $job
+     *
+     * @return mixed
+     */
+    public function dispatch($job)
+    {
+        return app(Dispatcher::class)->dispatch($job);
+    }
+
+    /**
+     * Dispatch a command to its appropriate handler in the current process.
+     *
+     * @param mixed $job
+     * @param mixed $handler
+     *
+     * @return mixed
+     */
+    public function dispatchNow($job, $handler = null)
+    {
+        return app(Dispatcher::class)->dispatchNow($job, $handler);
     }
 
     /**
@@ -266,31 +291,6 @@ trait ProvidesConvenienceMethods
         }
 
         return $validator->errors()->getMessages();
-    }
-
-    /**
-     * Dispatch a job to its appropriate handler.
-     *
-     * @param mixed $job
-     *
-     * @return mixed
-     */
-    public function dispatch($job)
-    {
-        return app(Dispatcher::class)->dispatch($job);
-    }
-
-    /**
-     * Dispatch a command to its appropriate handler in the current process.
-     *
-     * @param mixed $job
-     * @param mixed $handler
-     *
-     * @return mixed
-     */
-    public function dispatchNow($job, $handler = null)
-    {
-        return app(Dispatcher::class)->dispatchNow($job, $handler);
     }
 
     /**

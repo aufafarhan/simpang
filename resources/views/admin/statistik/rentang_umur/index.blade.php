@@ -43,13 +43,12 @@
                         ><i class="fa fa-plus"></i> Tambah</a>
                     @endif
                     @if (can('h'))
-                        <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('statistik.delete_all_rentang') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
+                        <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ route('statistik.rentang_umur.delete_all') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
                                 class='fa fa-trash-o'
                             ></i> Hapus</a>
                     @endif
-                    <a href="{{ ci_route('statistik.penduduk.13') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                        <i class="fa fa-arrow-circle-left "></i>Kembali ke Data Statistik
-                    </a>
+                    @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('statistik.penduduk.13'), 'label' => 'Data Statistik'])
+
                 </div>
                 <div class="box-body">
                     {!! form_open(null, 'id="mainform" name="mainform"') !!}

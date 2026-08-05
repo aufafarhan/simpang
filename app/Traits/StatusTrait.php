@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,84 +37,88 @@
 
 namespace App\Traits;
 
-use App\Enums\StatusEnum;
+use App\Enums\AktifEnum;
 
 trait StatusTrait
 {
     /**
-     * Mendapatkan nama kolom status.
-     */
-    private static function getStatusColumn(): string
-    {
-        return defined('static::STATUS') ? static::STATUS : 'status';
-    }
-
-    /**
-     * Scope untuk status tertentu.
+     * Ubah status data berdasarkan ID.
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param string                                $status
-     *
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeStatus($query, $status)
-    {
-        return $query->when($status !== '', static function ($query) {
-            $query->where(self::getStatusColumn(), StatusEnum::YA);
-        });
-    }
-
-    /**
-     * Scope untuk status aktif.
-     *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     *
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeActive($query)
-    {
-        return $query->where(self::getStatusColumn(), StatusEnum::YA);
-    }
-
-    /**
-     * Scope untuk status tidak aktif.
-     *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     *
-     * @return \Illuminate\Database\Eloquent\Builder
-     */
-    public function scopeInactive($query)
-    {
-        return $query->where(self::getStatusColumn(), StatusEnum::TIDAK);
-    }
-
-    /**
-     * Mengubah status data.
-     *
-     * @param mixed $id      ID data yang akan diubah. Bisa berupa string (UUID) atau integer.
-     * @param bool  $onlyOne Jika true, hanya satu data yang bisa aktif.
-     *
-     * @return bool Mengembalikan true jika status berhasil diubah, false jika gagal.
+     * @param mixed $id
+     * @param bool  $onlyOne Jika true, hanya satu data boleh aktif.
      */
     public static function updateStatus($id, bool $onlyOne = false): bool
     {
-        $kolom = self::getStatusColumn();
+        $model = static::findOrFail($id);
+        $kolom = (new static())->getStatusColumn();
 
-        // Cari data berdasarkan ID (baik string/UUID maupun integer)
-        $data = static::findOrFail($id);
+        $newStatus = $model->{$kolom} === AktifEnum::AKTIF ? AktifEnum::TIDAK_AKTIF : AktifEnum::AKTIF;
 
-        $newStatus = $data->{$kolom} === StatusEnum::YA ? StatusEnum::TIDAK : StatusEnum::YA;
-
-        // Update status
-        if ($data->update([$kolom => $newStatus])) {
-            if ($onlyOne && $newStatus === StatusEnum::YA) {
-                $primaryKey = $data->getKeyName(); // Mendapatkan primary key
-                static::where($primaryKey, '!=', $id)->update([$kolom => StatusEnum::TIDAK]);
+        if ($model->update([$kolom => $newStatus])) {
+            if ($onlyOne && $newStatus === AktifEnum::AKTIF) {
+                static::where($model->getKeyName(), '!=', $id)->update([$kolom => AktifEnum::TIDAK_AKTIF]);
             }
 
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * Menambahkan status_label ke appends saat model di-inisialisasi.
+     */
+    public function initializeStatusTrait()
+    {
+        if (! in_array('status_label', $this->appends)) {
+            $this->appends[] = 'status_label';
+        }
+    }
+
+    /**
+     * Ambil nama kolom status.
+     */
+    public function getStatusColumn(): string
+    {
+        return $this->statusColumName ?? 'status';
+    }
+
+    /**
+     * Scope untuk filter berdasarkan status tertentu.
+     *
+     * @param mixed    $query
+     * @param int|null $status
+     */
+    public function scopeStatus($query, $status = null)
+    {
+        return $query->when(
+            in_array($status, AktifEnum::keys()),
+            fn ($q) => $q->where($this->getStatusColumn(), $status)
+        );
+    }
+
+    /**
+     * Scope untuk data dengan status aktif.
+     *
+     * @param mixed $query
+     */
+    public function scopeActive($query)
+    {
+        return $query->where($this->getStatusColumn(), AktifEnum::AKTIF);
+    }
+
+    /**
+     * Scope untuk data dengan status tidak aktif.
+     *
+     * @param mixed $query
+     */
+    public function scopeInactive($query)
+    {
+        return $query->where($this->getStatusColumn(), AktifEnum::TIDAK_AKTIF);
+    }
+
+    public function getStatusLabelAttribute()
+    {
+        return AktifEnum::getLabel($this->{$this->getStatusColumn()});
     }
 }

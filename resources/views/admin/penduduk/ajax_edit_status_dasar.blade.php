@@ -4,6 +4,13 @@
 @endphp
 <form action="{{ $form_action }}" method="post" id="validasi" class="tgl_lapor_peristiwa" enctype="multipart/form-data">
     <div class='modal-body'>
+        <div class="alert alert-warning alert-dismissible">
+            <h4><i class="icon fa fa-warning"></i> Catatan!</h4>
+            <ul style="margin-left: -25px;">
+                <li>Jika kepala keluarga meninggal, harap melakukan pemecahan Kartu Keluarga (KK) terlebih dahulu.</li>
+                <li>Jika terdapat keterangan lain terkait perubahan status dasar, harap diisi pada kolom catatan peristiwa.</li>
+            </ul>
+        </div>
         <div class="form-group">
             <label for="status_dasar">Status Dasar Baru</label>
             <select id="status_dasar" name="status_dasar" class="form-control select2 input-sm required">
@@ -63,7 +70,7 @@
                 </span>
             </div>
             <span class="help-block"><code>Kosongkan jika tidak ingin mengubah dokumen. Ukuran maksimal
-                    <strong>{{ max_upload() }} MB</strong>.</code></span>
+                    <strong>{{ max_upload(true) }}</strong>.</code></span>
         </div>
         <div class="form-group pindah">
             <div class="form-group">
@@ -103,13 +110,6 @@
             <label for="catatan">Catatan Peristiwa</label>
             <textarea id="catatan" name="catatan" class="form-control input-sm" placeholder="Catatan" rows="5"></textarea>
         </div>
-        <div class="alert alert-warning alert-dismissible" style="margin-bottom: -5px;">
-            <h4><i class="icon fa fa-warning"></i> Catatan!</h4>
-            <ul style="margin-left: -25px;">
-                <li>Jika kepala keluarga meninggal, harap melakukan pemecahan Kartu Keluarga (KK) terlebih dahulu.</li>
-                <li>Jika terdapat keterangan lain terkait perubahan status dasar, harap diisi pada kolom catatan peristiwa.</li>
-            </ul>
-        </div>
     </div>
     <div class="modal-footer">
         <?= batal() ?>
@@ -117,14 +117,17 @@
     </div>
 </form>
 <script>
-    $('#tgl_1').datetimepicker({
-        format: 'DD-MM-YYYY',
-        locale: 'id'
-    });
+    $('#tgl_1').datetimepicker(
+	{
+		format: 'DD-MM-YYYY',
+		locale:'id',
+		maxDate: moment().endOf('year')
+	});
 
     $('#tgl_lapor').datetimepicker({
         format: 'DD-MM-YYYY',
-        locale: 'id'
+        locale: 'id',
+        maxDate: moment().endOf('year')
     });
 
     $('document').ready(function() {
@@ -172,13 +175,21 @@
         });
         $('.modal #status_dasar').trigger('change');
 
-        setTimeout(function() {
-            $("#tgl_lapor").rules('add', {
-                tgl_lebih_besar: "input[name='tgl_peristiwa']",
-                messages: {
-                    tgl_lebih_besar: "Tanggal lapor harus sama atau lebih besar dari tanggal peristiwa."
-                }
-            })
-        }, 500);
+        $.validator.addMethod("tgl_lebih_besar", function(value, element, param) {
+            if (!value) return true;
+
+            let tglLapor = moment(value, "DD-MM-YYYY");
+            let tglPeristiwa = moment($(param).val(), "DD-MM-YYYY");
+
+            return tglLapor.isSameOrAfter(tglPeristiwa);
+        }, "Tanggal lapor harus sama atau lebih besar dari tanggal peristiwa.");
+
+        // Tambahkan rule ke input tgl_lapor
+        $("#tgl_lapor").rules('add', {
+            tgl_lebih_besar: "input[name='tgl_peristiwa']",
+            messages: {
+                tgl_lebih_besar: "Tanggal lapor harus sama atau lebih besar dari tanggal peristiwa."
+            }
+        });
     });
 </script>

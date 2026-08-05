@@ -1,84 +1,138 @@
 @extends('admin.layouts.index')
 @section('title')
-    <h1>
-        Data Penduduk
-    </h1>
+<h1>
+    Detail {{ $module_name }}
+</h1>
 @endsection
 
 @section('breadcrumb')
-    <li><a href="{{ ci_route('penduduk') }}"> Daftar Penduduk</a></li>
-    <li class="active">Biodata Penduduk</li>
+<li><a href="{{ ci_route('penduduk') }}">Data {{ $module_name }}</a></li>
+<li class="active">Biodata {{ $module_name }}</li>
 @endsection
 
 @push('css')
-    <style>
-        .table {
-            font-size: 12px;
-        }
+<style>
+    .table {
+        font-size: 12px;
+    }
 
-        .detail {
-            margin-top: 5px;
-            margin-bottom: 5px;
-        }
-    </style>
+    .detail {
+        margin-top: 5px;
+        margin-bottom: 5px;
+    }
+</style>
 @endpush
 
 @section('content')
-    <div class="box box-info">
-        <div class="box-header">
-            <a href="{{ ci_route('penduduk.dokumen', $penduduk->id) }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Manajemen Dokumen Penduduk"><i class="fa fa-book"></i> Manajemen Dokumen</a>
-            @if (can('u'))
-                @if ($penduduk->status_dasar == App\Enums\StatusDasarEnum::HIDUP)
-                    <a href="{{ ci_route('penduduk.form', $penduduk->id) }}" class="btn btn-social btn-warning btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Ubah Biodata"><i class="fa fa-edit"></i> Ubah Biodata</a>
-                @endif
+@include('admin.layouts.components.notifikasi')
+<div class="box box-info">
+    <div class="box-header with-border">
+        <div class="btn-toolbar" role="toolbar">
+            <!-- Dokumen Management -->
+            <div class="btn-group" role="group">
+                <x-btn-button
+                    :url="'penduduk/dokumen/' . $penduduk->id"
+                    judul="Manajemen Dokumen"
+                    icon="fa fa-book"
+                    type="btn-success"
+                />
+            </div>
+
+            <!-- Edit and Print Actions -->
+            @if (can('u') && $penduduk->status_dasar == App\Enums\StatusDasarEnum::HIDUP)
+                <x-btn-button
+                    :url="'penduduk/form/' . $penduduk->id"
+                    judul="Ubah Biodata"
+                    icon="fa fa-edit"
+                    type="btn-warning"
+                />
             @endif
-            <a href="{{ ci_route('penduduk.cetak_biodata', $penduduk->id) }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Cetak Biodata" target="_blank"><i class="fa fa-print"></i>Cetak Biodata</a>
+
+            <x-btn-button
+                :url="'penduduk/cetak_biodata/' . $penduduk->id"
+                judul="Cetak Biodata"
+                icon="fa fa-print"
+                type="bg-purple"
+                :blank="true"
+            />
+
+            <!-- Family Actions -->
             @if ($penduduk->keluarga->no_kk && $penduduk->status_dasar == App\Enums\StatusDasarEnum::HIDUP && !empty($penduduk->id_kk))
-                <a href="{{ ci_route("keluarga.anggota.{$penduduk->id_kk}") }}" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Anggota Keluarga"><i class="fa fa-users"></i> Anggota Keluarga</a>
-            @endif
-            @if (can('u'))
-                <div class="btn-group btn-group-vertical">
-                    <a class="btn btn-social btn-success btn-sm" data-toggle="dropdown"><i class='fa fa-plus'></i> Tambah Penduduk</a>
-                    <ul class="dropdown-menu" role="menu">
-                        <li>
-                            <a href="{{ ci_route('penduduk.form_peristiwa', 1) }}" class="btn btn-social btn-block btn-sm" title="Tambah Data Penduduk Lahir"><i class="fa fa-plus"></i> Penduduk Lahir</a>
-                        </li>
-                        <li>
-                            <a href="{{ ci_route('penduduk.form_peristiwa', 5) }}" class="btn btn-social btn-block btn-sm" title="Tambah Data Penduduk Masuk"><i class="fa fa-plus"></i> Penduduk Masuk</a>
-                        </li>
-                    </ul>
+                <div class="btn-group" role="group">
+                    <x-btn-button
+                        :url="'keluarga/anggota/' . $penduduk->id_kk"
+                        judul="Anggota Keluarga"
+                        icon="fa fa-users"
+                        type="btn-danger"
+                    />
                 </div>
             @endif
-            <a href="{{ ci_route('penduduk.clear') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar Penduduk">
-                <i class="fa fa-arrow-circle-left"></i>Kembali Ke Daftar Penduduk
-            </a>
+
+            <!-- Add Resident Dropdown -->
+            @if (can('u'))
+                @php
+                    $listTambahPenduduk = [
+                        [
+                            'url' => 'penduduk/form_peristiwa/1',
+                            'judul' => 'Penduduk Lahir',
+                            'icon' => 'fa fa-plus',
+                            'modal' => false,
+                            'target' => false
+                        ],
+                        [
+                            'url' => 'penduduk/form_peristiwa/5',
+                            'judul' => 'Penduduk Masuk',
+                            'icon' => 'fa fa-plus',
+                            'modal' => false,
+                            'target' => false
+                        ]
+                    ];
+                @endphp
+                
+                <div class="btn-group" role="group">
+                    <x-split-button
+                        judul="Tambah Penduduk"
+                        :list="$listTambahPenduduk"
+                        icon="fa fa-plus"
+                        type="btn-success"
+                    />
+                </div>
+            @endif
+
+            <!-- Back Button -->
+            <div class="btn-group" role="group">
+                <x-kembali-button
+                    url="penduduk/clear"
+                    judul="Kembali Ke Daftar Penduduk"
+                />
+            </div>
         </div>
-        <div class="box-body">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="box-header with-border">
-                        <h3 class="box-title">Biodata Penduduk (NIK : {{ $penduduk->nik }})</h3>
-                        <br>
-                        @if (!empty($penduduk->pembuat))
-                            <p class="kecil">
-                                Terdaftar pada:
-                                <i class="fa fa-clock-o"></i>{{ tgl_indo2($penduduk->created_at) }}
-                                <i class="fa fa-user"></i> {{ $penduduk->pembuat->nama }}
-                            </p>
-                        @else
-                            <p class="kecil">
-                                Terdaftar sebelum:
-                                <i class="fa fa-clock-o"></i>{{ tgl_indo2($penduduk->created_at) }}
-                            </p>
-                        @endif
-                        @if (!empty($penduduk->pengubah))
-                            <p class="kecil">
-                                Terakhir diubah:
-                                <i class="fa fa-clock-o"></i>{{ tgl_indo2($penduduk->updated_at) }}
-                                <i class="fa fa-user"></i> {{ $penduduk->pengubah->nama }}
-                            </p>
-                        @endif
-                    </div>
+    </div>
+    <div class="box-body">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="box-header with-border">
+                    <h3 class="box-title">Biodata Penduduk (NIK : {{ $penduduk->nik }})</h3>
+                    <br>
+                    @if (!empty($penduduk->pembuat))
+                    <p class="kecil">
+                        Terdaftar pada:
+                        <i class="fa fa-clock-o"></i>{{ tgl_indo2($penduduk->created_at) }}
+                        <i class="fa fa-user"></i> {{ $penduduk->pembuat->nama }}
+                    </p>
+                    @else
+                    <p class="kecil">
+                        Terdaftar sebelum:
+                        <i class="fa fa-clock-o"></i>{{ tgl_indo2($penduduk->created_at) }}
+                    </p>
+                    @endif
+                    @if (!empty($penduduk->pengubah))
+                    <p class="kecil">
+                        Terakhir diubah:
+                        <i class="fa fa-clock-o"></i>{{ tgl_indo2($penduduk->updated_at) }}
+                        <i class="fa fa-user"></i> {{ $penduduk->pengubah->nama }}
+                    </p>
+                    @endif
                 </div>
                 <div class="col-md-12">
                     <div class="table-responsive">
@@ -114,7 +168,7 @@
                                                     </tr>
                                                     <tr>
                                                         <td>{{ strtoupper($penduduk->wajib_ktp) }}</td>
-                                                        <td>{{ strtoupper(array_flip(unserialize(KTP_EL))[$penduduk->ktp_el]) }}</td>
+                                                        <td>{{ strtoupper(App\Enums\StatusRekamEnum::valueOf($penduduk->ktp_el)) }}</td>
                                                         <td>{{ strtoupper(App\Enums\StatusKTPEnum::valueOf($penduduk->status_rekam)) }}</td>
                                                         <td>{{ $penduduk->tag_id_card }}</td>
                                                     </tr>
@@ -149,7 +203,7 @@
                                         <tr>
                                             <td>Agama</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->agama->nama) }}</td>
+                                            <td>{{ strtoupper($penduduk->agama) }}</td>
                                         </tr>
                                         <tr>
                                             <td>Status Penduduk</td>
@@ -200,25 +254,30 @@
                                             <td>{{ $penduduk->panjang_lahir }} cm</td>
                                         </tr>
                                         <tr>
-                                            <th colspan="3" class="subtitle_head"><strong>PENDIDIKAN DAN PEKERJAAN</strong></th>
+                                            <th colspan="3" class="subtitle_head"><strong>DATA PENDIDIKAN DAN PEKERJAAN</strong></th>
                                         </tr>
                                         <tr>
                                             <td>Pendidikan dalam KK</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->pendidikanKK->nama) }}</td>
+                                            <td>{{ $penduduk->pendidikan_kk }}</td>
                                         </tr>
                                         <tr>
                                             <td>Pendidikan sedang ditempuh</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->pendidikan) }}</td>
+                                            <td>{{ strtoupper($penduduk->pendidikan_sedang) }}</td>
                                         </tr>
                                         <tr>
                                             <td>Pekerjaan</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->pekerjaan->nama) }}</td>
+                                            <td>{{ strtoupper($penduduk->pekerjaan) }}</td>
                                         </tr>
                                         <tr>
-                                            <th colspan="3" class="subtitle_head"><strong>DATA KEWARGANEGARAAN</strong></th>
+                                            <td>Pekerja Migran</td>
+                                            <td>:</td>
+                                            <td>{{ strtoupper($penduduk->pekerja_migran) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th colspan="3" class="subtitle_head"><strong>DATA KESUKUAN</strong></th>
                                         </tr>
                                         <tr>
                                             <td>Suku/Etnis</td>
@@ -226,9 +285,22 @@
                                             <td>{{ strtoupper($penduduk->suku) }}</td>
                                         </tr>
                                         <tr>
+                                            <td>Marga</td>
+                                            <td>:</td>
+                                            <td>{{ strtoupper($penduduk->marga) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Adat</td>
+                                            <td>:</td>
+                                            <td>{{ strtoupper($penduduk->adat) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th colspan="3" class="subtitle_head"><strong>DATA KEWARGANEGARAAN</strong></th>
+                                        </tr>
+                                        <tr>
                                             <td>Warga Negara</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->warganegara->nama) }}</td>
+                                            <td>{{ strtoupper($penduduk->warganegara) }}</td>
                                         </tr>
                                         <tr>
                                             <td>Nomor Paspor</td>
@@ -312,7 +384,7 @@
                                             <td>{{ $penduduk->hubung_warga }}</td>
                                         </tr>
                                         <tr>
-                                            <th colspan="3" class="subtitle_head"><strong>STATUS KAWIN</strong></th>
+                                            <th colspan="3" class="subtitle_head"><strong>DATA PERKAWINAN</strong></th>
                                         </tr>
                                         <tr>
                                             <td>Status Kawin</td>
@@ -328,7 +400,7 @@
                                             <tr>
                                                 <td>Tanggal perkawinan</td>
                                                 <td>:</td>
-                                                <td>{{ $penduduk->tanggalperkawinan ? date('d-m-Y', strtotime($penduduk->tanggalperkawinan)) : '' }}</td>
+                                                <td>{{ tgl_indo_out($penduduk->tanggalperkawinan) }}</td>
                                             </tr>
                                         @endif
                                         @if ($penduduk->status_kawin != 1 && $penduduk->status_kawin != 2)
@@ -340,7 +412,7 @@
                                             <tr>
                                                 <td>Tanggal perceraian</td>
                                                 <td>:</td>
-                                                <td>{{ strtoupper($penduduk->tanggalperceraian) }}</td>
+                                                <td>{{ tgl_indo_out($penduduk->tanggalperceraian) }}</td>
                                             </tr>
                                         @endif
                                         <tr>
@@ -349,23 +421,23 @@
                                         <tr>
                                             <td>Golongan Darah</td>
                                             <td>:</td>
-                                            <td>{{ $penduduk->golonganDarah->nama ?? 'TIDAK TAHU' }}</td>
+                                            <td>{{ $penduduk->golongan_darah ?? 'TIDAK TAHU' }}</td>
                                         </tr>
                                         <tr>
                                             <td>Cacat</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->cacat->nama) }}</td>
+                                            <td>{{ $penduduk->cacat }}</td>
                                         </tr>
                                         <tr>
                                             <td>Sakit Menahun</td>
                                             <td>:</td>
-                                            <td>{{ strtoupper($penduduk->sakitMenahun->nama) }}</td>
+                                            <td>{{ strtoupper($penduduk->sakit_menahun) }}</td>
                                         </tr>
                                         @if ($penduduk->status_kawin == App\Enums\StatusKawinEnum::KAWIN)
                                             <tr>
                                                 <td>Akseptor KB</td>
                                                 <td>:</td>
-                                                <td>{{ strtoupper($penduduk->cara_kb) }}</td>
+                                                <td>{{ $penduduk->cara_kb }}</td>
                                             </tr>
                                         @endif
                                         @if ($penduduk->id_sex == App\Enums\JenisKelaminEnum::PEREMPUAN)
@@ -378,101 +450,116 @@
                                         <tr>
                                             <td>Nama/Nomor Asuransi Kesehatan</td>
                                             <td>:</td>
-                                            <td>{{ $penduduk->asuransi->nama . ' / ' . strtoupper($penduduk->no_asuransi) }}</td>
+                                            <td>{{ $penduduk->asuransi . ' / ' . strtoupper($penduduk->no_asuransi) }}</td>
                                         </tr>
                                         <tr>
                                             <td>Nomor BPJS Ketenagakerjaan</td>
                                             <td>:</td>
                                             <td>{{ $penduduk->bpjs_ketenagakerjaan }}</td>
                                         </tr>
+                                        <tr>
+                                            <td>Status Kepersertaan Asuransi Kesehatan</td>
+                                            <td>:</td>
+                                            <td>{{ strtoupper(\App\Enums\AktifEnum::valueOf($penduduk->status_asuransi)) }}</td>
+                                        </tr>
 
-                                        <tr>
-                                            <th colspan="3" class="subtitle_head"><strong>DATA LAINNYA</strong></th>
-                                        </tr>
-                                        <tr>
-                                            <td>Bahasa</td>
-                                            <td>:</td>
-                                            <td>{{ $penduduk->bahasa->nama }}</td>
-                                        </tr>
-                                        <tr>
-                                            <td>Keterangan</td>
-                                            <td>:</td>
-                                            <td>{{ $penduduk->ket }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-striped table-hover">
-                                    <tbody>
-                                        <tr>
-                                            <th colspan="3" class="subtitle_head"><strong>PROGRAM BANTUAN</strong></th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <div class="table-responsive">
-                                                    <table class="table table-bordered dataTable table-striped table-hover tabel-daftar">
-                                                        <thead class="bg-gray disabled color-palette">
-                                                            <tr>
-                                                                <th class="padat">No</th>
-                                                                <th>Waktu / Tanggal</th>
-                                                                <th>Nama Program</th>
-                                                                <th>Keterangan</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            @foreach ($program as $key => $item)
-                                                                <tr>
-                                                                    <td class="text-center">{{ $key + 1 }}</td>
-                                                                    <td>{{ fTampilTgl($item->bantuanPenduduk->sdate, $item->bantuanPenduduk->edate) }}</td>
-                                                                    <td><a href="{{ ci_route('peserta_bantuan.data_peserta', $item->id) }}">{{ $item->bantuanPenduduk->nama }}</a></td>
-                                                                    <td>{{ $item->bantuanPenduduk->ndesc }}</td>
-                                                                </tr>
-                                                            @endforeach
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th colspan="3" class="subtitle_head"><strong>DOKUMEN / KELENGKAPAN PENDUDUK</strong></th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <div class="table-responsive">
-                                                    <table class="table table-bordered dataTable table-striped table-hover tabel-daftar">
-                                                        <thead class="bg-gray disabled color-palette">
-                                                            <tr>
-                                                                <th>No</th>
-                                                                <th>Aksi</th>
-                                                                <th>Nama Dokumen</th>
-                                                                <th>Tanggal Upload</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            @foreach ($list_dokumen as $key => $item)
-                                                                <tr>
-                                                                    <td class="padat">{{ $key + 1 }}</td>
-                                                                    <td class="aksi">
-                                                                        <a href="{{ ci_route("penduduk.unduh_berkas.{$item->id}") }}" class="btn bg-purple btn-sm" title="Unduh Dokumen"><i class="fa fa-download"></i></a>
-                                                                        <a href="{{ ci_route("penduduk..unduh_berkas.{$item->id}.1") }}" class="btn bg-info btn-sm" title="Lihat Dokumen"><i class="fa fa-eye"></i></a>
-                                                                    </td>
-                                                                    <td>{{ $item->nama }}</td>
-                                                                    <td>{{ tgl_indo2($item->tgl_upload) }}</td>
-                                                                </tr>
-                                                            @endforeach
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </table>
-                    </div>
+                                    <tr>
+                                        <th colspan="3" class="subtitle_head"><strong>DATA LAINNYA</strong></th>
+                                    </tr>
+                                    <tr>
+                                        <td>Bahasa</td>
+                                        <td>:</td>
+                                        <td>{{ $penduduk->bahasa }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Keterangan</td>
+                                        <td>:</td>
+                                        <td>{{ $penduduk->ket }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped table-hover">
+                                <tbody>
+                                    <tr>
+                                        <th colspan="3" class="subtitle_head"><strong>PROGRAM BANTUAN</strong></th>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="table-responsive">
+                                                <table
+                                                    class="table table-bordered dataTable table-striped table-hover tabel-daftar">
+                                                    <thead class="bg-gray disabled color-palette">
+                                                        <tr>
+                                                            <th class="padat">No</th>
+                                                            <th>Waktu / Tanggal</th>
+                                                            <th>Nama Program</th>
+                                                            <th>Keterangan</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach ($program as $key => $item)
+                                                        <tr>
+                                                            <td class="text-center">{{ $key + 1 }}</td>
+                                                            <td>{{ fTampilTgl($item->bantuanPenduduk->sdate,
+                                                                $item->bantuanPenduduk->edate) }}</td>
+                                                            <td><a
+                                                                    href="{{ ci_route('peserta_bantuan.data_peserta', [$item->id, $item->program_id]) }}">{{
+                                                                    $item->bantuanPenduduk->nama }}</a></td>
+                                                            <td>{{ $item->bantuanPenduduk->ndesc }}</td>
+                                                        </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th colspan="3" class="subtitle_head"><strong>DOKUMEN / KELENGKAPAN
+                                                PENDUDUK</strong></th>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="table-responsive">
+                                                <table
+                                                    class="table table-bordered dataTable table-striped table-hover tabel-daftar">
+                                                    <thead class="bg-gray disabled color-palette">
+                                                        <tr>
+                                                            <th>No</th>
+                                                            <th>Aksi</th>
+                                                            <th>Nama Dokumen</th>
+                                                            <th>Tanggal Upload</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach ($list_dokumen as $key => $item)
+                                                        <tr>
+                                                            <td class="padat">{{ $key + 1 }}</td>
+                                                            <td class="aksi">
+                                                                <a href="{{ ci_route("penduduk.unduh_berkas.{$item->id}") }}" class="btn
+                                                                    bg-purple btn-sm" title="Unduh Dokumen"><i
+                                                                        class="fa fa-download"></i></a>
+                                                                <a href="{{ ci_route("penduduk.unduh_berkas.{$item->id}.1") }}"
+                                                                    class="btn bg-info btn-sm" title="Lihat Dokumen" target="_blank"><i
+                                                                        class="fa fa-eye"></i></a>
+                                                            </td>
+                                                            <td>{{ $item->nama }}</td>
+                                                            <td>{{ tgl_indo2($item->tgl_upload) }}</td>
+                                                        </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
+</div>
 @endsection

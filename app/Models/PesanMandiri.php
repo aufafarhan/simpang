@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -59,6 +59,23 @@ class PesanMandiri extends BaseModel
     protected $primaryKey = 'uuid';
     protected $fillable   = ['uuid', 'config_id', 'owner', 'penduduk_id', 'subjek', 'komentar', 'status', 'tipe', 'is_archived'];
 
+    public static function hasDelay($penduduk_id = '', $tipe = 1)
+    {
+        return self::where('penduduk_id', $penduduk_id)
+            ->where('tipe', $tipe)
+            ->where('tgl_upload', '>', Carbon::now()->subSeconds(config_item('rentang_kirim_pesan')))
+            ->exists();
+    }
+
+    public static function notifikasiInbox($tipe = 1, $pendudukId = '')
+    {
+        return self::where('status', self::UNREAD)
+            ->when($pendudukId, static fn ($query) => $query->where('penduduk_id', $pendudukId))
+            ->where('tipe', $tipe)
+            ->where('is_archived', 0)
+            ->count();
+    }
+
     public function scopeBelumDibaca($query, $pendudukId)
     {
         return $query->wherePendudukId($pendudukId)->whereStatus(self::UNREAD)->whereTipe(self::KELUAR);
@@ -72,14 +89,6 @@ class PesanMandiri extends BaseModel
     public function isArchive(): bool
     {
         return $this->attributes['is_archived'] == StatusEnum::YA;
-    }
-
-    public static function hasDelay($penduduk_id = '', $tipe = 1)
-    {
-        return self::where('penduduk_id', $penduduk_id)
-            ->where('tipe', $tipe)
-            ->where('tgl_upload', '>', Carbon::now()->subSeconds(config_item('rentang_kirim_pesan')))
-            ->exists();
     }
 
     /**

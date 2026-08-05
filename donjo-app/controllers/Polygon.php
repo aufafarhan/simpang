@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,15 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\AktifEnum;
 use App\Models\Polygon as PolygonModel;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -67,7 +69,6 @@ class Polygon extends Admin_Controller
         if ($data['tipe'] == '2') {
             $data['parent_jenis'] = PolygonModel::find($data['parent'])->nama ?? '';
         }
-        $data['status'] = [PolygonModel::LOCK => 'Aktif', PolygonModel::UNLOCK => 'Tidak Aktif'];
 
         view('admin.peta.polygon.index', $data);
     }
@@ -75,11 +76,13 @@ class Polygon extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
+            $status = $this->input->get('status');
+
             $parent = $this->input->get('parent') ?? $this->parent;
 
             $tipe = $this->input->get('tipe') ?? $this->tipe;
 
-            return datatables()->of(PolygonModel::whereParrent($parent)->whereTipe($tipe))
+            return datatables()->of(PolygonModel::status($status)->whereParrent($parent)->whereTipe($tipe))
                 ->addColumn('ceklist', static function ($row) {
                     if (can('h')) {
                         return '<input type="checkbox" name="id_cb[]" value="' . $row->id . '"/>';
@@ -88,23 +91,19 @@ class Polygon extends Admin_Controller
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('polygon.form', implode('/', [$row->parrent, $row->id])) . '?tipe="' . $row->tipe . '"" class="btn btn-warning btn-sm"  title="Ubah"><i class="fa fa-edit"></i></a> ';
-                    }
 
                     if ($row->parrent_id == self::POLYGON) {
                         $aksi .= '<a href="' . ci_route('polygon.index') . '?parent=' . $row->id . '&tipe=2' . '" class="btn bg-purple btn-sm"  title="Rincian ' . $row->nama . '" data-title="Rincian ' . $row->nama . '"><i class="fa fa-bars"></i></a> ';
                     }
 
                     if (can('u')) {
-                        if ($row->enabled == PolygonModel::UNLOCK) {
-                            $aksi .= '<a href="' . ci_route('polygon.polygon_lock', implode('/', [$row->parrent, $row->id])) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock">&nbsp;</i></a> ';
-                        }
-
-                        if ($row->enabled == PolygonModel::LOCK) {
-                            $aksi .= '<a href="' . ci_route('polygon.polygon_unlock', implode('/', [$row->parrent, $row->id])) . '" class="btn bg-navy btn-sm" title="Non Aktifkan"><i class="fa fa-unlock"></i></a> ';
-                        }
+                        $aksi .= '<a href="' . ci_route('polygon.form', implode('/', [$row->parrent, $row->id])) . '?tipe="' . $row->tipe . '"" class="btn btn-warning btn-sm"  title="Ubah"><i class="fa fa-edit"></i></a> ';
                     }
+
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => ci_route('polygon.lock', implode('/', [$row->parrent, $row->id])),
+                        'active' => $row->enabled,
+                    ])->render();
 
                     if (can('h')) {
                         $aksi .= '<a href="#" data-href="' . ci_route('polygon.delete', implode('/', [$row->parrent, $row->id])) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
@@ -112,7 +111,7 @@ class Polygon extends Admin_Controller
 
                     return $aksi;
                 })
-                ->editColumn('enabled', static fn ($row): string => $row->enabled == '1' ? 'Ya' : 'Tidak')
+                ->editColumn('enabled', static fn ($row): string => $row->enabled == AktifEnum::AKTIF ? 'Ya' : 'Tidak')
                 ->editColumn('color', static fn ($row): string => '<div style="background-color:' . $row->color . '">&nbsp;<div>')
                 ->rawColumns(['aksi', 'ceklist', 'color'])
                 ->make();
@@ -180,6 +179,10 @@ class Polygon extends Admin_Controller
         $tipe = $this->tipe($parent);
         isCan('h');
 
+        if ($this->hasChild($this->request['id_cb'] ?? $id)) {
+            redirect_with('error', __('notification.deleted.error') . '. Silakan hapus subdata terlebih dahulu.', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+        }
+
         try {
             PolygonModel::whereId($id)->delete();
             redirect_with('success', 'Tipe area berhasil dihapus', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
@@ -194,6 +197,10 @@ class Polygon extends Admin_Controller
         $tipe = $this->tipe($parent);
         isCan('h');
 
+        if ($this->hasChild($this->request['id_cb'])) {
+            redirect_with('error', __('notification.deleted.error') . '. Silakan hapus subdata terlebih dahulu.', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+        }
+
         try {
             PolygonModel::whereIn('id', $this->input->post('id_cb'))->delete();
             redirect_with('success', 'Tipe area berhasil dihapus', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
@@ -203,38 +210,42 @@ class Polygon extends Admin_Controller
         }
     }
 
-    public function polygon_lock($parent, $id): void
+    public function lock($parent, $id)
     {
         isCan('u');
-        $tipe = $this->tipe($parent);
 
         try {
-            PolygonModel::where(['id' => $id])->update(['enabled' => PolygonModel::LOCK]);
-            redirect_with('success', 'Tipe area berhasil dinonaktifkan', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            $status  = PolygonModel::gantiStatus($id, 'enabled');
+            $success = (bool) $status;
+
+            return json([
+                'success' => $success,
+                'message' => $success ? __('notification.status.success') : __('notification.status.error'),
+            ]);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe area gagal dinonaktifkan', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+
+            return json([
+                'success' => false,
+                'message' => __('notification.status.error'),
+            ]);
         }
     }
 
-    public function polygon_unlock($parent, $id): void
+    private function hasChild($id): bool
     {
-        isCan('u');
-        $tipe = $this->tipe($parent);
-
-        try {
-            PolygonModel::where(['id' => $id])->update(['enabled' => PolygonModel::UNLOCK]);
-            redirect_with('success', 'Tipe area berhasil diaktifkan', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
-        } catch (Exception $e) {
-            log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe area gagal diaktifkan', ci_route('polygon.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+        if (is_array($id)) {
+            return PolygonModel::whereIn('parrent', $id)->exists();
         }
+
+        return PolygonModel::where('parrent', $id)->exists();
     }
 
     private function validasi(array $post)
     {
-        $data['nama']  = nomor_surat_keputusan($post['nama']);
-        $data['color'] = warna($post['color']);
+        $data['nama']    = nomor_surat_keputusan($post['nama']);
+        $data['color']   = warna($post['color']);
+        $data['enabled'] = $post['enabled'] ?? AktifEnum::TIDAK_AKTIF;
 
         return $data;
     }

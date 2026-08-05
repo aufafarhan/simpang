@@ -124,7 +124,7 @@
         <div class="nav-tabs-custom">
             <ul class="nav nav-tabs">
                 <li class="active"><a data-toggle="tab" href="#log_viewer">Logs</a></li>
-                <li><a data-toggle="tab" onclick="loadDatatable()" href="#log_login">Log Login</a></li>
+                <li><a data-toggle="tab" onclick="loadLogAktifitas()" href="#log_aktifitas">Log Aktivitas</a></li>
                 <li><a data-toggle="tab" href="#ekstensi">Kebutuhan Sistem</a></li>
                 @if (ci_auth()->id == super_admin())
                     <li><a data-toggle="tab" href="#info_sistem">Info Sistem</a></li>
@@ -132,6 +132,7 @@
                 <li><a data-toggle="tab" href="#optimasi">Optimasi</a></li>
                 <li><a data-toggle="tab" href="#folder_desa">Folder Desa</a></li>
                 <li><a data-toggle="tab" onclick="loadFileDesa(this)" data-url="{{ ci_route('info_sistem.file_desa') }}" href="#file_desa">File Unggah Desa</a></li>
+                <li><a data-toggle="tab" onclick="loadSecurityReports()" href="#keamanan">Keamanan Folder Desa</a></li>
             </ul>
             <div class="tab-content">
                 <div id="log_viewer" class="tab-pane fade in active">
@@ -191,7 +192,7 @@
                                                         <div class="table-responsive">
                                                             @if (null === $logs)
                                                                 <div>
-                                                                    <strong>File log kosong atau lebih dari 500 Mb, silahkan unduh.</strong>
+                                                                    <strong>File log kosong atau lebih dari 500 Mb, silakan unduh.</strong>
                                                                 </div>
                                                             @else
                                                                 <div class="table-responsive">
@@ -219,7 +220,7 @@
                                                                                         {{ strip_tags($log['content']) }}
                                                                                         @if (array_key_exists('extra', $log))
                                                                                             <div class="collapse" id="collapse{{ $key }}">
-                                                                                                {{ strip_tags($log['extra']) }}
+                                                                                                {!! $log['extra'] !!}
                                                                                             </div>
                                                                                         @endif
                                                                                     </td>
@@ -241,8 +242,8 @@
                     </div>
                 </div>
 
-                <div id="log_login" class="tab-pane fade in">
-                    @include('admin.setting.info_sistem.log_login')
+                <div id="log_aktifitas" class="tab-pane fade in">
+                    @include('admin.setting.info_sistem.log_aktivitas')
                 </div>
 
                 <div id="ekstensi" class="tab-pane fade in">
@@ -304,12 +305,19 @@
                                 <div class="row">
                                     <div class="col-sm-12">
                                         <div class="table-responsive">
-                                            <table class="table table-bordered dataTable table-striped table-hover tabel-daftar">
+                                            <table class="table table-bordered table-striped table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Kebutuhan Sistem</th>
+                                                        <th>Nilai Saat Ini</th>
+                                                        <th>Status</th>
+                                                    </tr>
+                                                </thead>
                                                 <tbody>
                                                     @foreach ($kebutuhan_sistem as $key => $val)
                                                         <tr>
-                                                            <td class="text">{{ "{$key} ({$val['v']})" }}</td>
-                                                            <td class="text">{{ $val[$key] }}</td>
+                                                            <td class="text">{{ "{$key} ({$val['required']})" }}</td>
+                                                            <td class="text">{{ $val['current'] }}</td>
                                                             <td>
                                                                 <i class="fa fa-{{ $val['result'] ? 'check-circle-o' : 'times-circle-o' }} fa-lg" style="color:{{ $val['result'] ? 'green' : 'red' }}"></i>
                                                             </td>
@@ -442,6 +450,11 @@
             </div>
 
             <div id="file_desa" class="tab-pane fade in"></div>
+            
+            {{-- Tab Keamanan File --}}
+            <div id="keamanan" class="tab-pane fade in">
+                @include('admin.setting.info_sistem.keamanan')
+            </div>
         </div>
         </div>
     </form>
@@ -452,11 +465,38 @@
 @push('scripts')
     <script>
         $(function() {
+            const hash = window.location.hash;
 
-            var url = document.location.toString();
-            if (url.match('#')) {
-                $('[href="#ekstensi"]').click();
+            if (hash && hash !== '#tab-perubahan' && hash !== '#tab-properties') {
+                const tabLink = $(`a[href="${hash}"]`);
+                if (tabLink.length) {
+                    tabLink.tab('show');
+
+                    if (hash === '#log_aktifitas') {
+                        loadLogAktifitas();
+                    }
+                    
+                    if (hash === '#keamanan') {
+                        loadSecurityReports();
+                    }
+                }
             }
+
+            $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+                const target = e.target.hash;
+
+                if (target !== '#tab-perubahan' && target !== '#tab-properties') {
+                    history.replaceState(null, null, target);
+
+                    if (target === '#log_aktifitas') {
+                        loadLogAktifitas();
+                    }
+                    
+                    if (target === '#keamanan') {
+                        loadSecurityReports();
+                    }
+                }
+            });
 
             $('#tabel-logs').DataTable({
                 "processing": true,
@@ -530,23 +570,23 @@
                     },
                     type: "POST",
                     success: function(data) {
-                        if (data.status) {
-                            Swal.fire({
-                                'icon': 'success',
-                                'title': 'Success',
-                                'timer': 2000,
-                                'text': data.message
-                            }).then((result) => {
-                                window.location.reload();
-                            })
-                        } else {
-                            Swal.fire({
-                                'icon': 'error',
-                                'title': 'Error',
-                                'timer': 2000,
-                                'text': data.message
-                            })
-                        }
+                        Swal.fire({
+                            'icon': 'success',
+                            'title': 'Success',
+                            'timer': 2000,
+                            'text': data.message
+                        }).then((result) => {
+                            window.location.hash = '#folder_desa';
+                            window.location.reload();
+                        })
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            'icon': 'error',
+                            'title': 'Error',
+                            'timer': 2000,
+                            'text': 'Terjadi kesalahan saat memproses permintaan'
+                        })
                     }
                 })
             } else {

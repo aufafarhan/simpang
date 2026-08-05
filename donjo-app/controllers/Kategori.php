@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Models\Kategori as KategoriModel;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -78,26 +79,33 @@ class Kategori extends Admin_Controller
                     }
                 })
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row) use ($parent, $canUpdate, $canDelete): string {
+                ->addColumn('aksi', static function ($row) use ($parent): string {
                     $aksi  = '';
                     $judul = $parent > 0 ? 'Subkategori' : 'Kategori';
-                    if ($canUpdate) {
-                        if (! $parent) {
-                            $aksi .= '<a href="' . ci_route('kategori.index') . '?parent=' . $row->id . '" class="btn bg-purple btn-sm"><i class="fa fa-bars"></i></a> ';
-                        }
-                        $aksi .= '<a href="' . ci_route('kategori.ajax_form', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-orange btn-sm" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah ' . $judul . '" title="Ubah ' . $judul . '"><i class="fa fa-edit"></i></a> ';
 
-                        if ($row->isActive()) {
-                            $aksi .= '<a href="' . ci_route('kategori.lock', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-navy btn-sm" title="Non Aktifkan"><i class="fa fa-unlock">&nbsp;</i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('kategori.lock', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        }
+                    if (! $parent) {
+                        $aksi .= View::make('admin.layouts.components.tombol_detail', [
+                            'url'   => ci_route('kategori.index') . '?parent=' . $row->id,
+                            'judul' => 'Rincian',
+                        ])->render();
                     }
 
-                    if ($canDelete) {
-                        if ($row->artikel->count() == 0) {
-                            $aksi .= '<a href="#" data-href="' . ci_route('kategori.delete', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                        }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url'   => 'kategori/ajax_form/' . implode('/', [$row->parent->id ?? $parent, $row->id]),
+                        'modal' => true,
+                        'judul' => "Ubah {$judul}",
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => ci_route('kategori.lock', implode('/', [$row->parent->id ?? $parent, $row->id])),
+                        'active' => $row->isActive(),
+                    ])->render();
+
+                    if ($row->artikel->count() == 0) {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => ci_route('kategori.delete', implode('/', [$row->parent->id ?? $parent, $row->id])),
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;

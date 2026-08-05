@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,17 +29,18 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Traits\Migrator;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 
 defined('BASEPATH') || exit('No direct script access allowed');
-// require_once('donjo-app/core/MY_Model.php');
+
 class Install_modul extends CI_Controller
 {
     use Migrator;
@@ -49,8 +50,6 @@ class Install_modul extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        //$this->load->database();
-        $this->load->model(['ekspor_model']);
         $this->modulesDirectory = array_keys(config_item('modules_locations') ?? [])[0] ?? '';
     }
 
@@ -63,26 +62,31 @@ class Install_modul extends CI_Controller
      */
     public function pasang(string $namaModulVersi): void
     {
+        $domain        = request()->getSchemeAndHttpHost();
+        $tanggal_waktu = date('Y-m-d H:i:s');
+
         [$name, $url, $version] = explode('___', $namaModulVersi);
         $pasangBaru             = true;
-        if ($version !== '' && $version !== '0') {
+
+        // Hanya set pasangBaru = false jika modul sudah ada
+        if (File::exists($this->modulesDirectory . $name)) {
             $pasangBaru = false;
         }
+
         // jalankan migrasi dari paket
         $this->jalankanMigrasiModule($name, 'up');
 
         if ($pasangBaru) {
             try {
-                // hit ke url install module untuk update total yang terinstall
+                // hit ke url install module untuk update total yang terinstall dengan versi tertentu
                 $urlHitModule = config_item('server_layanan') . '/api/v1/modules/install';
                 $token        = App\Models\SettingAplikasi::where(['key' => 'layanan_opendesa_token'])->first();
-                $response     = Http::withToken($token->value)->post($urlHitModule, ['module_name' => $name]);
+                $response     = Http::withToken($token->value)->post($urlHitModule, ['module_name' => $name, 'version' => $version, 'domain' => $domain, 'tanggal_waktu' => $tanggal_waktu]);
                 log_message('notice', $response->body());
             } catch (Exception $e) {
                 log_message('error', $e->getMessage());
             }
         }
-        // reset cache views_blade karena di MY_Controller diset cache rememberForever
         // cache()->flush();
         log_message('notice', 'Paket ' . $name . ' berhasil dipasang');
     }
@@ -102,8 +106,6 @@ class Install_modul extends CI_Controller
                 log_message('error', 'Nama paket tidak boleh kosong');
             }
             $this->jalankanMigrasiModule($name, 'down');
-            // reset cache views_blade karena di MY_Controller diset cache rememberForever
-            cache()->forget('views_blade');
             log_message('notice', 'Paket ' . $name . ' berhasil dihapus');
         } catch (Exception $e) {
             log_message('error', $e->getMessage());

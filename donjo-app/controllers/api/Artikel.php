@@ -17,8 +17,9 @@ class Artikel extends MY_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('first_artikel_m');
-        $this->load->model('shortcode_model');
+        // Pengganti First_artikel_m, First_menu_m & Shortcode_model yang
+        // dihapus di OpenSID 2607.
+        $this->load->helper('api_v1');
 
         if (strtolower($this->input->method()) === 'options') {
             $this->cors();
@@ -30,26 +31,21 @@ class Artikel extends MY_Controller
     /**
      * GET /api/v1/artikel?page=1&cari=kata&kategori=slug-atau-id
      *
-     * Catatan: parameter `cari` dibaca langsung oleh model dari query string,
-     * jadi tidak perlu diteruskan manual.
+     * Catatan: di 2412 parameter `cari` dibaca sendiri oleh model dari query
+     * string. Model itu dihapus di 2607, jadi sekarang diteruskan eksplisit.
      */
     public function index(): void
     {
         $page     = max(1, (int) $this->input->get('page'));
         $kategori = trim((string) $this->input->get('kategori'));
+        $cari     = trim((string) $this->input->get('cari', true));
 
-        if ($kategori !== '') {
-            // Daftar artikel pada satu kategori (menerima slug maupun id)
-            $paging = $this->first_artikel_m->paging_kat($page, $kategori);
-            $items  = $this->first_artikel_m->list_artikel(
-                $paging->offset,
-                $paging->per_page,
-                $kategori
-            );
-        } else {
-            $paging = $this->first_artikel_m->paging($page);
-            $items  = $this->first_artikel_m->artikel_show($paging->offset, $paging->per_page);
-        }
+        // Kategori menerima slug maupun id — ditangani scope kategori().
+        $kategori = $kategori !== '' ? $kategori : null;
+        $cari     = $cari !== '' ? $cari : null;
+
+        $paging = artikel_paging_api($page, $kategori, $cari);
+        $items  = artikel_list_api($paging->offset, $paging->per_page, $kategori, $cari);
 
         $data = array_map(fn ($a) => $this->mapRingkas($a), $items);
 
@@ -66,7 +62,7 @@ class Artikel extends MY_Controller
     // GET /api/v1/artikel/headline
     public function headline(): void
     {
-        $h    = $this->first_artikel_m->get_headline();
+        $h    = artikel_headline_api();
         $data = $h ? [$this->mapRingkas($h)] : [];
         $this->kirim($data);
     }
@@ -74,7 +70,7 @@ class Artikel extends MY_Controller
     // GET /api/v1/artikel/{thn}/{bln}/{hr}/{slug}
     public function detail($thn, $bln, $hr, $slug): void
     {
-        $a = $this->first_artikel_m->get_artikel($thn, $bln, $hr, $slug);
+        $a = artikel_detail_api($thn, $bln, $hr, $slug);
 
         if (empty($a)) {
             $this->kirim(null, null, 'Artikel tidak ditemukan', 404);
@@ -82,16 +78,16 @@ class Artikel extends MY_Controller
             return;
         }
 
-        // Catat kunjungan (dibatasi 1x per sesi di dalam model)
-        $this->first_artikel_m->hit($slug);
+        // Catat kunjungan.
+        artikel_hit_api($slug);
 
-        $isi = $this->perbaikiUrlBerkas($this->shortcode_model->shortcode($a['isi']));
+        $isi = $this->perbaikiUrlBerkas(shortcode_api($a['isi']));
 
         $dokumen     = [];
         $dokumenNama = null;
 
         try {
-            $dokumenNama = $this->first_artikel_m->get_dokumen_artikel($a['id']);
+            $dokumenNama = artikel_dokumen_api((int) $a['id']);
         } catch (\Throwable $e) {
             $dokumenNama = null;
         }
@@ -122,23 +118,7 @@ class Artikel extends MY_Controller
     // GET /api/v1/kategori — untuk filter kategori di halaman berita
     public function kategori(): void
     {
-        $this->load->model('first_menu_m');
-        $list = $this->first_menu_m->list_menu_kiri();
-        $out  = [];
-
-        foreach ((array) $list as $k) {
-            $k = (array) $k;
-            if (empty($k['slug'])) {
-                continue;
-            }
-            $out[] = [
-                'id'   => isset($k['id']) ? (int) $k['id'] : null,
-                'nama' => $k['kategori'] ?? null,
-                'slug' => $k['slug'],
-            ];
-        }
-
-        $this->kirim($out);
+        $this->kirim(kategori_list_api());
     }
 
     // GET /api/v1/artikel/captcha
@@ -194,13 +174,13 @@ class Artikel extends MY_Controller
                 'status'     => 2, // Menunggu persetujuan
                 'tgl_upload' => date('Y-m-d H:i:s')
             ];
-            $this->first_artikel_m->insert_comment($data);
+            komentar_simpan_api($data);
             
             $this->kirim(null, null, 'Komentar berhasil dikirim dan menunggu persetujuan admin.');
             return;
         }
 
-        $list = $this->first_artikel_m->list_komentar((int) $id, null);
+        $list = komentar_list_api((int) $id);
         $this->kirim($this->mapKomentar($list));
     }
 

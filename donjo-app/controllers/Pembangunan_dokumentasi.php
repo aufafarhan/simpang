@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -40,9 +40,15 @@ defined('BASEPATH') || exit('No direct script access allowed');
 use App\Models\Pamong;
 use App\Models\Pembangunan;
 use App\Models\PembangunanDokumentasi;
+use App\Traits\Upload;
+use Illuminate\Support\Facades\View;
+use Spatie\Image\Image;
+use Spatie\Image\Manipulations;
 
 class Pembangunan_dokumentasi extends Admin_Controller
 {
+    use Upload;
+
     public $modul_ini           = 'pembangunan';
     public $aliasController     = 'admin_pembangunan';
     public $kategori_pengaturan = 'Pembangunan';
@@ -68,13 +74,14 @@ class Pembangunan_dokumentasi extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('pembangunan_dokumentasi.form-dokumentasi', "{$row->id_pembangunan}/{$row->id}") . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "pembangunan_dokumentasi/form-dokumentasi/{$row->id_pembangunan}/{$row->id}",
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('pembangunan_dokumentasi.delete-dokumentasi', "{$row->id_pembangunan}/{$row->id}") . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('pembangunan_dokumentasi.delete-dokumentasi', "{$row->id_pembangunan}/{$row->id}"),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -87,7 +94,7 @@ class Pembangunan_dokumentasi extends Admin_Controller
 
                     return '';
                 })
-                ->editColumn('persentase', static fn ($row): string => $row->persentase . '%')
+                ->editColumn('persentase', static fn ($row): string => (strpos($row->persentase, '%') === false) ? $row->persentase . '%' : $row->persentase)
                 ->orderColumn('persentase', static function ($query, $order): void {
                     $query->orderByRaw("CONVERT(persentase, SIGNED) {$order}");
                 })
@@ -104,7 +111,7 @@ class Pembangunan_dokumentasi extends Admin_Controller
         isCan('u');
 
         $data['pembangunan'] = Pembangunan::findOrFail($id_suplemen);
-        $data['persentase']  = $this->referensi_model->list_ref(STATUS_PEMBANGUNAN);
+        $data['persentase']  = unserialize(STATUS_PEMBANGUNAN);
 
         if ($id) {
             $data['action']      = 'Ubah';
@@ -190,10 +197,8 @@ class Pembangunan_dokumentasi extends Admin_Controller
     {
         $data['pamong_ttd']     = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong_ttd')])->first()->toArray();
         $data['pamong_ketahui'] = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong_ketahui')])->first()->toArray();
-        $data['desa']           = $this->header['desa'];
         $data['pembangunan']    = Pembangunan::with('wilayah')->find($id) ?? show_404();
         $data['dokumentasi']    = PembangunanDokumentasi::where('id_pembangunan', $id)->get();
-        $data['config']         = $this->header['desa'];
 
         if ($aksi == 'unduh') {
             header('Content-type: application/octet-stream');
@@ -201,54 +206,41 @@ class Pembangunan_dokumentasi extends Admin_Controller
             header('Pragma: no-cache');
             header('Expires: 0');
         }
+
+        $data['aksi'] = $aksi;
+        $data['file'] = 'wilayah_' . date('Y-m-d');
+
         view('admin.pembangunan.dokumentasi.cetak', $data);
     }
 
     private function upload_gambar_pembangunan(string $jenis, $id = null, $old_foto = null)
     {
-        // Inisialisasi library 'upload'
-        $this->load->library('MY_Upload', null, 'upload');
-        $this->uploadConfig = [
-            'upload_path'   => LOKASI_GALERI,
-            'allowed_types' => 'jpg|jpeg|png',
-            'max_size'      => 1024, // 1 MB
-        ];
-        $this->upload->initialize($this->uploadConfig);
+        $file = request()->file($jenis);
 
-        $uploadData = null;
-        // Adakah berkas yang disertakan?
-        $adaBerkas = ! empty($_FILES[$jenis]['name']);
-        if (! $adaBerkas) {
-            // Jika hapus (ceklis)
-            if (isset($_POST['hapus_foto'])) {
-                unlink(LOKASI_GALERI . $old_foto);
-
-                return null;
-            }
-
+        if (! $file || ! $file->isValid()) {
             return $old_foto;
         }
 
-        // Upload sukses
-        if ($this->upload->do_upload($jenis)) {
-            $uploadData = $this->upload->data();
-            // Buat nama file unik agar url file susah ditebak dari browser
-            $namaFileUnik = tambahSuffixUniqueKeNamaFile($uploadData['file_name']);
-            // Ganti nama file asli dengan nama unik untuk mencegah akses langsung dari browser
-            $fileRenamed = rename(
-                $this->uploadConfig['upload_path'] . $uploadData['file_name'],
-                $this->uploadConfig['upload_path'] . $namaFileUnik
-            );
-            // Ganti nama di array upload jika file berhasil di-rename --
-            // jika rename gagal, fallback ke nama asli
-            $uploadData['file_name'] = $fileRenamed ? $namaFileUnik : $uploadData['file_name'];
-        }
-        // Upload gagal
-        else {
-            redirect_with('error', $this->upload->display_errors(null, null), ci_route('pembangunan_dokumentasi.dokumentasi', $id));
-        }
+        return $this->upload(
+            file: $jenis,
+            config: [
+                'upload_path'   => LOKASI_GALERI,
+                'allowed_types' => 'jpg|jpeg|png|webp',
+                'max_size'      => 1024, // 1 MB,
+                'overwrite'     => true,
+            ],
+            redirectUrl: ci_route('pembangunan_dokumentasi.dokumentasi', $id),
+            callback: static function ($uploadData) {
+                Image::load($uploadData['full_path'])
+                    ->format(Manipulations::FORMAT_WEBP)
+                    ->save("{$uploadData['file_path']}{$uploadData['raw_name']}.webp");
 
-        return (empty($uploadData)) ? null : $uploadData['file_name'];
+                // Hapus original file
+                unlink($uploadData['full_path']);
+
+                return "{$uploadData['raw_name']}.webp";
+            }
+        );
     }
 
     private function perubahan_anggaran($id_pembangunan = 0, $persentase = 0, $perubahan_anggaran = 0): bool

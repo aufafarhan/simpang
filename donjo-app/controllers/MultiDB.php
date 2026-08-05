@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,28 +29,224 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Models\User;
+use App\Traits\Upload;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class MultiDB extends Admin_Controller
 {
-    public $modul_ini                     = 'pengaturan';
-    public $sub_modul_ini                 = 'aplikasi';
-    private array $tergantungDataPenduduk = [
-        'tweb_keluarga'        => ['key' => 'nik_kepala', 'nik_kepala' => [], 'unique_record' => ['no_kk']],
-        'tweb_rtm'             => ['key' => 'nik_kepala', 'nik_kepala' => [], 'unique_record' => ['no_kk']],
-        'tweb_wil_clusterdesa' => ['key' => 'id_kepala', 'id_kepala' => [], 'unique_record' => ['rt', 'rw', 'dusun']],
+    use Upload;
+
+    public $modul_ini    = 'pengaturan';
+    public $sub_modul_in = 'database';
+
+    /**
+     * Daftar nama tabel yang hanya disertakan jika ada di database.
+     */
+    protected array $existenceTableNames = [
+        'keuangan_manual_rinci',
+        'keuangan_ta_rab_rinci',
+        'keuangan_template',
+        'keuangan_manual_rinci_tpl',
     ];
 
-    // Tabel dengan kondisi khusus, memiliki child dan parent
-    public $tabelKhusus = [
+    /**
+     * Property untuk menyimpan data backup sebagai collection.
+     */
+    private Collection $backupData;
+
+    /**
+     * Property untuk menyimpan data restore sebagai collection.
+     */
+    private Collection $restoreData;
+
+    /**
+     * Daftar nama tabel yang digunakan dalam backup database.
+     */
+    private array $tableNames = [
+        'config',
+        'tweb_wil_clusterdesa',
+        'tweb_penduduk',
+        'tweb_keluarga',
+        'tweb_rtm',
+        'suplemen',
+        'suplemen_terdata',
+        'kelompok_master',
+        'kelompok',
+        'kelompok_anggota',
+        'widget',
+        'kategori',
+        'pendapat',
+        'pengaduan',
+        'pesan',
+        'kehadiran_jam_kerja',
+        'kehadiran_hari_libur',
+        'inventaris_tanah',
+        'inventaris_peralatan',
+        'inventaris_kontruksi',
+        'inventaris_jalan',
+        'inventaris_gedung',
+        'inventaris_asset',
+        'inbox',
+        'point',
+        'keuangan_manual_rinci',
+        'keuangan_ta_rab_rinci',
+        'keuangan_template',
+        'keuangan_manual_rinci_tpl',
+        'pemilihan',
+        'polygon',
+        'alias_kodeisian',
+        'klasifikasi_surat',
+        'kontak',
+        'kontak_grup',
+        'laporan_sinkronisasi',
+        'line',
+        'log_backup',
+        'log_restore_desa',
+        'outbox',
+        'log_sinkronisasi',
+        'log_tte',
+        'media_sosial',
+        'menu',
+        'notifikasi',
+        'hubung_warga',
+        'kehadiran_alasan_keluar',
+        'gis_simbol',
+        'tanah_kas_desa',
+        'sys_traffic',
+        'posyandu',
+        'teks_berjalan',
+        // 'theme', // Tidak perlu, karena bisa lakukan scan ulang masing-masing desa
+        'buku_keperluan',
+        'surat_masuk',
+        'urls',
+        'tweb_surat_format',
+        'buku_pertanyaan',
+        'buku_tamu',
+        'surat_keluar',
+        'cdesa',
+        'anjungan',
+        'surat_dinas',
+        'statistics',
+        'user_grup',
+        'gambar_gallery',
+        'produk_kategori',
+        'program',
+        'ref_jabatan',
+        'ref_syarat_surat',
+        'sentitems',
+        'setting_aplikasi',
+        'setting_modul',
+        'tweb_penduduk_umur',
+        'dokumen',
+        'tweb_penduduk_map',
+        'shortcut',
+        'covid19_vaksin',
+        'anjungan_menu',
+        'keuangan',
+        'mutasi_inventaris_asset',
+        'mutasi_inventaris_tanah',
+        'pesan_mandiri',
+        'pesan_detail',
+        'pembangunan_ref_dokumentasi',
+        'pembangunan',
+        'pelapak',
+        'mutasi_inventaris_peralatan',
+        'log_hapus_penduduk',
+        'mutasi_inventaris_jalan',
+        'mutasi_inventaris_gedung',
+        'tanah_desa',
+        'log_notifikasi_admin',
+        'tweb_penduduk_mandiri',
+        'log_notifikasi_mandiri',
+        'kader_pemberdayaan_masyarakat',
+        'garis',
+        'dtks_ref_lampiran',
+        'dtks_pengaturan_program',
+        'dtks_lampiran',
+        'covid19_pemudik',
+        'covid19_pantau',
+        'area',
+        'analisis_parameter',
+        'analisis_master',
+        'analisis_klasifikasi',
+        'analisis_kategori_indikator',
+        'tweb_desa_pamong',
+        'user',
+        'artikel',
+        'komentar',
+        'agenda',
+        'cdesa_penduduk',
+        'bulanan_anak',
+        'buku_kepuasan',
+        'kehadiran_perangkat_desa',
+        'log_perubahan_penduduk',
+        'anggota_grup_kontak',
+        'analisis_periode',
+        'lokasi',
+        'log_penduduk',
+        'mutasi_cdesa',
+        'kia',
+        'permohonan_surat',
+        'persil',
+        'kehadiran_pengaduan',
+        'ibu_hamil',
+        'disposisi_surat_masuk',
+        'grup_akses',
+        'log_tolak',
+        'produk',
+        'sasaran_paud',
+        'dtks',
+        'program_peserta',
+        'analisis_respon_bukti',
+        'analisis_respon_hasil',
+        'analisis_respon',
+        'log_keluarga',
+        'analisis_partisipasi',
+        'dtks_anggota',
+        'analisis_indikator',
+        'log_surat',
+        'log_surat_dinas',
+    ];
+
+    /**
+     * Daftar nama tabel yang dikecualikan dalam backup database.
+     */
+    private array $excludeTableNames = [
+
+    ];
+
+    /**
+     * Daftar tabel dan kolom yang memerlukan pembaruan berantai (cascade update).
+     */
+    private array $cascadeUpdate = [
+        'tweb_keluarga' => [
+            'column'    => 'id_kk',
+            'reference' => 'tweb_penduduk',
+        ],
+        'tweb_penduduk' => [
+            'column'    => 'id_kepala',
+            'reference' => 'tweb_wil_clusterdesa',
+        ],
+    ];
+
+    /**
+     * Daftar nama tabel yang digunakan dengan kondisi khusus, memiliki child dan parent.
+     *
+     * @var array
+     */
+    private $tabelKhusus = [
         'gambar_gallery' => ['id', 'parrent'],
         'line'           => ['id', 'parrent'],
         'menu'           => ['id', 'parrent'],
@@ -58,511 +254,506 @@ class MultiDB extends Admin_Controller
         'point'          => ['id', 'parrent'],
         'polygon'        => ['id', 'parrent'],
         'setting_modul'  => ['id', 'parent'],
+        'dokumen'        => ['id', 'id_parent'],
+    ];
+
+    /**
+     * Daftar nama tabel yang digunakan untuk mendefinisikan relasi antara tabel-tabel dalam format JSON.
+     *
+     * @var array
+     */
+    private $tabelRelasiJson = [
+        'tweb_wil_clusterdesa' => [
+            'user' => 'akses_wilayah',
+        ],
     ];
 
     public function __construct()
     {
         parent::__construct();
+
         isCan('b', $this->sub_modul_ini);
     }
 
-    // PROSES BACKUP DATA
     public function backup(): void
     {
-        // $tables     = DB::select('SHOW TABLES');
-        // $tableNames = collect($tables)->pluck('Tables_in_' . $this->db->database);
-        // $tableNames = $tableNames->filter(static function ($tableName): bool {
-        //     $table          = DB::select("SHOW CREATE TABLE {$tableName}");
-        //     $createTableSQL = collect($table)->pluck('Create Table')->first();
+        // Filter tabel yang boleh di-backup
+        $tableNames = collect($this->tableNames)
+            ->filter(fn ($tableName): bool => ! in_array($tableName, $this->excludeTableNames))
+            ->filter(
+                fn ($tableName): bool => ! in_array($tableName, $this->existenceTableNames)
+                || Schema::hasTable($tableName)
+            );
 
-        //     return preg_match_all('/CONSTRAINT/', $createTableSQL) || $tableName == 'config';
-        // })->sort(static function ($a, $b): int {
-        //     $a = DB::select("SHOW CREATE TABLE {$a}");
-        //     $b = DB::select("SHOW CREATE TABLE {$b}");
-        //     $a = collect($a)->pluck('Create Table')->first();
-        //     $b = collect($b)->pluck('Create Table')->first();
-        //     $a = preg_match_all('/CONSTRAINT/', $a);
-        //     $b = preg_match_all('/CONSTRAINT/', $b);
+        // Ambil max ID untuk setiap tabel
+        $maxIds = $this->getMaxIdForTables($tableNames->toArray());
 
-        //     return $a <=> $b;
-        // });
+        // Buat random ID berdasarkan max ID yang ada
+        $randomIds = $tableNames->mapWithKeys(static fn ($tableName) => [$tableName => ($maxIds[$tableName] ?? 0) + 1]);
 
-        // reorder tabel
-        $tableNames = [
-            27  => 'config',
-            251 => 'tweb_wil_clusterdesa',
-            229 => 'tweb_keluarga',
-            245 => 'tweb_rtm',
-            231 => 'tweb_penduduk',
-            214 => 'suplemen',
-            215 => 'suplemen_terdata',
-            67  => 'kelompok_master',
-            65  => 'kelompok',
-            66  => 'kelompok_anggota',
-            255 => 'widget',
-            59  => 'kategori',
-            176 => 'pendapat',
-            178 => 'pengaduan',
-            181 => 'pesan',
-            62  => 'kehadiran_jam_kerja',
-            61  => 'kehadiran_hari_libur',
-            57  => 'inventaris_tanah',
-            76  => 'keuangan_master',
-            56  => 'inventaris_peralatan',
-            55  => 'inventaris_kontruksi',
-            54  => 'inventaris_jalan',
-            53  => 'inventaris_gedung',
-            52  => 'inventaris_asset',
-            51  => 'inbox',
-            184 => 'point',
-            74  => 'keuangan_manual_rinci',
-            175 => 'pemilihan',
-            185 => 'polygon',
-            146 => 'log_login',
-            1   => 'alias_kodeisian',
-            136 => 'klasifikasi_surat',
-            138 => 'kontak',
-            139 => 'kontak_grup',
-            140 => 'laporan_sinkronisasi',
-            141 => 'line',
-            142 => 'log_backup',
-            151 => 'log_restore_desa',
-            170 => 'outbox',
-            152 => 'log_sinkronisasi',
-            // 154 => "log_surat_dinas",
-            156 => 'log_tte',
-            157 => 'login_attempts',
-            160 => 'media_sosial',
-            161 => 'menu',
-            169 => 'notifikasi',
-            49  => 'hubung_warga',
-            60  => 'kehadiran_alasan_keluar',
-            47  => 'gis_simbol',
-            221 => 'tanah_kas_desa',
-            219 => 'sys_traffic',
-            186 => 'posyandu',
-            222 => 'teks_berjalan',
-            // 223 => "theme",
-            20  => 'buku_keperluan',
-            218 => 'surat_masuk',
-            252 => 'urls',
-            250 => 'tweb_surat_format',
-            22  => 'buku_pertanyaan',
-            23  => 'buku_tamu',
-            217 => 'surat_keluar',
-            25  => 'cdesa',
-            16  => 'anjungan',
-            // 216 => "surat_dinas",
-            213 => 'statistics',
-            254 => 'user_grup',
-            45  => 'gambar_gallery',
-            188 => 'produk_kategori',
-            189 => 'program',
-            193 => 'ref_jabatan',
-            206 => 'ref_syarat_surat',
-            209 => 'sentitems',
-            210 => 'setting_aplikasi',
-            211 => 'setting_modul',
-            243 => 'tweb_penduduk_umur',
-            36  => 'dokumen',
-            237 => 'tweb_penduduk_map',
-            // 212 => "shortcut",
-            30  => 'covid19_vaksin',
-            17  => 'anjungan_menu',
-            134 => 'keuangan_ta_triwulan_rinci',
-            133 => 'keuangan_ta_triwulan',
-            125 => 'keuangan_ta_spp',
-            132 => 'keuangan_ta_tbp_rinci',
-            131 => 'keuangan_ta_tbp',
-            130 => 'keuangan_ta_sts_rinci',
-            129 => 'keuangan_ta_sts',
-            128 => 'keuangan_ta_spppot',
-            127 => 'keuangan_ta_sppbukti',
-            126 => 'keuangan_ta_spp_rinci',
-            124 => 'keuangan_ta_spjpot',
-            123 => 'keuangan_ta_spj_sisa',
-            164 => 'mutasi_inventaris_asset',
-            168 => 'mutasi_inventaris_tanah',
-            183 => 'pesan_mandiri',
-            121 => 'keuangan_ta_spj_bukti',
-            182 => 'pesan_detail',
-            174 => 'pembangunan_ref_dokumentasi',
-            173 => 'pembangunan',
-            172 => 'pelapak',
-            167 => 'mutasi_inventaris_peralatan',
-            144 => 'log_hapus_penduduk',
-            166 => 'mutasi_inventaris_jalan',
-            165 => 'mutasi_inventaris_gedung',
-            220 => 'tanah_desa',
-            147 => 'log_notifikasi_admin',
-            236 => 'tweb_penduduk_mandiri',
-            148 => 'log_notifikasi_mandiri',
-            122 => 'keuangan_ta_spj_rinci',
-            120 => 'keuangan_ta_spj',
-            89  => 'keuangan_ref_rek2',
-            88  => 'keuangan_ref_rek1',
-            87  => 'keuangan_ref_potongan',
-            86  => 'keuangan_ref_perangkat',
-            85  => 'keuangan_ref_neraca_close',
-            84  => 'keuangan_ref_korolari',
-            83  => 'keuangan_ref_kegiatan',
-            82  => 'keuangan_ref_kecamatan',
-            81  => 'keuangan_ref_desa',
-            80  => 'keuangan_ref_bunga',
-            119 => 'keuangan_ta_saldo_awal',
-            78  => 'keuangan_ref_bel_operasional',
-            77  => 'keuangan_ref_bank_desa',
-            58  => 'kader_pemberdayaan_masyarakat',
-            91  => 'keuangan_ref_rek4',
-            46  => 'garis',
-            42  => 'dtks_ref_lampiran',
-            41  => 'dtks_pengaturan_program',
-            40  => 'dtks_lampiran',
-            29  => 'covid19_pemudik',
-            28  => 'covid19_pantau',
-            18  => 'area',
-            6   => 'analisis_parameter',
-            5   => 'analisis_master',
-            4   => 'analisis_klasifikasi',
-            3   => 'analisis_kategori_indikator',
-            90  => 'keuangan_ref_rek3',
-            79  => 'keuangan_ref_bidang',
-            92  => 'keuangan_ref_sbu',
-            103 => 'keuangan_ta_pajak',
-            118 => 'keuangan_ta_rpjm_visi',
-            117 => 'keuangan_ta_rpjm_tujuan',
-            115 => 'keuangan_ta_rpjm_pagu_tahunan',
-            114 => 'keuangan_ta_rpjm_pagu_indikatif',
-            113 => 'keuangan_ta_rpjm_misi',
-            112 => 'keuangan_ta_rpjm_kegiatan',
-            111 => 'keuangan_ta_rpjm_bidang',
-            110 => 'keuangan_ta_rab_sub',
-            109 => 'keuangan_ta_rab_rinci',
-            108 => 'keuangan_ta_rab',
-            107 => 'keuangan_ta_perangkat',
-            106 => 'keuangan_ta_pencairan',
-            105 => 'keuangan_ta_pemda',
-            104 => 'keuangan_ta_pajak_rinci',
-            116 => 'keuangan_ta_rpjm_sasaran',
-            102 => 'keuangan_ta_mutasi',
-            93  => 'keuangan_ref_sumber',
-            94  => 'keuangan_ta_anggaran',
-            100 => 'keuangan_ta_jurnal_umum_rinci',
-            95  => 'keuangan_ta_anggaran_log',
-            99  => 'keuangan_ta_jurnal_umum',
-            96  => 'keuangan_ta_anggaran_rinci',
-            101 => 'keuangan_ta_kegiatan',
-            97  => 'keuangan_ta_bidang',
-            98  => 'keuangan_ta_desa',
-            227 => 'tweb_desa_pamong',
-            253 => 'user',
-            19  => 'artikel',
-            137 => 'komentar',
-            0   => 'agenda',
-            26  => 'cdesa_penduduk',
-            24  => 'bulanan_anak',
-            21  => 'buku_kepuasan',
-            64  => 'kehadiran_perangkat_desa',
-            150 => 'log_perubahan_penduduk',
-            15  => 'anggota_grup_kontak',
-            8   => 'analisis_periode',
-            158 => 'lokasi',
-            149 => 'log_penduduk',
-            163 => 'mutasi_cdesa',
-            135 => 'kia',
-            179 => 'permohonan_surat',
-            180 => 'persil',
-            63  => 'kehadiran_pengaduan',
-            50  => 'ibu_hamil',
-            35  => 'disposisi_surat_masuk',
-            48  => 'grup_akses',
-            155 => 'log_tolak',
-            187 => 'produk',
-            208 => 'sasaran_paud',
-            38  => 'dtks',
-            190 => 'program_peserta',
-            12  => 'analisis_respon_bukti',
-            13  => 'analisis_respon_hasil',
-            11  => 'analisis_respon',
-            145 => 'log_keluarga',
-            7   => 'analisis_partisipasi',
-            39  => 'dtks_anggota',
-            2   => 'analisis_indikator',
-            153 => 'log_surat',
-        ];
-
-        $kecuali = [
-            'analisis_partisipasi', // tidak perlu, karena tidak ada kolom `id` AUTO_INCREMENT (dihapus tidak digunakan)
-            'analisis_respon', // tidak perlu, karena tidak ada kolom `id` AUTO_INCREMENT (dihapus tidak digunakan)
-            'analisis_respon_bukti', // tidak perlu, karena tidak ada kolom `id` AUTO_INCREMENT (dihapus tidak digunakan)
-            'dtks_ref_lampiran', // tidak perlu, karena tidak ada kolom `id` AUTO_INCREMENT (dihapus tidak digunakan)
-            'log_login', // karena menggunakan uuid
-            'pemilihan', // karena menggunakan uuid
-            'pesan_mandiri', // karena menggunakan uuid
-            'tweb_penduduk_map', // tidak perlu, karena tidak ada kolom `id` AUTO_INCREMENT
-            'tweb_penduduk_mandiri', // tidak perlu, karena tidak ada kolom `id` AUTO_INCREMENT
-            'log_notifikasi_mandiri',
-            'log_notifikasi_admin',
-            'analisis_parameter', // skip dlu, terjadi error
-
-            // error saat restore
-            'sys_traffic',
-            'fcm_token_mandiri',
-            'fcm_token',
-        ];
-
-        $tableNames = collect($tableNames)->filter(static fn ($tableName): bool => ! in_array($tableName, $kecuali));
-
-        // $rand       = mt_rand(100000, 999999);
-        // ambil dari 6 digit terakhir kode desa + 999999 agar tidak duplikasi dengan data maksimal
-        $kode_desa  = DB::table('config')->where('app_key', get_app_key())->value('kode_desa');
-        $rand       = 999999 + (int) substr((string) $kode_desa, -6);
-        $backupData = [
+        // Inisialisasi property backupData sebagai Collection
+        $this->backupData = collect([
             'info' => [
                 'versi'    => VERSION,
                 'premimum' => PREMIUM,
                 'tanggal'  => date('Y-m-d H:i:s'),
-                'random'   => $rand,
+                'random'   => $randomIds->toArray(),
             ],
-            'tabel' => [],
-        ];
-        DB::beginTransaction();
-        // DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            'tabel' => collect(),
+        ]);
 
-        foreach ($tableNames as $tableName) {
-            $backupData['tabel'][$tableName] = $this->fetchTableData($tableName, $rand);
+        DB::beginTransaction();
+
+        try {
+            $tableNames->each(function ($tableName) use ($randomIds) {
+                $data = $this->fetchTableData($tableName, $randomIds[$tableName] ?? null);
+
+                // Mutasi langsung ke koleksi 'tabel'
+                $this->backupData->get('tabel')->put($tableName, $data);
+            });
+
+            $backupFile = 'backup_' . date('YmdHis') . '.sid';
+
+            $this->load->helper('download');
+            force_download($backupFile, $this->backupData->toJson());
+
+        } catch (Throwable $e) {
+            Log::error($e);
+
+            redirect_with('error', 'Proses backup seluruh database SID (.sid) gagal.', ci_route('database'));
+        } finally {
+            DB::rollBack();
         }
-        // DB::statement('SET FOREIGN_KEY_CHECKS=1');
-        // kita rollback lagi agar idnya kembali seperti semula
-        $backupFile = 'backup_' . date('YmdHis') . $rand . '.sid';
-        $this->load->helper('download');
-        force_download($backupFile, json_encode($backupData, JSON_PRETTY_PRINT));
-        DB::rollBack();
     }
 
-    // Fungsi untuk mengambil data dari tabel dengan mempertimbangkan relasi
+    public function restore()
+    {
+        isCan('b', $this->sub_modul_ini, true);
+
+        $file = $this->upload('userfile', [
+            'upload_path'   => sys_get_temp_dir(),
+            'allowed_types' => 'sid',
+            'file_ext'      => 'sid',
+            'max_size'      => max_upload() * 1024,
+            'ignore_mime'   => true,
+            'cek_script'    => false,
+        ], site_url('database'));
+
+        $backupFile = sys_get_temp_dir() . '/' . $file;
+        // Ubah ke Collection
+        $this->restoreData = collect(json_decode(file_get_contents($backupFile), true));
+
+        $redirctType = 'success';
+        $message     = 'Proses restore dari backup berhasil.';
+
+        try {
+            DB::beginTransaction();
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+            $this->validateBackupData($this->restoreData->toArray());
+            $this->restoreConfigData($this->restoreData['tabel']['config']['data']);
+            $this->deleteExistingData($this->restoreData['tabel']);
+            $this->restoreBackupData($this->restoreData['tabel']);
+            $this->updateDataJsonTable($this->restoreData['info']['random']);
+
+            DB::afterCommit(static function () {
+                // Login ulang karena user sebelumnya sudah dihapus
+                $user = User::superAdmin()->first();
+                auth('admin')->login($user);
+
+                // Hapus cache setelah transaksi selesai
+                hapus_cache('_cache_modul');
+                kosongkanFolder(config_item('cache_blade'));
+                cache()->flush();
+            });
+
+            DB::commit();
+
+            Log::info('Backup restore berhasil.');
+        } catch (Throwable $e) {
+            Log::error($e);
+            DB::rollBack();
+
+            $redirctType = 'error';
+            $message     = 'Proses restore dari backup gagal.';
+        } finally {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
+
+        redirect_with($redirctType, $message, site_url('database'));
+    }
+
+    /**
+     * Mengambil data dari tabel dengan mempertimbangkan relasi.
+     *
+     * @param mixed $tableName
+     */
     private function fetchTableData($tableName, int $rand): array
     {
         $config_id   = DB::table('config')->where('app_key', get_app_key())->value('id');
-        $primary_key = DB::select("SHOW KEYS FROM {$tableName} WHERE Key_name = 'PRIMARY'")[0]->Column_name;
-        if (! empty($primary_key)) {
-            if ($tableName == 'config') {
-                $primary_key = 'id';
-                DB::table($tableName)->where('id', $config_id)->update(['id' => DB::raw("`id` + {$rand}")]);
+        $primary_key = $this->getPrimaryKey($tableName);
 
-                // cek ulang, karena id config sudah berubah
+        if ($primary_key) {
+            if ($tableName == 'config') {
+                DB::table($tableName)->where('id', $config_id)->update(['id' => DB::raw("`id` + {$rand}")]);
                 $config_id_new = DB::table('config')->where('app_key', get_app_key())->value('id');
                 $tableData     = DB::table($tableName)->where('id', $config_id_new)->get();
             } else {
-                DB::table($tableName)->where('config_id', $config_id)->update([$primary_key => DB::raw("`{$primary_key}` + {$rand}")]);
-                if (in_array($tableName, array_keys($this->tabelKhusus))) {
-                    $child = $this->tabelKhusus[$tableName][1];
-                    DB::table($tableName)->where('config_id', $config_id)->where($child, '!=', 0)->update([$child => DB::raw("`{$child}` + {$rand}")]);
-                }
+                $this->updatePrimaryKeyAndRelatedTables($tableName, $config_id, $primary_key, $rand);
                 $tableData = DB::table($tableName)->where('config_id', $config_id)->get();
             }
         } else {
             $tableData = DB::table($tableName)->where('config_id', $config_id)->get();
         }
 
-        // $table          = DB::select("SHOW CREATE TABLE {$tableName}");
-        // $createTableSQL = collect($table)->pluck('Create Table')->first();
-        $tableData = json_decode(json_encode($tableData), true);
-
         return [
-            // 'struktur'    => $createTableSQL,
             'primary_key' => $primary_key,
             'data'        => $tableData,
         ];
     }
-    // END PROSES BACKUP DATA
 
-    // PROSES RESTORE DATA
-    public function restore()
+    /**
+     * Mendapatkan primary key dari tabel yang bertipe INT
+     *
+     * @param string $tableName
+     *
+     * @return string|null
+     */
+    private function getPrimaryKey($tableName)
     {
-        isCan('b', $this->sub_modul_ini, true);
+        $database = DB::getDatabaseName();
 
-        $this->load->library('MY_Upload', null, 'upload');
-        $uploadConfig = [
-            'upload_path'   => sys_get_temp_dir(),
-            'allowed_types' => 'sid', // File sql terdeteksi sebagai text/plain
-            'file_ext'      => 'sid',
-            'max_size'      => max_upload() * 1024,
-            'ignore_mime'   => true,
-            'cek_script'    => false,
-        ];
-        $this->upload->initialize($uploadConfig);
-        // Upload sukses
-        if (! $this->upload->do_upload('userfile')) {
-            $this->session->success   = -1;
-            $this->session->error_msg = $this->upload->display_errors(null, null);
+        $primaryKeys = DB::table('information_schema.KEY_COLUMN_USAGE')
+            ->where('TABLE_SCHEMA', $database)
+            ->where('TABLE_NAME', $tableName)
+            ->where('CONSTRAINT_NAME', 'PRIMARY')
+            ->pluck('COLUMN_NAME');
 
-            redirect_with('error', 'Proses upload gagal ' . $this->session->error_msg, ci_route('database'));
+        if ($primaryKeys->isEmpty()) {
+            return null;
         }
-        $uploadData = $this->upload->data();
-        $backupFile = $uploadConfig['upload_path'] . '/' . $uploadData['file_name'];
 
-        $backupData = file_get_contents($backupFile); // Ambil data dari file backup
-        $backupData = json_decode($backupData, true); // Decode data JSON
+        foreach ($primaryKeys as $column) {
+            $columnType = DB::table('information_schema.COLUMNS')
+                ->where('TABLE_SCHEMA', $database)
+                ->where('TABLE_NAME', $tableName)
+                ->where('COLUMN_NAME', $column)
+                ->value('DATA_TYPE');
 
-        // DB::beginTransaction();
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
-
-        try {
-            $rand    = $backupData['info']['random'];
-            $version = $backupData['info']['versi'];
-
-            if (substr((string) $version, 0, 4) !== substr(VERSION, 0, 4)) {
-                redirect_with('error', 'Proses restore dari backup gagal. <br>Versi opensid tidak sama', 'database');
+            if (in_array($columnType, ['int', 'bigint', 'smallint', 'mediumint', 'tinyint'])) {
+                return $column;
             }
-            // cek apakah data dari kolom ini sama dengan data yang ada di database
-            // jika sama, maka lanjutkan
-            $config_backup   = $backupData['tabel']['config']['data'][0];
-            $config_database = DB::table('config')->where('app_key', get_app_key())->first();
-
-            if ($config_backup['kode_desa'] != $config_database->kode_desa) {
-                redirect_with('error', 'Proses restore dari backup gagal. <br>Data desa tidak sama dengan data yang ada di database.', ci_route('database'));
-
-                return false;
-            }
-
-            // DB::table('config')->where('app_key', get_app_key())->delete();
-            $configData = $backupData['tabel']['config']['data'];
-            unset($configData['id'], $configData['app_key']);
-
-            (new App\Models\Config())->update($configData);
-
-            // write_file(DESAPATH . 'app_key', $backupData['tabel']['config']['data'][0]['app_key']);
-            // delete dulu sebelum direstore
-            foreach (array_keys(array_reverse($backupData['tabel'])) as $tableName) {
-                if ($tableName == 'config') {
-                    continue;
-                }
-                DB::table($tableName)->where(['config_id' => identitas('id')])->delete();
-                // log_message('notice', 'hapus data tabel ' . $tableName);
-            }
-
-            foreach ($backupData['tabel'] as $tableName => $tableDetails) {
-                log_message('notice', 'mulai restore table ' . $tableName);
-                $this->restoreTableData($tableName, $tableDetails);
-            }
-
-            DB::statement('SET FOREIGN_KEY_CHECKS=1');
-
-            // susun ulang isi data yang memiliki primary key
-            foreach ($backupData['tabel'] as $tableName => $tableDetails) {
-                $this->reStrukturTableData($tableName, $tableDetails, $rand);
-            }
-
-            // isi kembali nik_kepala dan id_kepala yang diset null
-            $mapPenduduk = collect($backupData['tabel']['tweb_penduduk']['data'])->keyBy('id');
-
-            foreach ($this->tergantungDataPenduduk as $table => $item) {
-                $key          = $item['key'];
-                $uniqueRecord = $item['unique_record'];
-                if ($item[$key]) {
-                    foreach ($item[$key] as $idPenduduk => $record) {
-                        // $idPenduduk pada file backup
-                        $idPendudukBaru = (int) $idPenduduk + $rand;
-                        $nik            = $mapPenduduk[$idPendudukBaru]['nik'];
-                        // get id penduduk terbaru
-                        // log_message('error', 'penduduk nik ' . $nik);
-                        $penduduk    = DB::table('tweb_penduduk')->where(['nik' => $nik, 'config_id' => identitas('id')])->first();
-                        $uniqueValue = explode('__', (string) $record);
-                        if ($penduduk) {
-                            // log_message('error', 'penduduk ' . $penduduk->id);
-                            $condition              = array_combine($uniqueRecord, $uniqueValue);
-                            $condition['config_id'] = identitas('id');
-                            // log_message('error', 'kondisi ' . json_encode($condition));
-                            DB::table($table)->where($condition)->update([$key => $penduduk->id]);
-                            // log_message('error', 'tabel ' . $table);
-                        }
-                    }
-                }
-            }
-
-            // DB::commit();
-            hapus_cache('_cache_modul');
-            // reset cache blade
-            kosongkanFolder(config_item('cache_blade'));
-            cache()->flush();
-            redirect_with('success', 'Proses restore dari backup berhasil.', ci_route('database'));
-        } catch (Exception $e) {
-            // DB::rollback();
-            log_message('error', 'gagal restore ' . $e->getMessage() );
-            redirect_with('error', 'Proses restore dari backup gagal. <br><br>' . $e->getMessage(), ci_route('database'));
         }
 
         return null;
     }
 
+    /**
+     * Mengambil nilai maksimum dari primary key pada setiap tabel.
+     */
+    private function getMaxIdForTables(array $tableNames): array
+    {
+        $maxIds           = [];
+        $connections      = array_keys(config('database.connections'));
+        $secondConnection = count($connections) >= 2 ? end($connections) : null;
+
+        foreach ($tableNames as $tableName) {
+            $primaryKey = $this->getPrimaryKey($tableName);
+
+            if ($primaryKey) {
+                $maxIdA = DB::table($tableName)->max($primaryKey) ?? 0;
+                $maxIdB = $secondConnection ? DB::connection($secondConnection)->table($tableName)->max($primaryKey) ?? 0 : 0;
+
+                $maxIds[$tableName] = max($maxIdA, $maxIdB);
+            } else {
+                $maxIds[$tableName] = 0;
+            }
+        }
+
+        return $maxIds;
+    }
+
+    private function updatePrimaryKeyAndRelatedTables($tableName, $config_id, $primary_key, $rand)
+    {
+        $oldRows = DB::table($tableName)
+            ->where('config_id', $config_id)
+            ->get([$primary_key]);
+
+        DB::table($tableName)
+            ->where('config_id', $config_id)
+            ->update([
+                $primary_key => DB::raw("`{$primary_key}` + {$rand}"),
+            ]);
+
+        // Jika tabel ini punya relasi JSON, proses update JSON
+        if (array_key_exists($tableName, $this->tabelRelasiJson)) {
+            foreach ($this->tabelRelasiJson[$tableName] as $relatedTable => $jsonColumn) {
+                foreach ($oldRows as $row) {
+                    $oldId = (string) $row->{$primary_key};
+                    $newId = (string) ($oldId + $rand);
+
+                    DB::statement("
+                        UPDATE {$relatedTable}
+                        SET {$jsonColumn} = JSON_REPLACE(
+                            {$jsonColumn},
+                            JSON_UNQUOTE(JSON_SEARCH({$jsonColumn}, 'one', ?, NULL)),
+                            ?
+                        )
+                        WHERE config_id = ?
+                        AND JSON_SEARCH({$jsonColumn}, 'one', ?, NULL) IS NOT NULL
+                    ", [$oldId, $newId, $config_id, $oldId]);
+                }
+            }
+        }
+
+        if (array_key_exists($tableName, $this->cascadeUpdate)) {
+            $column    = $this->cascadeUpdate[$tableName]['column'];
+            $reference = $this->cascadeUpdate[$tableName]['reference'];
+
+            foreach ($oldRows as $row) {
+                $oldId = (int) $row->{$primary_key};
+                $newId = $oldId + $rand;
+
+                $this->cascadeUpdate($reference, $column, $oldId, $newId);
+            }
+        }
+
+        if (in_array($tableName, array_keys($this->tabelKhusus))) {
+            $child = $this->tabelKhusus[$tableName][1];
+            DB::table($tableName)->where('config_id', $config_id)->where($child, '!=', 0)->update([$child => DB::raw("`{$child}` + {$rand}")]);
+        }
+    }
+
+    /**
+     * Melakukan update manual terhadap foreign key pada data collection backupData.
+     * Digunakan untuk meniru efek ON UPDATE CASCADE pada struktur backupData yang berupa Collection.
+     *
+     * Asumsi struktur backupData['tabel'][$tableName] berisi array dengan:
+     *  - 'primary_key' => nama primary key tabel,
+     *  - 'data' => Collection berisi data tabel,
+     *
+     * Fungsi ini mencari setiap record di dalam 'data' yang memiliki nilai foreign key
+     * sama dengan $oldId, kemudian menggantinya dengan $newId.
+     *
+     * @param string $tableName       Nama tabel dalam collection 'tabel' di backupData.
+     * @param string $foreignKeyField Nama field yang merupakan foreign key, misalnya 'id_kk'.
+     * @param int    $oldId           Nilai primary key lama yang akan diganti.
+     * @param int    $newId           Nilai primary key baru sebagai pengganti.
+     */
+    private function cascadeUpdate(string $tableName, string $foreignKeyField, int $oldId, int $newId): void
+    {
+        $tabel = $this->backupData->get('tabel');
+
+        if (! $tabel->has($tableName)) {
+            return;
+        }
+
+        $tableEntry = $tabel->get($tableName);
+
+        // Pastikan 'data' adalah Collection
+        if (! ($tableEntry['data'] instanceof Collection)) {
+            return;
+        }
+
+        // Update field foreign key di dalam collection 'data'
+        $tableEntry['data']->transform(static function ($item) use ($foreignKeyField, $oldId, $newId) {
+            if (data_get($item, $foreignKeyField) == $oldId) {
+                data_set($item, $foreignKeyField, $newId);
+            }
+
+            return $item;
+        });
+    }
+
+    private function validateBackupData($backupData)
+    {
+        $version = $backupData['info']['versi'];
+
+        if (substr((string) $version, 0, 4) !== substr(VERSION, 0, 4)) {
+            redirect_with('error', 'Proses restore dari backup gagal. <br>Versi opensid tidak sama', 'database');
+        }
+
+        $config_backup   = $backupData['tabel']['config']['data'][0];
+        $config_database = DB::table('config')->where('app_key', get_app_key())->first();
+
+        if ($config_backup['kode_desa'] != $config_database->kode_desa) {
+            redirect_with('error', 'Proses restore dari backup gagal. <br>Data desa tidak sama dengan data yang ada di database.', ci_route('database'));
+        }
+    }
+
+    private function restoreConfigData($configData)
+    {
+        unset($configData['id'], $configData['app_key']);
+        (new App\Models\Config())->update($configData);
+    }
+
+    private function deleteExistingData($tables)
+    {
+        foreach (array_keys(array_reverse($tables)) as $tableName) {
+            if ($tableName == 'config') {
+                continue;
+            }
+            DB::table($tableName)->where(['config_id' => identitas('id')])->delete();
+        }
+    }
+
+    private function restoreBackupData($tables)
+    {
+        foreach ($tables as $tableName => $tableDetails) {
+            $this->restoreTableData($tableName, $tableDetails);
+        }
+    }
+
     private function restoreTableData(string $tableName, array $tableDetails): void
     {
-        if ($tableName !== 'config') {
-            foreach ($tableDetails['data'] as $record) {
-                if (isset($record['config_id'])) {
-                    $record['config_id'] = identitas('id');
-                }
-                // set null dulu, ini saling ketergantungan
-                if (isset($this->tergantungDataPenduduk[$tableName])) {
-                    $tmpArray = $this->tergantungDataPenduduk[$tableName];
-                    if ($record[$tmpArray['key']]) {
-                        $uniqueRecord      = $tmpArray['unique_record'];
-                        $uniqueRecordValue = [];
+        if ($tableName === 'config' || empty($tableDetails['data'])) {
+            return;
+        }
 
-                        foreach ($uniqueRecord as $column) {
-                            $uniqueRecordValue[] = $record[$column];
-                        }
-                        $uniqueRecordKey                                                                       = implode('__', $uniqueRecordValue);
-                        $this->tergantungDataPenduduk[$tableName][$tmpArray['key']][$record[$tmpArray['key']]] = $uniqueRecordKey;
-                        // log_message('error',$tableName .' asli '.$tmpArray['key'].' '.$record[$tmpArray['key']]);
-                        $record[$tmpArray['key']] = null;
-                        // log_message('error',$tableName .' setelah diubah '.$tmpArray['key'].' '.$record[$tmpArray['key']]);
+        $configId = identitas('id');
+
+        // Proses data dalam batch kecil untuk mengurangi beban memori
+        collect($tableDetails['data'])
+            ->chunk(500) // Batch lebih besar untuk mengurangi jumlah query
+            ->each(static function ($chunk) use ($tableName, $configId) {
+                $chunk = $chunk->map(static function ($record) use ($configId) {
+                    if (isset($record['config_id'])) {
+                        $record['config_id'] = $configId;
                     }
 
-                }
-                if ($tableDetails['primary_key']) {
-                    reset_auto_increment($tableName, $tableDetails['primary_key']);
-                }
+                    return $record;
+                });
 
-                try {
-                    DB::table($tableName)->insert($record);
-                    log_message('notice', 'Restore data ' . $tableName . ' id ' . $record[$tableDetails['primary_key']] . ' berhasil.');
-                } catch (Exception $e) {
-                    log_message('error', 'Restore data ' . $tableName . ' gagal dengan data ' . json_encode($record));
-                    log_message('error', $e->getMessage());
-                }
-            }
-        }
+                // Gunakan bulk insert untuk mempercepat proses
+                DB::table($tableName)->insert($chunk->toArray());
+            });
+
+        log_message('notice', "Restore data {$tableName} berhasil, total: " . count($tableDetails['data']));
     }
 
-    private function reStrukturTableData(string $tableName, array $tableDetails, string $rand): void
+    private function updateDataJsonTable($rand): void
     {
-        $primary_key = $tableDetails['primary_key'];
-        log_message('notice', 'reStrukturTableData  ' . $tableName . ' ' . $primary_key . ' nilai random ' . $rand);
-        $idIni = DB::table('config')->where('app_key', get_app_key())->value('id');
-        if ($primary_key !== null) {
-            if ($tableName === 'config') {
-                // $id = DB::table($tableName)->where('id', '!=', $idIni)->orderBy('id', 'desc')->first()->id ?? 0;
-                // DB::table($tableName)->where('id', $idIni)->update(['id' => $id + 1]);
-            } else {
-                // ada potensi gagal
-                try {
-                    $id = DB::table($tableName)->where('config_id', '!=', $idIni)->orderBy($primary_key, 'desc')->first()->{$primary_key} ?? 0;
-                    $id -= $rand;
+        $listTables = [
+            'permohonan_surat'  => 'perbaikanPermohonanSurat',
+            'tweb_surat_format' => 'perbaikanSuratFormat',
+        ];
 
-                    if (in_array($tableName, array_keys($this->tabelKhusus))) {
-                        $child = $this->tabelKhusus[$tableName][1];
-                        DB::table($tableName)->where('config_id', $idIni)->where($child, '!=', 0)->update([$child => DB::raw("`{$child}` + {$id}")]);
-                    }
-
-                    DB::table($tableName)->where('config_id', $idIni)->update([$primary_key => DB::raw("`{$primary_key}` + {$id}")]);
-                } catch (Exception $e) {
-                    log_message('error', 'reStrukturTableData  ' . $tableName . ' gagal ' . $e->getMessage());
-                }
-
-            }
+        foreach ($listTables as $tableName => $functionName) {
+            $this->{$functionName}($rand);
+            log_message('notice', 'perbaikan data json table  ' . $tableName . ' berhasil.');
         }
     }
-    // END PROSES RESTORE DATA
+
+    private function perbaikanSuratFormat($rand): void
+    {
+        $suratFormat               = DB::table('tweb_surat_format')->where(['config_id' => identitas('id')])->whereNotNull('syarat_surat')->get();
+        $idSyaratSuratAwal         = DB::table('ref_syarat_surat')->where('config_id', identitas('id'))->orderBy('ref_syarat_id', 'asc')->first()->ref_syarat_id ?? 0;
+        $idSyaratSuratDesaLainAwal = DB::table('ref_syarat_surat')->where('config_id', '!=', identitas('id'))->orderBy('ref_syarat_id', 'desc')->first()->ref_syarat_id ?? 0;
+        $selisihSyarat             = $idSyaratSuratAwal - $idSyaratSuratDesaLainAwal;
+        $idSyaratSuratAwal -= ($selisihSyarat);
+
+        foreach ($suratFormat as $data) {
+            $syarat = json_decode($data->syarat_surat, true);
+            if (! is_array($syarat)) {
+                $syarat = [];
+            }
+            $syarat = empty($syarat) ? null : $this->perbaikanSyaratSurat($syarat, ['idSyaratSuratAwal' => $idSyaratSuratAwal]);
+
+            DB::table('tweb_surat_format')->where('id', $data->id)->update([
+                'syarat_surat' => $syarat,
+            ]);
+        }
+    }
+
+    private function perbaikanPermohonanSurat($rand): void
+    {
+        $permohonanSurat       = DB::table('permohonan_surat')->where(['config_id' => identitas('id')])->get();
+        $idDokumenAwal         = DB::table('dokumen')->where('config_id', identitas('id'))->orderBy('id', 'asc')->first()->id ?? 0;
+        $idDokumenDesaLainAwal = DB::table('dokumen')->where('config_id', '!=', identitas('id'))->orderBy('id', 'desc')->first()->id ?? 0;
+        $selisihIdDokumen      = $idDokumenAwal - $idDokumenDesaLainAwal;
+        $idDokumenAwal -= ($selisihIdDokumen);
+        $idSyaratSuratAwal         = DB::table('ref_syarat_surat')->where('config_id', identitas('id'))->orderBy('ref_syarat_id', 'asc')->first()->ref_syarat_id ?? 0;
+        $idSyaratSuratDesaLainAwal = DB::table('ref_syarat_surat')->where('config_id', '!=', identitas('id'))->orderBy('ref_syarat_id', 'desc')->first()->ref_syarat_id ?? 0;
+        $selisihSyarat             = $idSyaratSuratAwal - $idSyaratSuratDesaLainAwal;
+        $idSyaratSuratAwal -= ($selisihSyarat);
+
+        $idNikAwal         = DB::table('tweb_penduduk')->where('config_id', identitas('id'))->orderBy('id', 'asc')->first()->id ?? 0;
+        $idNikDesaLainAwal = DB::table('tweb_penduduk')->where('config_id', '!=', identitas('id'))->orderBy('id', 'desc')->first()->id ?? 0;
+        $selisihNik        = $idNikAwal - $idNikDesaLainAwal;
+        $idNikAwal -= ($selisihNik);
+        $idPamongAwal         = DB::table('tweb_desa_pamong')->where('config_id', identitas('id'))->orderBy('pamong_id', 'asc')->first()->pamong_id ?? 0;
+        $idPamongDesaLainAwal = DB::table('tweb_desa_pamong')->where('config_id', '!=', identitas('id'))->orderBy('pamong_id', 'desc')->first()->pamong_id ?? 0;
+        $selisihPamong        = $idPamongAwal - $idPamongDesaLainAwal;
+        $idPamongAwal -= ($selisihPamong);
+
+        foreach ($permohonanSurat as $data) {
+            $isianForm = json_decode($data->isian_form, true);
+            $syarat    = json_decode($data->syarat, true);
+            if (! is_array($syarat)) {
+                $syarat = [];
+            }
+
+            $isianForm = $this->perbaikanIsianForm($isianForm, $data->id_surat, ['idNikAwal' => $idNikAwal, 'idPamongAwal' => $idPamongAwal]);
+            $syarat    = empty($syarat) ? '{}' : $this->perbaikanSyarat($syarat, ['idDokumenAwal' => $idDokumenAwal, 'idSyaratSuratAwal' => $idSyaratSuratAwal]);
+
+            DB::table('permohonan_surat')->where('id', $data->id)->update([
+                'isian_form' => json_encode($isianForm),
+                'syarat'     => $syarat,
+            ]);
+        }
+    }
+
+    /**
+     * Perbaikan isian form.
+     *
+     * @param array $isianForm
+     *                         {"nik":"2381","id_surat":"8","pamong_id":"33"} sementara ini yang diketahui untuk disesuaikan
+     * @param mixed $rand
+     * @param mixed $idSurat
+     * @param mixed $dataAwal
+     */
+    private function perbaikanIsianForm(array $isianForm, $idSurat, $dataAwal): array
+    {
+        $isianForm['id_surat']  = $idSurat;
+        $isianForm['nik']       = ($isianForm['nik']) + $dataAwal['idNikAwal'];
+        $isianForm['pamong_id'] = empty($isianForm['pamong_id']) ? '' : (int) $isianForm['pamong_id'] + $dataAwal['idPamongAwal'];
+
+        return $isianForm;
+    }
+
+    /**
+     * Perbaikan syarat surat.
+     * {"1":"48","3":"50","9":"49"},  key berasal dari ref_syarat_surat dan value berasal dari dokumen
+     *
+     * @param mixed $rand
+     * @param mixed $dataAwal
+     */
+    private function perbaikanSyarat(array $syarat, $dataAwal): string
+    {
+
+        $updatedArray = [];
+
+        foreach ($syarat as $key => $value) {
+            $newKey   = (int) $key + $dataAwal['idSyaratSuratAwal'];
+            $newValue = $value == -1 ? -1 : (int) $value + $dataAwal['idDokumenAwal'];
+            // Assign the new key and value to the updated array
+            $updatedArray[$newKey] = $newValue;
+        }
+
+        return json_encode($updatedArray);
+    }
+
+    private function perbaikanSyaratSurat(array $syarat, $dataAwal): string
+    {
+
+        $updatedArray = [];
+
+        foreach ($syarat as $key => $value) {
+            $newValue = (int) $value + $dataAwal['idSyaratSuratAwal'];
+            // Assign the new key and value to the updated array
+            $updatedArray[] = $newValue;
+        }
+
+        return '["' . implode('","', $updatedArray) . '"]';
+    }
 }

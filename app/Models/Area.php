@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,7 +37,9 @@
 
 namespace App\Models;
 
+use App\Enums\AktifEnum;
 use App\Traits\ConfigId;
+use App\Traits\StatusTrait;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -45,9 +47,10 @@ defined('BASEPATH') || exit('No direct script access allowed');
 class Area extends BaseModel
 {
     use ConfigId;
+    use StatusTrait;
 
-    public const LOCK   = 1;
-    public const UNLOCK = 2;
+    public $timestamps      = false;
+    public $statusColumName = 'enabled';
 
     /**
      * The table associated with the model.
@@ -55,8 +58,6 @@ class Area extends BaseModel
      * @var string
      */
     protected $table = 'area';
-
-    public $timestamps = false;
 
     /**
      * The attributes that are mass assignable.
@@ -84,68 +85,6 @@ class Area extends BaseModel
         'foto_area',
     ];
 
-    /**
-     * Getter untuk foto kecil.
-     */
-    public function getFotoKecilAttribute(): ?string
-    {
-        $foto = LOKASI_FOTO_AREA . 'kecil_' . $this->attributes['foto'];
-
-        if (file_exists(FCPATH . $foto)) {
-            return $foto;
-        }
-
-        return null;
-    }
-
-    /**
-     * Getter untuk foto sedang.
-     */
-    public function getFotoSedangAttribute(): ?string
-    {
-        $foto = LOKASI_FOTO_AREA . 'sedang_' . $this->attributes['foto'];
-
-        if (file_exists(FCPATH . $foto)) {
-            return $foto;
-        }
-
-        return null;
-    }
-
-    /**
-     * Getter untuk foto sedang.
-     */
-    public function getFotoAreaAttribute(): ?string
-    {
-        if ($kecil = $this->getFotoKecilAttribute()) {
-            return to_base64($kecil);
-        }
-
-        if ($sedang = $this->getFotoSedangAttribute()) {
-            return to_base64($sedang);
-        }
-
-        return null;
-    }
-
-    protected function scopeActive($query)
-    {
-        return $query->whereEnabled(self::UNLOCK);
-    }
-
-    /**
-     * Get the polygon that owns the Area
-     */
-    public function polygon(): BelongsTo
-    {
-        return $this->belongsTo(Polygon::class, 'ref_polygon', 'id');
-    }
-
-    public function isLock(): bool
-    {
-        return $this->enabled == self::LOCK;
-    }
-
     public static function activeAreaMap()
     {
         return self::active()->with(['polygon' => static fn ($q) => $q->select(['id', 'nama', 'parrent', 'simbol', 'color'])->with(['parent' => static fn ($r) => $r->select(['id', 'nama', 'parrent', 'simbol', 'color'])]),
@@ -154,6 +93,8 @@ class Area extends BaseModel
             $item->kategori = $item->polygon->nama ?? '';
             $item->simbol   = $item->polygon->simbol ?? '';
             $item->color    = $item->polygon->color ?? '';
+            $item->warna    = $item->polygon->color ?? '';
+            $item->border   = $item->polygon->color ?? '';
 
             return $item;
         })->toArray();
@@ -167,6 +108,8 @@ class Area extends BaseModel
             $item->kategori = $item->polygon->nama ?? '';
             $item->simbol   = $item->polygon->simbol ?? '';
             $item->color    = $item->polygon->color ?? '';
+            $item->warna    = $item->polygon->color ?? '';
+            $item->border   = $item->polygon->color ?? '';
 
             return $item;
         })->toArray();
@@ -191,8 +134,12 @@ class Area extends BaseModel
     public static function deleteFile($model, ?string $file, $deleting = false): void
     {
         if ($model->isDirty($file) || $deleting) {
-            $fotoSedang = LOKASI_FOTO_AREA . 'sedang_' . $model->getOriginal($file);
-            $fotoKecil  = LOKASI_FOTO_AREA . 'kecil_' . $model->getOriginal($file);
+            $fotoOriginal = LOKASI_FOTO_AREA . $model->getOriginal($file);
+            $fotoSedang   = LOKASI_FOTO_AREA . 'sedang_' . $model->getOriginal($file);
+            $fotoKecil    = LOKASI_FOTO_AREA . 'kecil_' . $model->getOriginal($file);
+            if (file_exists($fotoOriginal)) {
+                unlink($fotoOriginal);
+            }
             if (file_exists($fotoSedang)) {
                 unlink($fotoSedang);
             }
@@ -200,5 +147,70 @@ class Area extends BaseModel
                 unlink($fotoKecil);
             }
         }
+    }
+
+    /**
+     * Getter untuk foto kecil.
+     */
+    public function getFotoKecilAttribute(): ?string
+    {
+        $foto = LOKASI_FOTO_AREA . 'kecil_' . $this->attributes['foto'];
+        if (file_exists(FCPATH . $foto)) {
+            return $foto;
+        }
+
+        return null;
+    }
+
+    /**
+     * Getter untuk foto sedang.
+     */
+    public function getFotoSedangAttribute(): ?string
+    {
+        $foto = LOKASI_FOTO_AREA . 'sedang_' . $this->attributes['foto'];
+        if (file_exists(FCPATH . $foto)) {
+            return $foto;
+        }
+
+        return null;
+    }
+
+    /**
+     * Getter untuk foto sedang.
+     */
+    public function getFotoAreaAttribute(): ?string
+    {
+        if ($kecil = $this->getFotoKecilAttribute()) {
+            return base_url($kecil);
+        }
+
+        if ($sedang = $this->getFotoSedangAttribute()) {
+            return base_url($sedang);
+        }
+
+        $foto = LOKASI_FOTO_AREA . $this->attributes['foto'];
+        if (file_exists(FCPATH . $foto)) {
+            return base_url($foto);
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the polygon that owns the Area
+     */
+    public function polygon(): BelongsTo
+    {
+        return $this->belongsTo(Polygon::class, 'ref_polygon', 'id');
+    }
+
+    public function isLock(): bool
+    {
+        return $this->enabled == AktifEnum::TIDAK_AKTIF;
+    }
+
+    protected function scopeActive($query)
+    {
+        return $query->whereEnabled(AktifEnum::AKTIF);
     }
 }

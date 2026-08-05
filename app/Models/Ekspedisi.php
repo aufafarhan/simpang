@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -48,18 +48,18 @@ class Ekspedisi extends BaseModel
     use Author;
 
     /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'surat_keluar';
-
-    /**
      * The timestamps for the model.
      *
      * @var bool
      */
     public $timestamps = true;
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'surat_keluar';
 
     /**
      * The guarded with the model.
@@ -75,6 +75,13 @@ class Ekspedisi extends BaseModel
      */
     protected $casts = [];
 
+    protected static function booted()
+    {
+        static::addGlobalScope('custom_where', static function ($builder): void {
+            $builder->where('ekspedisi', 1);
+        });
+    }
+
     public function scopeGetTahun($query)
     {
         return $query
@@ -87,7 +94,12 @@ class Ekspedisi extends BaseModel
 
     public function scopeUntukEkspedisi($query, $id, $masuk = 0)
     {
-        return $query->where('id', $id)->update(['ekspedisi' => $masuk]);
+        return $query->where('id', $id)->update([
+            'ekspedisi'          => $masuk,
+            'tanggal_pengiriman' => null,
+            'tanda_terima'       => null,
+            'keterangan'         => null,
+        ]);
     }
 
     public function scopeGetTandaTerima($query, $id)
@@ -96,12 +108,5 @@ class Ekspedisi extends BaseModel
             ->select('tanda_terima')
             ->where('id', $id)
             ->first();
-    }
-
-    protected static function booted()
-    {
-        static::addGlobalScope('custom_where', static function ($builder): void {
-            $builder->where('ekspedisi', 1);
-        });
     }
 }

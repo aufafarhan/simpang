@@ -2,13 +2,19 @@
 @include('admin.layouts.components.asset_validasi')
 @section('title')
     <h1>
-        <h1>Pengaturan Album</h1>
+        <h1>{{ $parent ? 'Rincian Album' : 'Daftar Album' }}</h1>
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li><a href="{{ ci_route('gallery') }}"> Daftar Album</a></li>
-    <li class="active">{{ $aksi }} Pengaturan Album</li>
+    <li>
+        @if($parent)
+        <a href="{{ ci_route('gallery') . '?parent=' . $parent }}"> Rincian Album</a>
+        @else
+        <a href="{{ ci_route('gallery') }}"> Daftar Album</a>
+        @endif
+    </li>
+    <li class="active">{{ $aksi }} {{ $parent ? 'Form Rincian Album' : 'Form Daftar Album' }}</li>
 @endsection
 
 @section('content')
@@ -17,13 +23,14 @@
     {!! form_open_multipart($form_action, 'class="form-horizontal" id="validasi"') !!}
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('gallery') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah">
-                <i class="fa fa-arrow-circle-left "></i>Kembali ke Daftar Album
-            </a>
+            <x-kembali-button 
+                judul="Kembali Ke {{ $parent ? 'Rincian Album' : 'Daftar Album' }}"
+                url="{{ $parent ? 'gallery' . '?parent=' . $parent : 'gallery' }}"
+            />
         </div>
         <div class="box-body">
             <div class="form-group">
-                <label class="control-label col-sm-4" for="nama">Nama Album</label>
+                <label class="control-label col-sm-4" for="nama">Nama {{ $parent ? 'Gambar' : 'Album' }}</label>
                 <div class="col-sm-6">
                     <input name="nama" class="form-control input-sm nomor_sk required" maxlength="50" type="text" value="{{ $gallery['nama'] }}"></input>
                 </div>
@@ -51,7 +58,7 @@
                     <div class="col-sm-6">
                         <div class="input-group input-group-sm">
                             <input type="text" class="form-control {{ jecho($gallery['gambar'], false, 'required') }}" id="file_path">
-                            <input id="file" type="file" class="hidden" name="gambar" accept=".gif,.jpg,.png,.jpeg">
+                            <input id="file" type="file" class="hidden" name="gambar" accept=".gif,.jpg,.png,.jpeg,.webp">
                             <span class="input-group-btn">
                                 <button type="button" class="btn btn-info btn-flat" id="file_browser"><i class="fa fa-search"></i> Browse</button>
                             </span>
@@ -89,7 +96,7 @@
                     <h4 class='modal-title' id='FileManagerLabel'>File Manager</h4>
                 </div>
                 <div class="modal-body">
-                    <iframe width="100%" height="400px" src="{{ base_url('assets/kelola_file/dialog.php?type=1&lang=id&field_id=url&fldr=&akey=' . $session->fm_key) }}" frameborder="0" style="overflow: scroll; overflow-x: hidden; overflow-y: scroll; "></iframe>
+                    <iframe width="100%" height="400px" src="{{ base_url('rfm/dialog.php?type=1&lang=id&field_id=url&fldr=&akey=' . $session->fm_key) }}" frameborder="0" style="overflow: scroll; overflow-x: hidden; overflow-y: scroll; "></iframe>
                 </div>
             </div>
         </div>

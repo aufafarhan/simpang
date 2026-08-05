@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,17 +29,18 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\PendidikanKKEnum;
+use App\Enums\PendudukBidangEnum;
+use App\Enums\PendudukKursusEnum;
 use App\Models\KaderMasyarakat;
 use App\Models\Penduduk;
-use App\Models\RefPendudukBidang;
-use App\Models\RefPendudukKursus;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -76,13 +77,14 @@ class Bumindes_kader extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('bumindes_kader.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi = View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "bumindes_kader/form/{$row->id}",
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('bumindes_kader.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => route('bumindes_kader.delete', ['id' => $row->id]),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -97,17 +99,6 @@ class Bumindes_kader extends Admin_Controller
         }
 
         return show_404();
-    }
-
-    private function sumberData()
-    {
-        return KaderMasyarakat::select([
-            'kader_pemberdayaan_masyarakat.id',
-            'kader_pemberdayaan_masyarakat.penduduk_id',
-            'kader_pemberdayaan_masyarakat.kursus',
-            'kader_pemberdayaan_masyarakat.bidang',
-            'kader_pemberdayaan_masyarakat.keterangan'])
-            ->with(['penduduk']);
     }
 
     public function form($id = 0)
@@ -132,7 +123,7 @@ class Bumindes_kader extends Admin_Controller
     public function get_kursus(): void
     {
         $nama   = $this->input->get('nama');
-        $kursus = RefPendudukKursus::get()->pluck('nama')->toArray();
+        $kursus = PendudukKursusEnum::values();
         $new    = [];
         if ($list_data = KaderMasyarakat::select('kursus')->get()->toArray()) {
             $list = [];
@@ -162,7 +153,7 @@ class Bumindes_kader extends Admin_Controller
     public function get_bidang(): void
     {
         $nama   = $this->input->get('nama');
-        $bidang = RefPendudukBidang::get()->pluck('nama')->toArray();
+        $bidang = PendudukBidangEnum::values();
         $new    = [];
         if ($list_data = KaderMasyarakat::select('bidang')->get()->toArray()) {
             $list = [];
@@ -237,6 +228,40 @@ class Bumindes_kader extends Admin_Controller
         redirect_with('error', 'Gagal Hapus Data');
     }
 
+    public function dialog($aksi = 'cetak')
+    {
+        $data['aksi']       = $aksi;
+        $data['formAction'] = ci_route('bumindes_kader.cetak', $aksi);
+
+        return view('admin.bumindes.pembangunan.dialog', $data);
+    }
+
+    public function cetak($aksi = '')
+    {
+        $query        = $this->sumberData();
+        $data         = $this->modal_penandatangan();
+        $data['aksi'] = $aksi;
+        $data['main'] = $query->get();
+
+        $data['tgl_cetak'] = $this->input->post('tgl_cetak');
+        $data['file']      = 'Buku Mutasi Penduduk';
+        $data['isi']       = 'admin.bumindes.pembangunan.kader.cetak';
+        $data['letak_ttd'] = ['2', '2', '5'];
+
+        return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    private function sumberData()
+    {
+        return KaderMasyarakat::select([
+            'kader_pemberdayaan_masyarakat.id',
+            'kader_pemberdayaan_masyarakat.penduduk_id',
+            'kader_pemberdayaan_masyarakat.kursus',
+            'kader_pemberdayaan_masyarakat.bidang',
+            'kader_pemberdayaan_masyarakat.keterangan'])
+            ->with(['penduduk']);
+    }
+
     private function validate(array $request = []): array
     {
         $kursus = array_unique(explode(',', (string) $request['kursus']));
@@ -248,28 +273,5 @@ class Bumindes_kader extends Admin_Controller
             'bidang'      => json_encode($bidang),
             'keterangan'  => alfanumerik_spasi($request['keterangan']),
         ];
-    }
-
-    public function dialog($aksi = 'cetak')
-    {
-        $data['aksi']       = $aksi;
-        $data['formAction'] = ci_route('bumindes_kader.cetak', $aksi);
-
-        return view('admin.bumindes.pembangunan.dialog', $data);
-    }
-
-    public function cetak($aksi = '')
-    {
-        $query             = $this->sumberData();
-        $data              = $this->modal_penandatangan();
-        $data['aksi']      = $aksi;
-        $data['main']      = $query->get();
-        $data['config']    = $this->header['desa'];
-        $data['tgl_cetak'] = $this->input->post('tgl_cetak');
-        $data['file']      = 'Buku Mutasi Penduduk';
-        $data['isi']       = 'admin.bumindes.pembangunan.kader.cetak';
-        $data['letak_ttd'] = ['2', '2', '5'];
-
-        return view('admin.layouts.components.format_cetak', $data);
     }
 }

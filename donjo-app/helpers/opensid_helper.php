@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,26 +29,72 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\AgamaEnum;
+use App\Enums\AsuransiEnum;
+use App\Enums\BahasaEnum;
+use App\Enums\GolonganDarahEnum;
+use App\Enums\JenisKelaminEnum;
+use App\Enums\KeluargaSejahteraEnum;
+use App\Enums\PekerjaanEnum;
+use App\Enums\PendidikanKKEnum;
+use App\Enums\PendidikanSedangEnum;
+use App\Enums\PendudukBidangEnum;
+use App\Enums\PendudukKursusEnum;
+use App\Enums\PeristiwaPendudukEnum;
+use App\Enums\PindahEnum;
 use App\Enums\SasaranEnum;
 use App\Enums\Statistik\StatistikEnum;
+use App\Enums\StatusDasarEnum;
+use App\Enums\StatusKawinEnum;
+use App\Enums\WargaNegaraEnum;
+use App\Models\Artikel;
 use App\Models\Bantuan;
 use App\Models\FormatSurat;
+use App\Models\Kategori;
+use App\Models\Kelompok;
+use App\Models\Menu;
+use App\Models\Pamong;
 use App\Models\RefJabatan;
 use App\Models\Suplemen;
 use App\Models\SuratDinas;
+use App\Models\User;
+use App\Models\UserGrup;
 use App\Models\Wilayah;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Modules\Analisis\Enums\AnalisisRefStateEnum;
+use Modules\Analisis\Enums\AnalisisRefSubjekEnum;
+use Modules\Analisis\Enums\AnalisisTipeIndikatorEnum;
+use Modules\Kehadiran\Models\JamKerja;
+use Modules\Kehadiran\Models\Kehadiran;
 use voku\helper\AntiXSS;
+
+/**
+ * VERSI
+ *
+ * Versi OpenSID
+ */
+define('VERSION', '2607.0.1');
+
+/**
+ * VERSI_DATABASE
+ * Ubah setiap kali mengubah struktur database atau melakukan proses rilis (tgl 01)
+ * Simpan nilai ini di tabel migrasi untuk menandakan sudah migrasi ke versi ini
+ * Versi database = [yyyymmdd][nomor urut dua digit]
+ * [nomor urut dua digit] : 01 => rilis umum, 51 => rilis bugfix, 71 => rilis premium,
+ *
+ * Varsi database jika premium = 2025061501, jika umum = 2024101651 (6 bulan setelah rilis premium, namun rilis beta)
+ */
+define('VERSI_DATABASE', '2026070151');
 
 // Kode laporan statistik
 define('JUMLAH', 666);
@@ -76,17 +122,13 @@ define('ASALDANA', serialize([
     'Dana Desa'         => 'Dana Desa',
     'Lain-lain (Hibah)' => 'Lain-lain (Hibah)',
 ]));
-define('KTP_EL', serialize([
-    strtolower('BELUM')  => '1',
-    strtolower('KTP-EL') => '2',
-    strtolower('KIA')    => '3',
-]));
+
 define('TEMPAT_DILAHIRKAN', serialize([
-    'RS/RB'    => '1',
-    'Puskemas' => '2',
-    'Polindes' => '3',
-    'Rumah'    => '4',
-    'Lainnya'  => '5',
+    'RS/RB'     => '1',
+    'Puskesmas' => '2',
+    'Polindes'  => '3',
+    'Rumah'     => '4',
+    'Lainnya'   => '5',
 ]));
 define('JENIS_KELAHIRAN', serialize([
     'Tunggal'  => '1',
@@ -158,23 +200,6 @@ function AmbilVersi(): string
 function currentVersion(): string
 {
     return substr_replace(substr(VERSION, 0, 4), '.', 2, 0);
-}
-
-function set_app_key(): string
-{
-    return 'base64:' . base64_encode(random_bytes(32));
-}
-
-function get_app_key(): string
-{
-    $app_key = file_get_contents(DESAPATH . 'app_key');
-
-    if ($app_key === '' || $app_key === false) {
-        $app_key = set_app_key();
-        file_put_contents(DESAPATH . 'app_key', $app_key);
-    }
-
-    return $app_key;
 }
 
 /**
@@ -359,8 +384,8 @@ function myErrorHandler($code, $message, $file, $line): void
 function fatalErrorShutdownHandler(): void
 {
     $last_error = error_get_last();
-    if ($last_error['type'] === E_ERROR) {
-        // fatal error
+
+    if ($last_error && isset($last_error['type'], $last_error['message'], $last_error['file'], $last_error['line']) && $last_error['type'] === E_ERROR) {
         myErrorHandler(E_ERROR, $last_error['message'], $last_error['file'], $last_error['line']);
     }
 }
@@ -426,8 +451,8 @@ function isMobile()
 /*
 Deteksi file berisi script PHP:
 -- extension .php
--- berisi string '', '<script', function, __halt_compiler,<html
-Perhatian: string '', '<%' tidak bisa digunakan sebagai indikator,
+-- berisi string '<?php', '<script', function, __halt_compiler,<html
+Perhatian: string '<?', '<%' tidak bisa digunakan sebagai indikator,
 karena file image dan PDF juga mengandung string ini.
 */
 function isPHP($file, $filename): bool
@@ -456,13 +481,36 @@ function get_extension($filename): string
     return '.' . end($ext);
 }
 
-function max_upload(): int
-{
-    $max_filesize = (int) bilangan(ini_get('upload_max_filesize'));
-    $max_post     = (int) bilangan(ini_get('post_max_size'));
-    $memory_limit = (int) bilangan(ini_get('memory_limit'));
+if (! function_exists('max_upload')) {
+    /**
+     * Mendapatkan ukuran maksimum unggahan yang diizinkan oleh konfigurasi server.
+     *
+     * Fungsi ini menghitung ukuran maksimum unggahan dengan mempertimbangkan
+     * direktif konfigurasi PHP berikut:
+     * - `upload_max_filesize`: Ukuran maksimum file yang diunggah.
+     * - `post_max_size`: Ukuran maksimum data POST yang akan diterima oleh PHP.
+     * - `memory_limit`: Jumlah maksimum memori yang diizinkan untuk dialokasikan oleh skrip.
+     *
+     * @param bool $byteFormat Jika true, mengembalikan hasil dalam format byte yang dapat dibaca manusia.
+     *
+     * @return int|string Nilai minimum di antara `upload_max_filesize`, `post_max_size`, dan `memory_limit` dalam byte atau format yang dapat dibaca manusia.
+     */
+    function max_upload(bool $byteFormat = false)
+    {
+        $max_filesize = Str::convertToBytes(ini_get('upload_max_filesize'));
+        $max_post     = Str::convertToBytes(ini_get('post_max_size'));
+        $memory_limit = Str::convertToBytes(ini_get('memory_limit'));
 
-    return min($max_filesize, $max_post, $memory_limit);
+        $max_upload = min($max_filesize, $max_post, $memory_limit);
+
+        if ($byteFormat) {
+            ci()->load->helper('number');
+
+            return byte_format($max_upload, 0);
+        }
+
+        return $max_upload;
+    }
 }
 
 function getKodeDesaFromTrackSID()
@@ -553,114 +601,114 @@ function sql_in_list($list_array)
     return $list;
 }
 
-/*
- * ambilBerkas
- * Method untuk mengambil berkas
- * param :
- * nama_berkas : nama berkas yang ingin diambil (hanya nama, bukan lokasi berkas)
- * redirect_url : jika terjadi error, maka halaman akan dialihkan ke redirect_url
- * unique_id : diperlukan jika nama file asli tidak sama dengan nama didatabase
- * lokasi : lokasi folder berkas berada (contoh : desa/arsip)
- * tampil : true kalau berkas akan ditampilkan inline (tidak diunduh)
- * popup  : true kalau berkas ditampilkan pada popup
- */
-function ambilBerkas(?string $nama_berkas, $redirect_url = null, $unique_id = null, string $lokasi = LOKASI_ARSIP, $tampil = false, $popup = false)
-{
-    $CI = &get_instance();
-    $CI->load->helper('download');
+if (! function_exists('ambilBerkas')) {
+    /**
+     * Ambil berkas arsip
+     *
+     * Method untuk mengambil berkas dari server dan menampilkan, mengunduh, atau mengembalikan sebagai base64.
+     *
+     * @param string|null $nama_berkas    Nama berkas yang ingin diambil (hanya nama, bukan lokasi berkas)
+     * @param string|null $redirect_url   URL untuk dialihkan jika terjadi error (optional)
+     * @param string|null $unique_id      ID unik jika nama file asli tidak sama dengan nama di database (optional)
+     * @param string      $lokasi         Lokasi folder berkas berada (default: LOKASI_ARSIP)
+     * @param bool        $tampil         Jika true, berkas akan ditampilkan inline di browser (default: false)
+     * @param bool        $popup          Jika true, berkas akan ditampilkan di popup (default: false)
+     * @param bool        $base64         Jika true, mengembalikan konten berkas dalam format base64 (default: false)
+     * @param string      $default        Nama berkas default jika file tidak ditemukan (default: '')
+     * @param string      $lokasi_default Lokasi folder untuk berkas default jika file tidak ditemukan (default: '')
+     *
+     * @return string|void Jika $base64 true, mengembalikan konten base64 berkas, jika tidak, akan menampilkan atau mengunduh berkas.
+     */
+    function ambilBerkas(
+        ?string $nama_berkas,
+        $redirect_url = null,
+        $unique_id = null,
+        string $lokasi = LOKASI_ARSIP,
+        $tampil = false,
+        $popup = false,
+        $base64 = false,
+        string $default = '',
+        string $lokasi_default = ''
+    ) {
+        $CI = &get_instance();
+        $CI->load->helper('download');
 
-    if (! preg_match('/^(?:[a-z0-9_-]|\.(?!\.))+$/iD', $nama_berkas)) {
-        $pesan = 'Nama berkas tidak valid';
-        if ($redirect_url) {
-            if ($popup) {
-                echo $pesan;
+        // Validasi nama berkas
+        if (! preg_match('/^(?:[a-z0-9_-]|\.(?!\.))+$/iD', $nama_berkas)) {
+            $pesan = 'Nama berkas tidak valid';
+            if ($redirect_url) {
+                if ($popup) {
+                    echo $pesan;
 
-exit;
-            }
+                    exit;
+                }
                 session_error($pesan);
                 set_session('error', $pesan);
                 redirect($redirect_url);
-
-        } else {
-            show_404();
-        }
-    }
-
-    // Tentukan path berkas (absolut)
-    $pathBerkas = FCPATH . $lokasi . $nama_berkas;
-    $pathBerkas = str_replace('/', DIRECTORY_SEPARATOR, $pathBerkas);
-    // Redirect ke halaman surat masuk jika path berkas kosong atau berkasnya tidak ada
-    if (! file_exists($pathBerkas)) {
-        $pesan = 'Berkas tidak ditemukan';
-        if ($redirect_url) {
-            if ($popup) {
-                echo $pesan;
-
-exit;
+            } else {
+                show_404();
             }
+        }
+
+        // Tentukan path berkas utama
+        $pathBerkas = FCPATH . $lokasi . $nama_berkas;
+        $pathBerkas = str_replace('/', DIRECTORY_SEPARATOR, $pathBerkas);
+
+        // Jika berkas tidak ditemukan, gunakan file default
+        if (! file_exists($pathBerkas) && ! empty($default)) {
+            $nama_berkas = $default;
+            $lokasi      = ! empty($lokasi_default) ? $lokasi_default : $lokasi;
+            $pathBerkas  = FCPATH . $lokasi . $default;
+            $pathBerkas  = str_replace('/', DIRECTORY_SEPARATOR, $pathBerkas);
+        }
+
+        // Jika tetap tidak ditemukan, tampilkan error
+        if (! file_exists($pathBerkas)) {
+            $pesan = 'Berkas tidak ditemukan';
+            if ($redirect_url) {
+                if ($popup) {
+                    echo $pesan;
+
+                    exit;
+                }
                 $_SESSION['success']   = -1;
                 $_SESSION['error_msg'] = $pesan;
                 set_session('error', $pesan);
                 redirect($redirect_url);
-
-        } else {
-            show_404();
-        }
-    }
-    // OK, berkas ada. Ambil konten berkasnya
-
-    if (null !== $unique_id) {
-        // Buang unique id pada nama berkas download
-        $nama_berkas  = explode($unique_id, $nama_berkas);
-        $namaFile     = $nama_berkas[0];
-        $ekstensiFile = explode('.', end($nama_berkas));
-        $ekstensiFile = end($ekstensiFile);
-        $nama_berkas  = $namaFile . '.' . $ekstensiFile;
-    }
-
-    // Kalau $tampil, tampilkan secara inline.
-    if ($tampil) {
-        // Set the default MIME type to send
-        switch (get_extension($nama_berkas)) {
-            case '.gif':
-                $mime = 'image/gif';
-                break;
-
-            case '.png':
-                $mime = 'image/png';
-                break;
-
-            case '.jpeg':
-
-            case '.jpg':
-                $mime = 'image/jpeg';
-                break;
-
-            case '.svg':
-                $mime = 'image/svg+xml';
-                break;
-
-            case '.pdf':
-                $mime = 'application/pdf';
-                break;
-
-            default:
-                $mime = 'application/octet-stream';
-                break;
+            } else {
+                show_404();
+            }
         }
 
-        // Generate the server headers
-        header('Content-Type: ' . $mime);
-        header('Content-Disposition: inline; filename="' . $nama_berkas . '"');
-        header('Expires: 0');
-        header('Content-Transfer-Encoding: binary');
-        header('Content-Length: ' . filesize($pathBerkas));
-        header('Cache-Control: private, no-transform, no-store, must-revalidate');
+        // Jika unique_id diberikan, ubah nama file
+        if (null !== $unique_id) {
+            $nama_berkas_parts = explode($unique_id, $nama_berkas);
+            $namaFile          = $nama_berkas_parts[0];
+            $ekstensiFile      = explode('.', end($nama_berkas_parts));
+            $ekstensiFile      = end($ekstensiFile);
+            $nama_berkas       = $namaFile . '.' . $ekstensiFile;
+        }
 
-        return readfile($pathBerkas);
+        // Kembalikan base64 jika $base64 true
+        if ($base64) {
+            return base64_encode(file_get_contents($pathBerkas));
+        }
+
+        // Tampilkan inline jika $tampil true
+        if ($tampil) {
+            header('Content-Type: ' . mime_content_type($pathBerkas));
+            header('Content-Disposition: inline; filename="' . $nama_berkas . '"');
+            header('Expires: 0');
+            header('Content-Transfer-Encoding: binary');
+            header('Content-Length: ' . filesize($pathBerkas));
+            header('Cache-Control: private, no-transform, no-store, must-revalidate');
+
+            return readfile($pathBerkas);
+        }
+
+        // Unduh berkas
+        force_download($nama_berkas, file_get_contents($pathBerkas));
     }
-
-    force_download($nama_berkas, file_get_contents($pathBerkas));
 }
 
 /**
@@ -931,7 +979,7 @@ function koordinat($str): ?string
 // Email hanya boleh berisi karakter alpha, numeric, titik, strip dan Tanda et,
 function email($str): ?string
 {
-    return preg_replace('/[^a-zA-Z0-9@\\.\\-]/', '', htmlentities($str));
+    return preg_replace('/[^a-zA-Z0-9@._\\-]/', '', htmlentities($str));
 }
 
 // website hanya boleh berisi karakter alpha, numeric, titik, titik dua dan garis miring
@@ -950,7 +998,7 @@ if (! function_exists('warna')) {
 
 function buat_slug(array $data_slug): string
 {
-    return $data_slug['thn'] . '/' . $data_slug['bln'] . '/' . $data_slug['hri'] . '/' . $data_slug['slug'];
+    return sprintf('%s/%02d/%02d/%s', $data_slug['thn'], $data_slug['bln'], $data_slug['hri'], $data_slug['slug']);
 }
 
 function namafile($str): string
@@ -1359,7 +1407,7 @@ function idm($kode_desa, $tahun)
     }
 
     // Pesan error jika data gagal diambil
-    $pesan_error = 'Tidak dapat mengambil data IDM.<br>';
+    $pesan_error = 'Tidak dapat mengambil data IDM, silakan coba lagi.<br>';
     $pesan_error .= 'ID Desa ' . $kode_desa . ' pada tahun ' . $tahun . ' tidak dapat dimuat: ';
     $pesan_error .= '<a href="' . $url . '" target="_blank">' . $url . '</a>';
 
@@ -1369,7 +1417,7 @@ function idm($kode_desa, $tahun)
 function sdgs()
 {
     $ci         = &get_instance();
-    $kode_desa  = setting('kode_desa_bps');
+    $kode_desa  = identitas()->kode_desa_bps;
     $cache      = "sdgs_{$kode_desa}.json";
     $cache_path = DESAPATH . "/cache/{$cache}";
 
@@ -1433,7 +1481,7 @@ function sdgs()
     }
 
     // Pesan error jika data gagal diambil
-    $pesan_error = 'Tidak dapat mengambil data SDGS.<br>';
+    $pesan_error = 'Tidak dapat mengambil data SDGs, silakan coba lagi.<br>';
     $pesan_error .= 'ID Desa ' . $kode_desa . ' tidak dapat dimuat: ';
     $pesan_error .= '<a href="' . $url . '" target="_blank">' . $url . '</a>';
 
@@ -1469,85 +1517,92 @@ function google_recaptcha()
     return json_decode($response->getBody());
 }
 
-function menu_slug($url)
-{
-    $CI = &get_instance();
-    $CI->load->model('first_artikel_m');
+if (! function_exists('menu_slug')) {
+    /**
+     * Menghasilkan slug URL berdasarkan segmen path yang diberikan.
+     *
+     * @param string $url.
+     *
+     * @return string
+     */
+    function menu_slug($url)
+    {
+        $cut = explode('/', $url);
 
-    $cut = explode('/', $url);
+        switch ($cut[0]) {
+            case 'artikel':
+                $data = Artikel::selectRaw('slug, YEAR(tgl_upload) AS thn, MONTH(tgl_upload) AS bln, DAY(tgl_upload) AS hri, judul, tgl_upload')
+                    ->without(['author', 'category', 'comments'])
+                    ->where('id', $cut[1])
+                    ->first()?->toArray();
+                $url = $data ? ($cut[0] . '/' . buat_slug($data)) : $url;
+                break;
 
-    switch ($cut[0]) {
-        case 'artikel':
-            $data = $CI->first_artikel_m->get_artikel_by_id($cut[1]);
-            $url  = ($data) ? ($cut[0] . '/' . buat_slug($data)) : ($url);
-            break;
+            case 'kategori':
+                $data = Kategori::where('id', $cut[1])
+                    ->orWhere('slug', $cut[1])
+                    ->first()?->toArray() ?? ['kategori' => "Artikel Kategori {$cut[1]}"];
+                $url = $data ? ('artikel/' . $cut[0] . '/' . $data['slug']) : $url;
+                break;
 
-        case 'kategori':
-            $data = $CI->first_artikel_m->get_kategori($cut[1]);
-            $url  = ($data) ? ('artikel/' . $cut[0] . '/' . $data['slug']) : ($url);
-            break;
+            case 'data-suplemen':
+                $suplemen    = Suplemen::withCount('terdata')->find($cut[1]);
+                $data        = $suplemen ? $suplemen?->toArray() : [];
+                $data['jml'] = $data['terdata_count'] ?? null;
+                $url         = $data ? ($cut[0] . '/' . ($data['slug'] ?? $cut[1])) : $url;
+                break;
 
-        case 'data-suplemen':
-            $suplemen    = Suplemen::withCount('terdata')->find($cut[1]);
-            $data        = $suplemen ? $suplemen->toArray() : [];
-            $data['jml'] = $data['terdata_count'];
-            $url         = ($data) ? ($cut[0] . '/' . ($data['slug'] ?? $cut[1])) : ($url);
-            break;
+            case 'data-kelompok':
+            case 'data-lembaga':
+                $data = Kelompok::with(['ketua', 'kelompokMaster'])->find($cut[1])?->toArray();
+                $url  = $data ? ($cut[0] . '/' . $data['slug']) : $url;
+                break;
 
-        case 'data-kelompok':
-        case 'data-lembaga':
-            $CI->load->model('kelompok_model');
-            $data = $CI->kelompok_model->get_kelompok($cut[1]);
-            $url  = ($data) ? ($cut[0] . '/' . $data['slug']) : ($url);
-            break;
+            case 'dpt':
+                $url = 'data-dpt';
+                break;
 
-        case 'dpt':
-            $url = 'data-dpt';
-            break;
+            case 'statistik':
+                $cek = StatistikEnum::slugFromKey($cut[1]);
+                $url = $cek ? "data-statistik/{$cek}" : "first/{$url}";
+                break;
 
-        case 'statistik':
-            $cek = StatistikEnum::slugFromKey($cut[1]);
-            $url = $cek ? "data-statistik/{$cek}" : "first/{$url}";
+            case 'informasi_publik':
+                $url = 'informasi-publik';
+                break;
 
-            break;
+            // TODO: Jika semua link pada tabel menu sudah tidak menggunakan first/ lagi ganti hapus case
+            // dibawah ini yang datanya diambil dari tabel menu dan ganti default adalah $url.
+            case 'arsip':
+            case 'data_analisis':
+            case 'ambil_data_covid':
+            case 'load_aparatur_desa':
+            case 'load_apbdes':
+            case 'load_aparatur_wilayah':
+            case 'peta':
+            case 'data-wilayah':
+            case 'status-idm':
+            case 'status-sdgs':
+            case 'lapak':
+            case 'pembangunan':
+            case 'galeri':
+            case 'pengaduan':
+            case 'data-vaksinasi':
+            case 'peraturan-desa':
+            case 'pemerintah':
+            case 'layanan-mandiri':
+            case 'inventaris':
+            case 'struktur-organisasi-dan-tata-kerja':
+            case 'data-kesehatan':
+                break;
 
-        case 'informasi_publik':
-            $url = 'informasi-publik';
-            break;
+            default:
+                $url = "first/{$url}";
+                break;
+        }
 
-            /*
-                * TODO : Jika semua link pada tabel menu sudah tdk menggunakan first/ lagi
-                * Ganti hapus case dibawah ini yg datanya diambil dari tabel menu dan ganti default adalah $url;
-                */
-        case 'arsip':
-        case 'data_analisis':
-        case 'ambil_data_covid':
-        case 'load_aparatur_desa':
-        case 'load_apbdes':
-        case 'load_aparatur_wilayah':
-        case 'peta':
-        case 'data-wilayah':
-        case 'status-idm':
-        case 'status-sdgs':
-        case 'lapak':
-        case 'pembangunan':
-        case 'galeri':
-        case 'pengaduan':
-        case 'data-vaksinasi':
-        case 'peraturan-desa':
-        case 'pemerintah':
-        case 'layanan-mandiri':
-        case 'inventaris':
-        case 'struktur-organisasi-dan-tata-kerja':
-        case 'data-kesehatan':
-            break;
-
-        default:
-            $url = 'first/' . $url;
-            break;
+        return site_url($url);
     }
-
-    return site_url($url);
 }
 
 function gelar($gelar_depan = null, $nama = null, $gelar_belakang = null)
@@ -1680,6 +1735,33 @@ if (! function_exists('sekdes')) {
     }
 }
 
+if (! function_exists('cek_kades_sekdes')) {
+    /**
+     * - Fungsi untuk mengecek apakah jabatan kepala desa dan sekretaris desa sudah terisi.
+     * - Jika tidak terisi, akan mengirimkan pesan peringatan untuk melengkapi data melalui halaman periksa.
+     */
+    function cek_kades_sekdes(): void
+    {
+        $sebutanDesa           = ucwords(setting('sebutan_desa', 'Desa'));
+        $kepalaDesa            = Pamong::kepalaDesa()->exists();
+        $sebutanKades          = setting('sebutan_kepala_desa', 'Kepala ' . $sebutanDesa);
+        $sebutanSekdes         = setting('sebutan_sekretaris_desa', 'Sekretaris ' . $sebutanDesa);
+        $sebutanPemerintahDesa = ucwords(setting('sebutan_pemerintah_desa'));
+        $linkPerikas           = '<a href="' . site_url('periksa') . '" class="alert-link">Periksa</a>';
+        $linkPengurus          = '<a href="' . site_url('pengurus') . '" class="alert-link">' . $sebutanPemerintahDesa . '</a>';
+
+        if (! kades() || ! sekdes()) {
+            $warningMessage = "Jabatan {$sebutanKades} atau {$sebutanSekdes} belum tersedia. Silakan lengkapi data tersebut melalui halaman {$linkPerikas} terlebih dahulu.";
+            set_session('autodismiss', true);
+            set_session('warning', $warningMessage);
+        } elseif (! $kepalaDesa) {
+            $warningMessage = "Anda belum dapat membuat surat karena {$sebutanKades} belum dipilih. Silakan lengkapi data pada halaman {$linkPengurus} terlebih dahulu.";
+            set_session('autodismiss', true);
+            set_session('warning', $warningMessage);
+        }
+    }
+}
+
 if (! function_exists('super_admin')) {
     /**
      * - Fungsi untuk mengambil id dengan grup superadmin.
@@ -1688,10 +1770,7 @@ if (! function_exists('super_admin')) {
      */
     function super_admin()
     {
-        $ci = &get_instance();
-        $ci->load->model('user_model');
-
-        return $ci->user_model->get_super_admin();
+        return User::superAdmin()->id;
     }
 }
 
@@ -1702,6 +1781,16 @@ if (! function_exists('is_super_admin')) {
     function is_super_admin(): bool
     {
         return (int) ci_auth()->id === super_admin();
+    }
+}
+
+if (! function_exists('is_group_administrator')) {
+    /**
+     * - Fungsi untuk mengecek apakah user login dalam group administrator.
+     */
+    function is_group_administrator(): bool
+    {
+        return (int) ci_auth()->id_grup === UserGrup::getGrupId(UserGrup::ADMINISTRATOR);
     }
 }
 
@@ -1721,6 +1810,146 @@ if (! function_exists('ref')) {
                     'id'   => $key,
                     'nama' => $item,
                 ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_agama' => collect(AgamaEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_sex' => collect(JenisKelaminEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_golongan_darah' => collect(GolonganDarahEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_warganegara' => collect(WargaNegaraEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_warganegara' => collect(WargaNegaraEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_kawin' => collect(StatusKawinEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_pendidikan' => collect(PendidikanSedangEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_pekerjaan' => collect(PekerjaanEnum::all())->map(static function ($item, $key) {
+            return (object) [
+                'id'   => $key,
+                'nama' => $item,
+            ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_pendidikan_kk' => collect(PendidikanKKEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_keluarga_sejahtera' => collect(KeluargaSejahteraEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'ref_penduduk_bidang' => collect(PendudukBidangEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'ref_penduduk_kursus' => collect(PendudukKursusEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'analisis_ref_state' => collect(AnalisisRefStateEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'analisis_ref_subjek' => collect(AnalisisRefSubjekEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'     => $key,
+                    'subjek' => $item,
+                ];
+            })->values()->toArray(),
+
+            'analisis_tipe_indikator' => collect(AnalisisTipeIndikatorEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'tipe' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_penduduk_asuransi' => collect(AsuransiEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'ref_penduduk_bahasa' => collect(BahasaEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'ref_peristiwa' => collect(PeristiwaPendudukEnum::labels())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'tweb_status_dasar' => collect(StatusDasarEnum::all())->map(static function ($item, $key) {
+                return (object) [
+                    'id'   => $key,
+                    'nama' => $item,
+                ];
+            })->values()->toArray(),
+
+            'ref_pindah' => collect(PindahEnum::all())->map(static function ($item, $key) {
+                 return (object) [
+                     'id'   => $key,
+                     'nama' => $item,
+                 ];
             })->values()->toArray(),
 
             default => ci()->db->get($alias)->result(),
@@ -1912,14 +2141,6 @@ if (! function_exists('hapus_kab_kota')) {
     }
 }
 
-function artikel_get_id($id)
-{
-    $CI = &get_instance();
-    $CI->load->model('first_artikel_m');
-
-    return $CI->first_artikel_m->get_artikel_by_id($id);
-}
-
 /**
  * @param string
  *
@@ -1993,6 +2214,22 @@ if (! function_exists('formatTanggal')) {
         }
 
         return Carbon::parse($tanggal)->translatedFormat(setting('format_tanggal_surat'));
+    }
+}
+
+/**
+ * @param string $jam
+ *
+ * @return string
+ */
+if (! function_exists('formatJam')) {
+    function formatJam($jam = null)
+    {
+        if (null === $jam) {
+            return setting('ganti_data_kosong');
+        }
+
+        return Carbon::parse($jam)->format('H:i');
     }
 }
 
@@ -2135,6 +2372,13 @@ if (! function_exists('daftar_statistik')) {
     }
 }
 
+if (! function_exists('menu_statistik_aktif')) {
+    function menu_statistik_aktif()
+    {
+        return Menu::where('link', 'like', 'statistik%')->orWhereIn('link', ['dpt', 'data-wilayah'])->active()->pluck('link', 'link');
+    }
+}
+
 if (! function_exists('isNestedArray')) {
     function isNestedArray($array, $json = false): bool
     {
@@ -2193,7 +2437,7 @@ if (! function_exists('getSuratBawaanDinasTinyMCE')) {
         $list_data = file_get_contents(DEFAULT_LOKASI_IMPOR . 'template-surat-dinas-tinymce.json');
 
         return collect(json_decode($list_data, true))
-            ->when($url_surat, static fn ($collection) => $collection->where('url_surat', $url_surat))->map(static fn ($item) => collect($item)->except('id', 'config_id', 'created_at', 'updated_at', 'created_by', 'updated_by', 'deleted_at', 'margin_cm_to_mm', 'url_surat_sistem', 'url_surat_desa', 'kunci')->toArray());
+            ->when($url_surat, static fn ($collection) => $collection->where('url_surat', $url_surat))->map(static fn ($item) => collect($item)->except('id', 'config_id', 'created_at', 'updated_at', 'created_by', 'updated_by', 'deleted_at', 'margin_cm_to_mm', 'url_surat_sistem', 'url_surat_desa', 'kunci', 'qr_code_tte')->toArray());
     }
 }
 
@@ -2307,7 +2551,7 @@ if (! function_exists('caseWord')) {
 
         // Kasus lain RT / RW
         if (preg_match('/\balamat(_[^\s]*)?\b/i', strtolower($condition))) {
-            $teks = str_ireplace(['Rt', 'Rw'], ['RT', 'RW'], $teks);
+            $teks = preg_replace_callback('/\b(RT|Rw|Rt|rw)\b/i', static fn ($matches) => strtoupper($matches[1]), $teks);
         }
 
         // Return teks asli jika tidak sesuai kondisi
@@ -2319,21 +2563,37 @@ if (! function_exists('caseHitung')) {
     function caseHitung($teks)
     {
         $pola = '/\[(hitung|HiTung|Hitung|HitunG|HItung)]\[(.+?)]/';
-        $teks = str_replace(['[Op+]', '[Op\\]', '[Op*]', '[Op-]'], ['+', '/', '*', '-'], $teks);
+        $teks = str_replace(['[Op+]', '[Op/]', '[Op*]', '[Op-]'], ['+', '/', '*', '-'], $teks);
 
         return preg_replace_callback($pola, static function (array $matches) {
+            // hanya angka, operator, kurung
             $onlyNumberAndOperator = preg_replace('/[^0-9\+\-\*\/\(\)]/', '', $matches[2]);
-            if (strpos($onlyNumberAndOperator, '/0') !== false) {
-            return '0';
+
+            // hapus operator di awal/akhir
+            $onlyNumberAndOperator = preg_replace('/^[\+\*\/]+|[\+\-\*\/]+$/', '', $onlyNumberAndOperator);
+
+            // jika kosong, return 0
+            if ($onlyNumberAndOperator === '') {
+                return '0';
             }
 
-            $operasi = eval("return {$onlyNumberAndOperator};");
+            // jika ada operator ganda, rapikan (misal "++", "+*", dll → hapus terakhir)
+            $onlyNumberAndOperator = preg_replace('/[\+\-\*\/]+$/', '', $onlyNumberAndOperator);
+
+            try {
+                $operasi = eval("return ({$onlyNumberAndOperator});");
+            } catch (Throwable $e) {
+                log_message('error', 'Eval gagal: ' . $onlyNumberAndOperator . ' | ' . $e->getMessage());
+
+                return '0';
+            }
 
             $ke = caseWord($matches[1], $operasi);
 
             if (preg_match('/[Rr][pP]/', $matches[2])) {
-                // jika hasil operasinya -, maka minus berada di depan Rp. contohnya - Rp. 100.000
-                return strpos($ke, '-') === 0 ? str_replace('-', '- Rp. ', rupiah24($ke, 'Rp. ', 0)) : rupiah24($ke, 'Rp. ', 0);
+                return strpos($ke, '-') === 0
+                    ? str_replace('-', '- Rp. ', rupiah24($ke, 'Rp. ', 0))
+                    : rupiah24($ke, 'Rp. ', 0);
             }
 
             return $ke;
@@ -2458,78 +2718,6 @@ if (! function_exists('get_hari')) {
     }
 }
 
-if (! function_exists('akas')) {
-    /**
-     * Class registry
-     *
-     * This function acts as a singleton. If the requested class does not
-     * exist it is instantiated and set to a static variable. If it has
-     * previously been instantiated the variable is returned.
-     *
-     * @param string	the class name being requested
-     * @param string	the directory where the class should be found
-     * @param mixed	an optional argument to pass to the class constructor
-     * @param mixed      $class
-     * @param mixed      $directory
-     * @param mixed|null $param
-     *
-     * @return object
-     */
-    function akas(string $class, string $directory = '', $param = null)
-    {
-        static $_classes = [];
-
-        // Does the class exist? If so, we're done...
-        if (isset($_classes[$class])) {
-            return $_classes[$class];
-        }
-
-        $name = false;
-
-        // Look for the class first in the local application/libraries folder
-        // then in the native system/libraries folder
-        foreach ([APPPATH, BASEPATH] as $path) {
-            if (file_exists($path . $directory . '/' . $class . '.php')) {
-                $name = 'CI_' . $class;
-
-                if (class_exists($name, false) === false) {
-                    require_once $path . $directory . '/' . $class . '.php';
-                }
-
-                break;
-            }
-        }
-
-        // Is the request a class extension? If so we load it too
-        if (file_exists(APPPATH . $directory . '/' . config_item('subclass_prefix') . $class . '.php')) {
-            $name = config_item('subclass_prefix') . $class;
-
-            if (class_exists($name, false) === false) {
-                require_once APPPATH . $directory . '/' . $name . '.php';
-            }
-        }
-
-        // Did we find the class?
-        if ($name === false) {
-            // Note: We use exit() rather than show_error() in order to avoid a
-            // self-referencing loop with the Exceptions class
-            set_status_header(503);
-            echo 'Unable to locate the specified class: ' . $class . '.php';
-
-            exit(5); // EXIT_UNK_CLASS
-        }
-
-        // Keep track of what we just loaded
-        is_loaded($class);
-
-        $_classes[$class] = isset($param)
-            ? new $name($param)
-            : new $name();
-
-        return $_classes[$class];
-    }
-}
-
 if (! function_exists('forceRemoveDir')) {
     function forceRemoveDir(string $dir): void
     {
@@ -2570,13 +2758,17 @@ if (! function_exists('getStatistikLabel')) {
         $kategori = 'Penduduk';
         $label    = 'Jumlah dan Persentase Penduduk Berdasarkan ' . $stat . $akhiran;
 
-        if ((int) $lap > 50) {
-            // Untuk program bantuan, $lap berbentuk '50<program_id>'
-            $program_id               = substr($lap, 2);
-            $program                  = Bantuan::select(['nama', 'sasaran'])->find($program_id)->toArray();
+        if ($bantuan = Bantuan::whereSlug($lap)->select(['nama', 'sasaran'])->first()) {
+            $program                  = $bantuan->toArray();
             $program['judul_sasaran'] = SasaranEnum::valueOf($program['sasaran']);
             $kategori                 = 'Bantuan';
             $label                    = 'Jumlah dan Persentase Peserta ' . $program['nama'] . $akhiran;
+
+        } elseif (preg_match('/^50(\d+)$/', $lap, $matches)) {
+            $kategori     = 'Program Bantuan';
+            $bantuanId    = (int) $matches[1]; // Ambil ID setelah '50'
+            $bantuanModel = Bantuan::find($bantuanId);
+            $label        = 'Jumlah dan Persentase Peserta ' . $bantuanModel['nama'] . $akhiran;
         } elseif ((int) $lap > 20 || $lap === 'kelas_sosial') {
             $kategori = 'Keluarga';
             $label    = 'Jumlah dan Persentase Keluarga Berdasarkan ' . $stat . $akhiran;
@@ -2588,6 +2780,11 @@ if (! function_exists('getStatistikLabel')) {
                     break;
 
                 case 'bdt':
+                    $kategori = 'RTM';
+                    $label    = 'Jumlah dan Persentase Rumah Tangga Berdasarkan ' . $stat . $akhiran;
+                    break;
+
+                case 'dtsen':
                     $kategori = 'RTM';
                     $label    = 'Jumlah dan Persentase Rumah Tangga Berdasarkan ' . $stat . $akhiran;
                     break;
@@ -2615,7 +2812,7 @@ if (! function_exists('getStatistikLabel')) {
                     break;
 
                 case '4':
-                    $label = 'Jumlah Penduduk yang Memiliki Hak Suara ' . $stat . $akhiran;
+                    $label = 'Jumlah dan Persentase Penduduk Menurut ' . $stat . $akhiran;
                     break;
 
                 case 'hamil':
@@ -2663,8 +2860,7 @@ function waktu($waktu_terakhir): string
         return "{$bulan} bulan yang lalu";
     }
 
-        return "{$tahun} tahun yang lalu";
-
+    return "{$tahun} tahun yang lalu";
 }
 
 function versiUmumSetara($version): string
@@ -2697,4 +2893,59 @@ function dummyQrCode($logo)
     $qrCode['viewqr'] = qrcode_generate($qrCode);
 
     return $qrCode;
+}
+
+function randomCode($length)
+{
+    return substr(base_convert(sha1(uniqid(random_int(0, mt_getrandmax()))), 16, 36), 0, $length);
+}
+
+function encodeId($plainText)
+{
+    $key         = time();
+    $random_code = randomCode(20);
+    $base64      = base64_encode($random_code . ',' . $plainText . ',' . $key . ',' . $plainText);
+    $base64url   = strtr($base64, '+/=', '-  ');
+
+    return trim($base64url);
+}
+
+function decodeId($plainText)
+{
+    $base64url = strtr($plainText, '-  ', '+/=');
+    $base64    = base64_decode($base64url, true);
+    $exp       = explode(',', $base64);
+
+    return ($exp[1] !== $exp[3]) ? $plainText : $exp[1];
+}
+
+if (! function_exists('cek_kehadiran')) {
+    /**
+     * Cek perangkat lupa absen
+     */
+    function cek_kehadiran(): void
+    {
+        $cek_libur = JamKerja::libur()->first();
+        $cek_jam   = JamKerja::jamKerja()->first();
+        $kehadiran = Kehadiran::where('status_kehadiran', 'hadir')->where('jam_keluar', null)->get();
+        if ($kehadiran->count() > 0 && ($cek_jam != null || $cek_libur != null)) {
+            foreach ($kehadiran as $data) {
+                Kehadiran::lupaAbsen($data->tanggal);
+            }
+        }
+    }
+}
+
+function cekVersiMinimal($versiMinimal)
+{
+    $release = new App\Libraries\Release();
+
+    return $release->fixVersioning(ambilVersi()) >= $release->fixVersioning($versiMinimal);
+}
+
+function cekVersiMaksimal($versiMaksimal)
+{
+    $release = new App\Libraries\Release();
+
+    return $release->fixVersioning(ambilVersi()) <= $release->fixVersioning($versiMaksimal);
 }

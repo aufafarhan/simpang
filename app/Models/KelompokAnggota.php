@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -47,18 +47,18 @@ class KelompokAnggota extends BaseModel
     use ConfigId;
 
     /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'kelompok_anggota';
-
-    /**
      * The timestamps for the model.
      *
      * @var bool
      */
     public $timestamps = false;
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'kelompok_anggota';
 
     /**
      * The guarded with the model.
@@ -69,7 +69,46 @@ class KelompokAnggota extends BaseModel
 
     protected $appends = [
         'nama_jabatan',
+        'alamat_lengkap',
+        'nama_penduduk',
     ];
+
+    public static function boot(): void
+    {
+        parent::boot();
+
+        static::updating(static function ($model): void {
+            static::deleteFile($model, 'foto');
+        });
+
+        static::deleting(static function ($model): void {
+            static::deleteFile($model, 'foto', true);
+        });
+    }
+
+    public static function deleteFile($model, ?string $file, bool $deleting = false): void
+    {
+        if ($model->isDirty($file) || $deleting) {
+            $lokasi   = $model->tipe === 'kelompok' ? LOKASI_FOTO_KELOMPOK : LOKASI_FOTO_LEMBAGA;
+            $pathFile = $lokasi . $model->getOriginal($file);
+
+            if (file_exists($pathFile)) {
+                unlink($pathFile);
+            }
+        }
+    }
+
+    public static function listJabatan($id_kelompok = 0, $tipe = 'kelompok')
+    {
+        return self::distinct()
+            ->selectRaw('UPPER(jabatan) as jabatan ')
+            ->whereRaw("jabatan REGEXP '[a-zA-Z]+'")
+            ->where('id_kelompok', $id_kelompok)
+            ->where('tipe', $tipe)
+            ->orderBy('jabatan')
+            ->get()
+            ->toArray();
+    }
 
     /**
      * Scope query untuk tipe kelompok
@@ -79,6 +118,36 @@ class KelompokAnggota extends BaseModel
     public function scopeTipe(mixed $query, mixed $tipe = 'kelompok')
     {
         return $query->where("{$this->table}.tipe", $tipe);
+    }
+
+    public function scopePengurus($query)
+    {
+        return $query->where('jabatan', '!=', JabatanKelompokEnum::ANGGOTA)->orderBy('jabatan');
+    }
+
+    public function scopeAnggota($query)
+    {
+        return $query->where('jabatan', '=', JabatanKelompokEnum::ANGGOTA);
+    }
+
+    public function scopeSlugKelompok($query, $slug)
+    {
+        return $query->whereHas('kelompok', static function ($query) use ($slug): void {
+            $query->where('slug', $slug);
+        });
+    }
+
+    public function getAlamatLengkapAttribute(): string
+    {
+        $sebutanDusun = ucwords((string) setting('sebutan_dusun'));
+        $alamat       = "{$this->anggota->wilayah->dusun} RW {$this->anggota->wilayah->rw} RT {$this->anggota->wilayah->rt}";
+
+        return $alamat === ' RW  RT ' ? '' : "{$sebutanDusun} {$alamat}";
+    }
+
+    public function getNamaPendudukAttribute(): string
+    {
+        return ucwords((string) $this->anggota->nama);
     }
 
     /**
@@ -94,7 +163,7 @@ class KelompokAnggota extends BaseModel
 
         return $this->withoutGlobalScopes()
             ->withConfigId('ka')
-            ->selectRaw('ka.*, tp.nik, tp.nama, tp.tempatlahir, tp.tanggallahir, tp.sex AS id_sex, tpx.nama AS sex, tp.foto, tpp.nama as pendidikan, tpa.nama as agama')
+            ->selectRaw('ka.*, tp.nik, tp.nama, tp.tempatlahir, tp.tanggallahir, tp.sex, tp.sex AS id_sex, tp.foto, tpp.nama as pendidikan')
             ->selectRaw("(SELECT DATE_FORMAT(FROM_DAYS(TO_DAYS(NOW())-TO_DAYS(tanggallahir)), '%Y')+0 FROM tweb_penduduk WHERE id = tp.id) AS umur")
             ->selectRaw('a.dusun,a.rw,a.rt')
             ->selectRaw("CONCAT('{$sebutanDusun} ', a.dusun, ' RW ', a.rw, ' RT ', a.rt) AS alamat")
@@ -109,9 +178,7 @@ class KelompokAnggota extends BaseModel
             ")
             ->from('kelompok_anggota as ka')
             ->join('tweb_penduduk as tp', 'ka.id_penduduk', '=', 'tp.id', 'left')
-            ->join('tweb_penduduk_sex as tpx', 'tp.sex', '=', 'tpx.id', 'left')
             ->join('tweb_penduduk_pendidikan_kk as tpp', 'tp.pendidikan_kk_id', '=', 'tpp.id', 'left')
-            ->join('tweb_penduduk_agama as tpa', 'tp.agama_id', '=', 'tpa.id', 'left')
             ->join('tweb_wil_clusterdesa as a', 'tp.id_cluster', '=', 'a.id', 'left')
             ->where('ka.id_kelompok', $kelompokId)
             ->orderByRaw('CAST(jabatan AS UNSIGNED) + 30 - jabatan, CAST(no_anggota AS UNSIGNED)');
@@ -119,7 +186,10 @@ class KelompokAnggota extends BaseModel
 
     public function getNamaJabatanAttribute(): string
     {
-        return strtoupper((string) JabatanKelompokEnum::valueOf($this->jabatan));
+        // check if jabatan is string, aware of "1"
+        return is_string($this->jabatan) && ! is_numeric($this->jabatan)
+            ? strtoupper($this->jabatan)
+            : strtoupper((string) JabatanKelompokEnum::valueOf($this->jabatan));
     }
 
     public function scopeUbahJabatan($query, $id_kelompok, $id_penduduk, $jabatan, $jabatan_lama): bool
@@ -152,30 +222,5 @@ class KelompokAnggota extends BaseModel
     public function kelompok()
     {
         return $this->belongsTo(Kelompok::class, 'id_kelompok', 'id');
-    }
-
-    public static function boot(): void
-    {
-        parent::boot();
-
-        static::updating(static function ($model): void {
-            static::deleteFile($model, 'foto');
-        });
-
-        static::deleting(static function ($model): void {
-            static::deleteFile($model, 'foto', true);
-        });
-    }
-
-    public static function deleteFile($model, ?string $file, bool $deleting = false): void
-    {
-        if ($model->isDirty($file) || $deleting) {
-            $lokasi   = $model->tipe === 'kelompok' ? LOKASI_FOTO_KELOMPOK : LOKASI_FOTO_LEMBAGA;
-            $pathFile = $lokasi . $model->getOriginal($file);
-
-            if (file_exists($pathFile)) {
-                unlink($pathFile);
-            }
-        }
     }
 }

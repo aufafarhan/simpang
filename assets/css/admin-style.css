@@ -69,6 +69,11 @@
     font-size: 1.4em;
 }
 
+.btn-social.btn-sm {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
 .user-panel {
     padding: 5px 0 0 0;
 }
@@ -186,6 +191,12 @@
 .table-bordered>thead>tr>th,
 .table-bordered>thead>tr>td {
     padding: 7px;
+    text-transform: uppercase;
+    background-color: #d2d6de !important;
+}
+.table-bordered>thead.disabled,
+.table-bordered>thead.disabled {
+    opacity: 1;
 }
 
 @media (max-width:480px) {
@@ -248,6 +259,25 @@ table.table-bordered.dataTable th:last-child,
 table.table-bordered.dataTable td:last-child,
 table.table-bordered.dataTable td:last-child {
     border-right-width: 1px;
+}
+
+/* Tambahkan ruang hanya pada kolom yang bisa diurutkan */
+table.dataTable thead th.sorting,
+table.dataTable thead th.sorting_asc,
+table.dataTable thead th.sorting_desc {
+    position: relative;
+    padding-right: 35px !important; /* Tambahkan lebih banyak ruang untuk ikon sorting */
+}
+
+/* Sesuaikan posisi ikon sorting tanpa mengubah ukurannya */
+table.dataTable thead th.sorting::after,
+table.dataTable thead th.sorting_asc::after,
+table.dataTable thead th.sorting_desc::after {
+    position: absolute;
+    right: 12px; /* Geser ikon lebih ke kanan */
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.5; /* Kurangi transparansi agar lebih halus */
 }
 
 .table-bordered>thead>tr>th,
@@ -335,25 +365,6 @@ th.nostretch {
     overflow: auto;
 }
 
-#op_item div {
-    margin: 1px 0;
-    background: #fafafa;
-    border: 1px solid #ddd;
-}
-
-#op_item input {
-    vertical-align: middle;
-    margin: 0px 2px;
-}
-
-#op_item label {
-    width: 100%;
-    padding: 4px 10px 0px 2px;
-    font-size: 11px;
-    line-height: 14px;
-    font-weight: normal;
-}
-
 table.head {
     font-size: 14px;
     font-weight: bold;
@@ -376,16 +387,17 @@ table.head {
     border: 1px solid #ddd;
 }
 
-#op_item input {
-    vertical-align: middle;
-    margin: 0px 2px;
-}
-
 #op_item label {
-    padding: 4px 10px 0px 2px;
+    width: 100%;
+    padding: 5px;
     font-size: 11px;
     line-height: 14px;
     font-weight: normal;
+}
+
+#op_item input {
+    vertical-align: middle;
+    margin: 0px 2px;
 }
 
 table.head {
@@ -731,7 +743,9 @@ div.form-surat .content-header {
 }
 
 #dok_warga label {
-    padding-left: 10px;
+    display: flex; 
+    align-items: center; 
+    gap: 5px;
 }
 
 .mailbox-read-info{
@@ -853,7 +867,45 @@ hr.batas {
     border-radius: 5px;
 }
 
+.input-group-sm > .input-group-btn > .btn, .input-group-btn:last-child > .btn:not(:last-child):not(.dropdown-toggle) {
+    border-radius: 3px;
+}
+
 .judul-besar {
     text-transform: uppercase;
     font-size: 12px;
+}
+
+.bootstrap-datetimepicker-widget table td {
+    text-align: center; /* Pusatkan elemen */
+    vertical-align: middle; /* Sejajarkan vertikal */
+    width: 40px; /* Sesuaikan lebar kolom */
+    padding: 10px; /* Kurangi padding agar lebih kompak */
+}
+table.dataTable thead th.sorting[rowspan="2"]::after, table.dataTable thead th.sorting_asc[rowspan="2"]::after, table.dataTable thead th.sorting_desc[rowspan="2"]::after{
+    top: 58%;
+}
+
+.ribbon-wrapper {
+    position: absolute;
+    top: 0;
+    right: 0;
+    overflow: hidden;
+    width: 85px;
+    height: 85px;
+}
+
+.ribbon {
+    position: absolute;
+    display: block;
+    width: 120px;
+    padding: 5px 0;
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    transform: rotate(45deg);
+    top: 13px;
+    right: -35px;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
 }

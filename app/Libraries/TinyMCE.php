@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,8 @@
 
 namespace App\Libraries;
 
+use App\Enums\PeristiwaPendudukEnum;
+use App\Libraries\TinyMCE\AtasNama;
 use App\Libraries\TinyMCE\FakeDataIsian;
 use App\Libraries\TinyMCE\KodeIsianAnggotaKeluarga;
 use App\Libraries\TinyMCE\KodeIsianAritmatika;
@@ -53,13 +55,12 @@ use App\Libraries\TinyMCE\KodeIsianWilayah;
 use App\Models\AliasKodeIsian;
 use App\Models\FormatSurat;
 use App\Models\LampiranSurat;
-use App\Models\LogPenduduk;
 use App\Models\LogSurat;
 use App\Models\LogSuratDinas;
 use App\Models\Pamong;
+use App\Models\PendudukSaja;
 use App\Models\SettingAplikasi;
 use App\Models\SuratDinas;
-use CI_Controller;
 use DOMDocument;
 use Karriere\PdfMerge\PdfMerge;
 use Spipu\Html2Pdf\Exception\ExceptionFormatter;
@@ -68,6 +69,7 @@ use Spipu\Html2Pdf\Html2Pdf;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+define('K_TCPDF_THROW_EXCEPTION_ERROR', true);
 define('K_PATH_FONTS', LOKASI_FONT_DESA);
 
 class TinyMCE
@@ -118,11 +120,11 @@ class TinyMCE
         <td style="width: 60%; text-align: left; vertical-align: top;">
         <ul style="font-size: 6pt;">
         <li style="font-size: 6pt;"><span style="font-size: 6pt;">UU ITE No. 11 Tahun 2008 Pasal 5 ayat 1 "Informasi Elektronik dan/atau hasil cetaknya merupakan alat bukti hukum yang sah".</span></li>
-        <li style="font-size: 6pt;"><span style="font-size: 6pt;">Dokumen ini tertanda ditandatangani secara elektronik menggunakan sertifikat elektronik yang diterbitkan BSrE.</span></li>
+        <li style="font-size: 6pt;"><span style="font-size: 6pt;">Dokumen ini tertanda ditandatangani secara elektronik menggunakan sertifikat elektronik yang diterbitkan BSrE - BSSN.</span></li>
         <li style="font-size: 6pt;"><span style="font-size: 6pt;">Surat ini dapat dibuktikan keasliannya dengan menggunakan qr code yang telah tersedia.</span></li>
         </ul>
         </td>
-        <td style="width: 25%; text-align: center;">[qr_bsre]</td>
+        <td style="width: 25%; text-align: center;"></td>
         </tr>
         </tbody>
         </table>
@@ -177,19 +179,15 @@ class TinyMCE
         <li style="font-size: 6pt;"><span style="font-size: 6pt;">Surat ini dapat dibuktikan keasliannya dengan menggunakan qr code yang telah tersedia.</span></li>
         </ul>
         </td>
-        <td style="width: 25%; text-align: center;">[qr_bsre]</td>
+        <td style="width: 25%; text-align: center;"></td>
         </tr>
         </tbody>
         </table>
     ';
-    public const TOP          = 4; // cm
+    public const TOP          = 3.3; // cm
     public const BOTTOM       = 2; // cm
     public const DEFAULT_FONT = 'Times New Roman';
-
-    /**
-     * @var CI_Controller
-     */
-    protected $ci;
+    public const TAG_TTE      = '#';
 
     /**
      * @var PdfMerge
@@ -198,12 +196,20 @@ class TinyMCE
 
     private $defaultFont;
 
+    /**
+     * CodeIgniter session instance (may be null if not set elsewhere).
+     * Initialized in constructor to avoid calling methods on null.
+     *
+     * @var mixed
+     */
+    private $session;
+
     public function __construct()
     {
-        $this->ci = &get_instance();
-        $this->ci->load->model('surat_model');
-
         $this->pdfMerge = new PdfMerge();
+        // Pastikan instance session tersedia; gunakan app('ci')->session yang digunakan di beberapa file
+        // untuk mengakses session CodeIgniter dari konteks aplikasi ini.
+        $this->session = app('ci')->session ?? null;
     }
 
     public function getTemplate()
@@ -348,7 +354,7 @@ class TinyMCE
 
         $peristiwa = $data['surat']->form_isian->individu->status_dasar ?? [];
         $peristiwa = is_array($peristiwa) ? $peristiwa : [$peristiwa];
-        if (array_intersect($peristiwa, LogPenduduk::PERISTIWA)) {
+        if (array_intersect($peristiwa, PeristiwaPendudukEnum::peristiwa())) {
             $daftar_kode_isian['Peristiwa'] = KodeIsianPeristiwa::get($idPenduduk, $peristiwa);
         }
 
@@ -423,8 +429,8 @@ class TinyMCE
         // Pisahkan isian surat
         $isi           = str_replace('<p><!-- pagebreak --></p>', '<!-- pagebreak -->', $isi);
         $isi           = explode('<!-- pagebreak -->', $isi);
-        $tinggi_header = (float) ($this->ci->session->pengaturan_surat['tinggi_header'] ?: setting('tinggi_header')) * 10 . 'mm';
-        $tinggi_footer = (float) ($this->ci->session->pengaturan_surat['tinggi_footer'] ?: setting('tinggi_footer')) * 10 . 'mm';
+        $tinggi_header = (float) (app('ci')->session->pengaturan_surat['tinggi_header'] ?: setting('tinggi_header')) * 10 . 'mm';
+        $tinggi_footer = (float) (app('ci')->session->pengaturan_surat['tinggi_footer'] ?: setting('tinggi_footer')) * 10 . 'mm';
 
         // Pengaturan Header
         switch ($header) {
@@ -559,6 +565,18 @@ class TinyMCE
                 $result = str_replace($key, $data['pengikut_kis'] ?? '', $result);
             }
 
+            if (preg_match('/pengikut_pi_pendidikan_pekerjaan/i', $key)) {
+                $result = str_replace($key, $data['pengikut_pi_pendidikan_pekerjaan'] ?? '', $result);
+            }
+
+            if (preg_match('/pengikut_pi_agama_lainnya/i', $key)) {
+                $result = str_replace($key, $data['pengikut_pi_agama_lainnya'] ?? '', $result);
+            }
+
+            if (preg_match('/pengikut_pi/i', $key)) {
+                $result = str_replace($key, $data['pengikut_pi'] ?? '', $result);
+            }
+
             if (preg_match('/pengikut_pindah/i', $key)) {
                 $result = str_replace($key, $data['pengikut_pindah'] ?? '', $result);
             }
@@ -675,9 +693,9 @@ class TinyMCE
     public function generateSurat($surat, array $data, $margins, $defaultFont)
     {
         $surat = str_replace(base_url(), FCPATH, $surat);
-        $surat = $this->updateHeightTd($surat);
-        $pdf   = (new Html2Pdf($data['surat']['orientasi'], $data['surat']['ukuran'], 'en', true, 'UTF-8', $margins))
-            ->setTestTdInOnePage(true)
+        // $surat = $this->updateHeightTd($surat);
+        $pdf = (new Html2Pdf($data['surat']['orientasi'], $data['surat']['ukuran'], 'en', true, 'UTF-8', $margins))
+            ->setTestTdInOnePage(false)
             ->setDefaultFont($defaultFont);
 
         $this->cekFontSurat($surat, $pdf->pdf->getFontList());
@@ -689,191 +707,116 @@ class TinyMCE
     }
 
     /**
-     * Cek font yang digunakan pada surat. Jika font tidak ditemukan, maka tampilkan pesan error.
-     *
-     * @param string $surat
-     * @param array  $listFont
-     *
-     * @return void
-     */
-    private function cekFontSurat($surat, $listFont)
-    {
-        preg_match_all("/font-family:\\s*'([^']+)'/", $surat, $matches);
-
-        // Mengambil semua font-family yang ditemukan
-        $fontSurat = [];
-        if (! empty($matches[1])) {
-            $fontFamilies = $matches[1];
-            $fontSurat    = array_unique($fontFamilies);
-        }
-
-        // remove font default, misalnya 'arial' karna tidak ada didalam listFont (sudah ada di sistem), tambahkan jika ada penyesuaian
-        $fontSurat = array_diff($fontSurat, ['arial']);
-
-        $missingFonts = array_diff($fontSurat, $listFont);
-        if (! empty($missingFonts)) {
-            $missingFonts = implode(', ', $missingFonts);
-            $missingFonts = ucwords(str_replace('_', ' ', $missingFonts));
-            redirect_with('error', 'Font ' . $missingFonts . ' pada surat tidak ditemukan, silahkan hubungi administrator.');
-        }
-    }
-
-    /**
      * Generate lampiran menggunakan html2pdf, kemudian gabungakan ke pdfMerge.
      *
      * @param int|string|null $id
+     * @param mixed           $preview
      *
      * @return PdfMerge|null
      */
-    public function generateLampiran($id = null, array $data = [], array $input = [])
+    public function generateLampiran($id = null, array $data = [], array $input = [], $preview = false)
     {
         if (empty($data['surat']['lampiran'])) {
             return;
         }
 
-        $surat  = $data['surat'];
-        $config = identitas();
+        $surat   = $data['surat'];
+        $config  = identitas();
+        $setting = setting();
 
-        // TODO: Cek apakah ini masih digunakan
-        $individu = $this->surat_model->get_data_surat($id);
+        // TODO: Cek apakah ini masih digunakan, masih digunakan di lampiran surat
+        $individu = (new PendudukSaja())->dataSurat($id);
         // Data penandatangan terpilih
-        $penandatangan = $this->surat_model->atas_nama($data);
+        $penandatangan = AtasNama::data($data);
 
-        $lampiran     = $input['lampiran'] ?? explode(',', $data['surat']['lampiran']);
-        $format_surat = substitusiNomorSurat($input['nomor'], format_penomoran_surat($surat['format_nomor_global'], setting('format_nomor_surat'), $surat['format_nomor']));
-        $format_surat = str_ireplace('[kode_surat]', $surat['kode_surat'], $format_surat);
-        $format_surat = str_ireplace('[kode_desa]', $config['kode_desa'], $format_surat);
-        $format_surat = str_ireplace('[bulan_romawi]', bulan_romawi((int) (date('m'))), $format_surat);
-        $format_surat = str_ireplace('[tahun]', date('Y'), $format_surat);
+        $surat         = $data['surat'];
+        $lampiran_list = $input['lampiran'] ?? [];
 
+        // Handle predefined formats
         if (isset($input['gunakan_format'])) {
-            unset($lampiran);
-
-            switch (strtolower($input['gunakan_format'])) {
-                case 'f-1.08 (pindah pergi)':
-                    $lampiran[] = 'f-1.08';
-                    break;
-
-                case 'f-1.23, f-1.25, f-1.29, f-1.34 (sesuai tujuan)':
-                    $lampiran[] = 'f-1.25';
-                    break;
-
-                case 'f-1.03 (pindah datang)':
-                    $lampiran[] = 'f-1.03';
-                    break;
-
-                case 'f-1.27, f-1.31, f-1.39 (sesuai tujuan)':
-                    $lampiran[] = 'f-1.27';
-                    break;
-
-                default:
-                    $lampiran[] = null;
-                    break;
-            }
+            $lampiran_list = match (strtolower($input['gunakan_format'])) {
+                'f-1.08 (pindah pergi)'                          => ['f-1.08'],
+                'f-1.23, f-1.25, f-1.29, f-1.34 (sesuai tujuan)' => ['f-1.25'],
+                'f-1.03 (pindah datang)'                         => ['f-1.03'],
+                'f-1.03-malang (pindah datang)'                  => ['f-1.03-malang'],
+                'f-1.27, f-1.31, f-1.39 (sesuai tujuan)'         => ['f-1.27'],
+                default                                          => [null],
+            };
         }
 
         // exclude lampiran jika lampiran tidak dikaitkan dengan nilai inputan tertentu
-        $lampiran = $this->excludeLampiran($surat, $input ?? [], $lampiran ?? []);
+        $lampiran_list      = $this->excludeLampiran($surat, $input, $lampiran_list ?? []);
+        $processed_lampiran = [];
 
-        for ($i = 0; $i < count($lampiran); $i++) {
-            $lampiran[$i] = strtolower($lampiran[$i]);
-            // Cek lampiran desa
-            $view_lampiran[$i] = FCPATH . LOKASI_LAMPIRAN_SURAT_DESA . $lampiran[$i] . '/view.php';
+        foreach ($lampiran_list as $lampiran_name) {
+            $lampiran_name = strtolower($lampiran_name);
+            $view_path     = FCPATH . LOKASI_LAMPIRAN_SURAT_DESA . $lampiran_name . '/view.php';
+            $data_path     = FCPATH . LOKASI_LAMPIRAN_SURAT_DESA . $lampiran_name . '/data.php';
 
-            if (! file_exists($view_lampiran[$i])) {
-                $view_lampiran[$i] = FCPATH . DEFAULT_LOKASI_LAMPIRAN_SURAT . $lampiran[$i] . '/view.php';
+            // Fallback to default paths if specific desa paths do not exist
+            if (! file_exists($view_path)) {
+                $view_path = FCPATH . DEFAULT_LOKASI_LAMPIRAN_SURAT . $lampiran_name . '/view.php';
             }
 
-            $data_lampiran[$i] = FCPATH . LOKASI_LAMPIRAN_SURAT_DESA . $lampiran[$i] . '/data.php';
-            if (! file_exists($data_lampiran[$i])) {
-                $data_lampiran[$i] = FCPATH . DEFAULT_LOKASI_LAMPIRAN_SURAT . $lampiran[$i] . '/data.php';
+            if (! file_exists($data_path)) {
+                $data_path = FCPATH . DEFAULT_LOKASI_LAMPIRAN_SURAT . $lampiran_name . '/data.php';
             }
-            // Data lampiran
-            include $data_lampiran[$i];
+
+            if (file_exists($data_path)) {
+                include $data_path;
+            }
+
+            ob_start();
+
+            if (file_exists($view_path)) {
+                include $view_path;
+            }
+
+            $html = ob_get_clean();
+
+            // Process the HTML with KodeIsian logic
+            $data['isi_surat'] = $html;
+            $processed_html    = $this->gantiKodeIsian($data, false);
+
+            // Replace images using KodeIsianGambar
+            $data_gambar    = KodeIsianGambar::set($data['surat'], $processed_html, $surat, true);
+            $processed_html = $data_gambar['result'];
+            $surat->urls_id = $data_gambar['urls_id'];
+
+            if ($preview) {
+                $processed_lampiran[strtoupper($lampiran_name)] = $processed_html;
+            } else {
+                $processed_lampiran[] = $processed_html;
+            }
         }
 
-        ob_start();
-
-        for ($j = 0; $j < count($lampiran); $j++) {
-            // View Lampiran
-            include $view_lampiran[$j];
+        if ($preview) {
+            return $processed_lampiran;
         }
 
-        $lampiran = ob_get_clean();
+        $final_html = implode('', $processed_lampiran);
 
-        if (isset($input) && ! empty($input)) {
-            $data['input'] = $input;
+        // pengecekan jika surat nikah maka gunakan margin yang berbeda
+        $margin_cm_to_mm = [5, 5, 5, 8];
+        if (str_contains(strtolower($data['surat']['nama']), 'keterangan nikah')) {
+            $margin_cm_to_mm = [
+                2.1 * 10,
+                10,
+                1 * 10,
+                5,
+            ];
         }
-        $data['isi_surat'] = $lampiran;
-        $lampiran          = $this->gantiKodeIsian($data, false);
 
-        // Replace Gambar menggunakan KodeIsianGambar
-        $data_gambar    = KodeIsianGambar::set($data['surat'], $lampiran, $surat, true);
-        $lampiran       = $data_gambar['result'];
-        $surat->urls_id = $data_gambar['urls_id'];
-
-        (new Html2Pdf($data['surat']['orientasi'], $data['surat']['ukuran'], 'en', true, 'UTF-8'))
-            ->setTestTdInOnePage(true)
-            ->writeHTML($lampiran) // buat lampiran
+        (new Html2Pdf($data['surat']['orientasi'], $data['surat']['ukuran'], 'en', true, 'UTF-8', $margin_cm_to_mm))->setTestTdInOnePage(false)
+            ->writeHTML($final_html) // Create the lampiran
             ->output($out = tempnam(sys_get_temp_dir(), '') . '.pdf', 'F');
 
         return $this->pdfMerge->add($out);
     }
 
-    public function __get($name)
+    public function getPreview($request, $jenis = null, $redirect = true)
     {
-        return $this->ci->{$name};
-    }
-
-    public function __call($method, $arguments)
-    {
-        return $this->ci->{$method}(...$arguments);
-    }
-
-    private function excludeLampiran($surat, array $input, array $lampiran): array
-    {
-        $kodeIsian       = $surat->kode_isian;
-        $includeLampiran = []; // tambahkan lampiran jika memenuhi syarat
-        $excludeLampiran = []; // semua lampiran dengan syarat
-
-        foreach ($kodeIsian as $isian) {
-            if (! $isian->kaitkan_kode) {
-                continue;
-            }
-            if (empty($isian->kaitkan_kode)) {
-                continue;
-            }
-
-            foreach ((array) $isian->kaitkan_kode as $kaitkanItem) {
-                $kaitkanArr = json_decode($kaitkanItem, true);
-
-                foreach ($kaitkanArr as $kaitkan) {
-                    $namaElm = substr('[form_status_kawin_pria]', strlen('[form_'), -1);
-
-                    if ($kaitkan['lampiran_terkait']) {
-                        foreach ($kaitkan['lampiran_terkait'] as $value) {
-                            $excludeLampiran[] = strtolower($value);
-                        }
-                    }
-
-                    if (in_array($input[$namaElm], $kaitkan['nilai_isian'])) {
-                        if ($kaitkan['lampiran_terkait']) {
-                            foreach ($kaitkan['lampiran_terkait'] as $value) {
-                                $includeLampiran[] = strtolower($value);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        $lampiranTanpaSyarat = array_diff($lampiran, $excludeLampiran);
-
-        return array_merge($lampiranTanpaSyarat, $includeLampiran);
-    }
-
-    public function getPreview($request, $jenis = null)
-    {
-        return FakeDataIsian::set($request, $jenis);
+        return FakeDataIsian::set($request, $jenis, $redirect);
     }
 
     public function escapeSymbols($content)
@@ -957,8 +900,9 @@ class TinyMCE
         if (file_exists(FCPATH . LOKASI_ARSIP . $surat->nama_surat)) {
             return ambilBerkas($surat->nama_surat, $this->controller, null, LOKASI_ARSIP, true);
         }
+        $tagTTE           = self::TAG_TTE;
         $input            = json_decode($surat->input, true) ?? [];
-        $isi_cetak        = $surat->isi_surat;
+        $isi_cetak        = str_replace('[qr_bsre]', $tagTTE, $surat->isi_surat);
         $nama_surat       = $surat->nama_surat;
         $cetak['surat']   = $surat->formatSurat;
         $cetak['id_pend'] = $surat->id_pend;
@@ -990,6 +934,77 @@ class TinyMCE
             $formatter = new ExceptionFormatter($e);
             log_message('error', $formatter->getHtmlMessage());
         }
+    }
+
+    /**
+     * Cek font yang digunakan pada surat. Jika font tidak ditemukan, maka tampilkan pesan error.
+     *
+     * @param string $surat
+     * @param array  $listFont
+     *
+     * @return void
+     */
+    private function cekFontSurat($surat, $listFont)
+    {
+        preg_match_all("/font-family:\\s*'([^']+)'/", $surat, $matches);
+
+        // Mengambil semua font-family yang ditemukan
+        $fontSurat = [];
+        if (! empty($matches[1])) {
+            $fontFamilies = $matches[1];
+            $fontSurat    = array_unique($fontFamilies);
+        }
+
+        // remove font default, misalnya 'arial' karna tidak ada didalam listFont (sudah ada di sistem), tambahkan jika ada penyesuaian
+        $fontSurat = array_diff($fontSurat, ['arial']);
+
+        $missingFonts = array_diff($fontSurat, $listFont);
+        if (! empty($missingFonts)) {
+            $missingFonts = implode(', ', $missingFonts);
+            $missingFonts = ucwords(str_replace('_', ' ', $missingFonts));
+            redirect_with('error', 'Font ' . $missingFonts . ' pada surat tidak ditemukan, silakan hubungi administrator.');
+        }
+    }
+
+    private function excludeLampiran($surat, array $input, array $lampiran): array
+    {
+        $kodeIsian       = $surat->kode_isian;
+        $includeLampiran = []; // tambahkan lampiran jika memenuhi syarat
+        $excludeLampiran = []; // semua lampiran dengan syarat
+
+        foreach ($kodeIsian as $isian) {
+            if (! $isian->kaitkan_kode) {
+                continue;
+            }
+            if (empty($isian->kaitkan_kode)) {
+                continue;
+            }
+
+            foreach ((array) $isian->kaitkan_kode as $kaitkanItem) {
+                $kaitkanArr = json_decode($kaitkanItem, true);
+
+                foreach ($kaitkanArr as $kaitkan) {
+                    $namaElm = substr('[form_status_kawin_pria]', strlen('[form_'), -1);
+
+                    if ($kaitkan['lampiran_terkait']) {
+                        foreach ($kaitkan['lampiran_terkait'] as $value) {
+                            $excludeLampiran[] = strtolower($value);
+                        }
+                    }
+
+                    if (in_array($input[$namaElm], $kaitkan['nilai_isian'])) {
+                        if ($kaitkan['lampiran_terkait']) {
+                            foreach ($kaitkan['lampiran_terkait'] as $value) {
+                                $includeLampiran[] = strtolower($value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $lampiranTanpaSyarat = array_diff($lampiran, $excludeLampiran);
+
+        return array_merge($lampiranTanpaSyarat, $includeLampiran);
     }
 
     private function updateHeightTd($html)

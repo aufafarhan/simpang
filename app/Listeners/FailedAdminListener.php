@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,8 +37,9 @@
 
 namespace App\Listeners;
 
-use App\Models\LoginAttempts;
 use Illuminate\Auth\Events\Failed;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class FailedAdminListener
 {
@@ -48,10 +49,16 @@ class FailedAdminListener
             return;
         }
 
-        LoginAttempts::create([
-            'username'   => $failed->user?->username ?? request('username'),
-            'time'       => time(),
-            'ip_address' => request()->ip(),
-        ]);
+        if (Schema::hasTable('log_activity')) {
+            activity()
+                ->inLog('Login')
+                ->event('Gagal')
+                ->withProperties([
+                    'username'   => $failed->user?->username ?? request('username'),
+                    'time'       => Carbon::now()->format('Y-m-d H:i:s'),
+                    'ip_address' => request()->ip(),
+                ])
+                ->log('Pengguna tidak berhasil masuk');
+        }
     }
 }

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,7 +37,9 @@
 
 use App\Models\Ekspedisi as ModelsEkspedisi;
 use App\Models\KlasifikasiSurat;
+use App\Models\Pamong;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -52,7 +54,7 @@ class Ekspedisi extends Admin_Controller
         parent::__construct();
         isCan('b');
         $this->load->helper('download');
-        $this->load->model('pamong_model');
+        $this->load->library('upload', null, 'upload');
         $this->uploadConfig = [
             'upload_path'   => LOKASI_ARSIP,
             'allowed_types' => 'gif|jpg|jpeg|png|pdf',
@@ -63,28 +65,42 @@ class Ekspedisi extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
-            $data = ModelsEkspedisi::get();
+            $data = ModelsEkspedisi::query();
 
             return datatables()->of($data)
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . route('buku-umum.ekspedisi.form', ['id' => $row->id]) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "ekspedisi/form/{$row->id}",
+                    ])->render();
 
                     if ($row->tanda_terima) {
-                        $aksi .= '<a href="' . route('buku-umum.ekspedisi.unduh_tanda_terima', ['id' => $row->id]) . '" class="btn btn-purple btn-sm bg-purple" title="Unduh Tanda Terima" target="_blank"><i class="fa fa-download"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'        => route('buku-umum.ekspedisi.unduh_tanda_terima', ['id' => $row->id]),
+                            'judul'      => 'Unduh Tanda Terima',
+                            'icon'       => 'fa fa-download',
+                            'type'       => 'bg-purple',
+                            'buttonOnly' => true,
+                            'blank'      => true,
+                        ])->render();
                     }
 
                     if (can('u')) {
-                        $aksi .= ('<a href="' . route('buku-umum.ekspedisi.bukan_ekspedisi', ['id' => $row->id]) . '" class="btn bg-olive btn-sm" title="Keluarkan dari Buku Ekspedisi"><i class="fa fa-undo"></i></a>');
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'        => route('buku-umum.ekspedisi.bukan_ekspedisi', ['id' => $row->id]),
+                            'judul'      => 'Keluarkan dari Buku Ekspedisi',
+                            'icon'       => 'fa fa-undo',
+                            'type'       => 'bg-olive',
+                            'buttonOnly' => true,
+                        ])->render();
                     }
 
                     return $aksi;
                 })
                 ->editColumn('tanggal_pengiriman', static fn ($row): string => tgl_indo($row->tanggal_pengiriman))
+                ->editColumn('tanggal_surat', static fn ($row): string => tgl_indo($row->tanggal_surat))
                 ->rawColumns(['aksi'])
                 ->make();
         }
@@ -222,14 +238,6 @@ class Ekspedisi extends Admin_Controller
         $this->session->success = null === $this->session->error_msg ? 1 : -1;
     }
 
-    private function validasi(array $post)
-    {
-        $data['tanggal_pengiriman'] = tgl_indo_in($post['tanggal_pengiriman']);
-        $data['keterangan']         = htmlentities((string) $post['keterangan']);
-
-        return $data;
-    }
-
     // $aksi = cetak/unduh
     public function dialog_cetak($aksi = 'cetak')
     {
@@ -242,36 +250,14 @@ class Ekspedisi extends Admin_Controller
 
     public function daftar($aksi = '')
     {
-        $data           = $this->data_cetak();
-        $data['config'] = $this->header['desa'];
-        $data['aksi']   = $aksi;
+        $data         = $this->data_cetak();
+        $data['aksi'] = $aksi;
 
         //pengaturan data untuk format cetak/ unduh
         $data['isi']       = $data['template'];
         $data['letak_ttd'] = ['1', '1', '3'];
 
         return view('admin.layouts.components.format_cetak', $data);
-    }
-
-    private function data_cetak()
-    {
-        // Agar tidak terlalu banyak mengubah kode, karena menggunakan view global
-        $ttd                    = $this->modal_penandatangan();
-        $data['pamong_ttd']     = $this->pamong_model->get_data($ttd['pamong_ttd']->pamong_id);
-        $data['pamong_ketahui'] = $this->pamong_model->get_data($ttd['pamong_ketahui']->pamong_id);
-
-        $post          = $this->input->post();
-        $data['input'] = $post;
-        $data['tahun'] = $post['tahun'];
-        $data['main']  = ModelsEkspedisi::when($post['tahun'], static function ($query) use ($post): void {
-            $query->whereYear('tanggal_surat', $post['tahun']);
-        })->get();
-        $data['desa'] = $this->header['desa'];
-
-        $data['file']     = 'Buku Ekspedisi';
-        $data['template'] = 'admin.dokumen.ekspedisi.cetak';
-
-        return $data;
     }
 
     /**
@@ -292,5 +278,33 @@ class Ekspedisi extends Admin_Controller
 
         ModelsEkspedisi::UntukEkspedisi($id, $masuk = 0);
         redirect_with('success', 'Data berhasil dikeluarkan dari Buku Ekspedisi');
+    }
+
+    private function validasi(array $post)
+    {
+        $data['tanggal_pengiriman'] = tgl_indo_in($post['tanggal_pengiriman']);
+        $data['keterangan']         = htmlentities((string) $post['keterangan']);
+
+        return $data;
+    }
+
+    private function data_cetak()
+    {
+        // Agar tidak terlalu banyak mengubah kode, karena menggunakan view global
+        $ttd                    = $this->modal_penandatangan();
+        $data['pamong_ttd']     = Pamong::selectData()->where(['pamong_id' => $ttd['pamong_ttd']['pamong_id']])->first()->toArray();
+        $data['pamong_ketahui'] = Pamong::selectData()->where(['pamong_id' => $ttd['pamong_ketahui']['pamong_id']])->first()->toArray();
+
+        $post          = $this->input->post();
+        $data['input'] = $post;
+        $data['tahun'] = $post['tahun'];
+        $data['main']  = ModelsEkspedisi::when($post['tahun'], static function ($query) use ($post): void {
+            $query->whereYear('tanggal_surat', $post['tahun']);
+        })->get();
+        $data['desa']     = $this->header['desa'];
+        $data['file']     = 'Buku Ekspedisi';
+        $data['template'] = 'admin.dokumen.ekspedisi.cetak';
+
+        return $data;
     }
 }

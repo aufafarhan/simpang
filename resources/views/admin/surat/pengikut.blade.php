@@ -1,5 +1,5 @@
 <div class="form-group">
-    <label for="keperluan" class="col-sm-3 control-label">Anak usia dibawah 18 tahun</label>
+    <label for="keperluan" class="col-sm-3 control-label">Anak usia di bawah 18 tahun</label>
     <div class="col-sm-9">
         <div>
             <div class="table-responsive">
@@ -25,10 +25,10 @@
                                 </td>
                                 <td class="padat">{{ $data->nik }}</td>
                                 <td nowrap>{{ $data->nama }}</td>
-                                <td nowrap>{{ $data->jenisKelamin->nama }}</td>
+                                <td nowrap>{{ $data->jenis_kelamin }}</td>
                                 <td nowrap>{{ $data->tempatlahir }}</td>
                                 <td nowrap>{{ tgl_indo($data->tanggallahir) }}</td>
-                                <td nowrap>{{ $data->pendudukHubungan->nama }}</td>
+                                <td nowrap>{{ $data->penduduk_hubungan }}</td>
                                 <td nowrap>{{ $data->umur }}</td>
                                 <td><input id="ket_<?= $data->id ?>" name="ket_<?= $data->id ?>" value="" disabled="disabled"></td>
                             </tr>

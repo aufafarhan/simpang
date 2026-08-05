@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -87,6 +87,32 @@ class KodeIsianPendudukLuar
     public static function get($suratMatser, $inputForm)
     {
         return (new self($suratMatser, $inputForm))->getKategori();
+    }
+
+    public static function getLabels(): array
+    {
+        return [
+            'nama'               => 'Nama Lengkap',
+            'no_ktp'             => 'NIK',
+            'tempat_lahir'       => 'Tempat Lahir',
+            'tanggal_lahir'      => 'Tanggal Lahir',
+            'jenis_kelamin'      => 'Jenis Kelamin',
+            'agama'              => 'Agama',
+            'pendidikan_kk'      => 'Pendidikan',
+            'pekerjaan'          => 'Pekerjaan',
+            'warga_negara'       => 'Warga Negara',
+            'alamat'             => 'Alamat',
+            'golongan_darah'     => 'Golongan Darah',
+            'status_perkawinan'  => 'Status Perkawinan',
+            'tanggal_perkawinan' => 'Tanggal Perkawinan',
+            'shdk'               => 'Status Hubungan Dalam Keluarga',
+            'no_paspor'          => 'No. Paspor',
+            'no_kitas'           => 'No. KITAS / KITAP',
+            'nama_ayah'          => 'Nama Ayah',
+            'nama_ibu'           => 'Nama Ibu',
+            'no_kk'              => 'No. KK',
+            'kepala_kk'          => 'Kepala Keluarga',
+        ];
     }
 
     public function alias(string $kategori = 'individu')
@@ -163,31 +189,5 @@ class KodeIsianPendudukLuar
     public function getKategori()
     {
         return collect($this->suratMatser->form_isian)->keys()->mapWithKeys(fn ($item) => $this->alias($item))->toArray();
-    }
-
-    public static function getLabels(): array
-    {
-        return [
-            'nama'               => 'Nama Lengkap',
-            'no_ktp'             => 'NIK',
-            'tempat_lahir'       => 'Tempat Lahir',
-            'tanggal_lahir'      => 'Tanggal Lahir',
-            'jenis_kelamin'      => 'Jenis Kelamin',
-            'agama'              => 'Agama',
-            'pendidikan_kk'      => 'Pendidikan',
-            'pekerjaan'          => 'Pekerjaan',
-            'warga_negara'       => 'Warga Negara',
-            'alamat'             => 'Alamat',
-            'golongan_darah'     => 'Golongan Darah',
-            'status_perkawinan'  => 'Status Perkawinan',
-            'tanggal_perkawinan' => 'Tanggal Perkawinan',
-            'shdk'               => 'Status Hubungan Dalam Keluarga',
-            'no_paspor'          => 'No. Paspor',
-            'no_kitas'           => 'No. KITAS / KITAP',
-            'nama_ayah'          => 'Nama Ayah',
-            'nama_ibu'           => 'Nama Ibu',
-            'no_kk'              => 'No. KK',
-            'kepala_kk'          => 'Kepala Keluarga',
-        ];
     }
 }

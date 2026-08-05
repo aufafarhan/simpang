@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,17 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Http\Transformers\SuplemenTerdataTransformer;
+use App\Http\Transformers\SuplemenTransformer;
 use App\Models\Penduduk;
+use App\Repositories\SuplemenRepository;
+use App\Repositories\SuplemenTerdataRepository;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -62,6 +66,18 @@ class Suplemen extends Api_Controller
         }
 
         return show_404();
+    }
+
+    public function list()
+    {
+        $suplemen = new SuplemenRepository();
+        json($this->fractal($suplemen->list(), new SuplemenTransformer(), 'suplemen'));
+    }
+
+    public function anggota($suplemen)
+    {
+        $suplemenTerdata = new SuplemenTerdataRepository($suplemen);
+        json($this->fractal($suplemenTerdata->list(), new SuplemenTerdataTransformer(), 'suplemen_terdata'));
     }
 
     private function get_pilihan_penduduk($cari, $terdata)
@@ -92,8 +108,7 @@ class Suplemen extends Api_Controller
     private function get_pilihan_kk($cari, $terdata)
     {
         $id_suplemen = $terdata;
-        $penduduk    = Penduduk::with('pendudukHubungan')
-            ->select(['tweb_penduduk.id', 'tweb_penduduk.id_kk', 'tweb_penduduk.nik', 'keluarga_aktif.no_kk', 'tweb_penduduk.kk_level', 'tweb_penduduk.nama', 'tweb_penduduk.id_cluster'])
+        $penduduk    = Penduduk::select(['tweb_penduduk.id', 'tweb_penduduk.id_kk', 'tweb_penduduk.nik', 'keluarga_aktif.no_kk', 'tweb_penduduk.kk_level', 'tweb_penduduk.nama', 'tweb_penduduk.id_cluster'])
             ->leftJoin('tweb_penduduk_hubungan', static function ($join): void {
                 $join->on('tweb_penduduk.kk_level', '=', 'tweb_penduduk_hubungan.id');
             })
@@ -116,7 +131,7 @@ class Suplemen extends Api_Controller
             'results' => collect($penduduk->items())
                 ->map(static fn ($item): array => [
                     'id'   => $item->id_kk,
-                    'text' => 'No KK : ' . $item->no_kk . ' - ' . $item->pendudukHubungan->nama . '- NIK : ' . $item->nik . ' - ' . $item->nama . ' RT-' . $item->wilayah->rt . ', RW-' . $item->wilayah->rw . ', ' . strtoupper((string) setting('sebutan_dusun')) . ' ' . $item->wilayah->dusun,
+                    'text' => 'No KK : ' . $item->no_kk . ' - ' . $item->penduduk_hubungan . '- NIK : ' . $item->nik . ' - ' . $item->nama . ' RT-' . $item->wilayah->rt . ', RW-' . $item->wilayah->rw . ', ' . strtoupper((string) setting('sebutan_dusun')) . ' ' . $item->wilayah->dusun,
                 ]),
             'pagination' => [
                 'more' => $penduduk->currentPage() < $penduduk->lastPage(),

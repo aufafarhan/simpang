@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -119,18 +119,18 @@ class Anak extends BaseModel
     ];
 
     /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'bulanan_anak';
-
-    /**
      * The table update parameter.
      *
      * @var string
      */
     public $primaryKey = 'id_bulanan_anak';
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'bulanan_anak';
 
     /**
      * The guarded with the model.
@@ -166,6 +166,21 @@ class Anak extends BaseModel
         return $query;
     }
 
+    public function isNormal()
+    {
+        return $this->attributes['status_gizi'] == self::NORMAL;
+    }
+
+    public function isResikoStunting()
+    {
+        return in_array($this->attributes['status_gizi'], [self::GIZI_BURUK, self::GIZI_KURANG]);
+    }
+
+    public function isStunting()
+    {
+        return $this->attributes['status_gizi'] == self::STUNTING;
+    }
+
     protected function scopeNormal($query)
     {
         return $query->where('status_gizi', self::NORMAL);
@@ -184,20 +199,5 @@ class Anak extends BaseModel
     protected function scopeStuntingPendek($query)
     {
         return $query->stunting()->whereIn('status_tikar', [self::TB_PENDEK, self::TB_SANGAT_PENDEK]);
-    }
-
-    public function isNormal()
-    {
-        return $this->attributes['status_gizi'] == self::NORMAL;
-    }
-
-    public function isResikoStunting()
-    {
-        return in_array($this->attributes['status_gizi'], [self::GIZI_BURUK, self::GIZI_KURANG]);
-    }
-
-    public function isStunting()
-    {
-        return $this->attributes['status_gizi'] == self::STUNTING;
     }
 }

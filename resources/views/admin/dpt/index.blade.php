@@ -4,12 +4,12 @@
 
 @section('title')
     <h1>
-        Data Calon Pemilih
+        Data {{ $module_name }}
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="active">Data Calon Pemilih</li>
+    <li class="active">Data {{ $module_name }}</li>
 @endsection
 
 @section('content')
@@ -18,36 +18,24 @@
         <div class="box-header with-border">
             <div class="col-sm-8 col-lg-9">
                 <div class="row">
-                    <a href="{{ site_url('pemilihan') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Daftar Pemilihan"><i class="fa fa-list"></i>Daftar Pemilihan</a>
-                    <a
-                        href="{{ ci_route('dpt.ajax_cetak.cetak') }}"
-                        class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Cetak Data"
-                        target="_blank"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Cetak Data"
-                    ><i class="fa fa-print "></i> Cetak</a>
-                    <a
-                        href="{{ ci_route('dpt.ajax_cetak.unduh') }}"
-                        class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Unduh Data"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Unduh Data"
-                        target="_blank"
-                    ><i class="fa fa-download"></i> Unduh</a>
-                    <a
-                        href="#"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modal-search-form"
-                        data-title="Pencarian Spesifik"
-                        class="btn btn-social btn-primary btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Pencarian Spesifik"
-                    ><i class='fa fa-search'></i> Pencarian Spesifik</a>
+                    @include('admin.layouts.components.buttons.btn', [
+                        'url' => 'pemilihan',
+                        'judul' => 'Daftar Pemilihan',
+                        'icon' => 'fa fa-list',
+                        'type' => 'btn-success'
+                    ])
+                    @include('admin.layouts.components.tombol_cetak_unduh', [
+                        'cetak' => "dpt/ajax_cetak/cetak",
+                        'unduh' => "dpt/ajax_cetak/unduh"
+                    ])
+                    @include('admin.layouts.components.buttons.btn', [
+                        'judul' => 'Daftar Pemilihan',
+                        'icon' => 'fa fa-search',
+                        'type' => 'btn-primary',
+                        'modalTarget' => 'modal-search-form',
+                        'judul' => 'Pencarian Spesifik',
+                        'modal' => true,
+                    ])
                 </div>
             </div>
             <div class="col-sm-4 col-md-3">
@@ -72,8 +60,8 @@
                 <div class="col-sm-2">
                     <select class="form-control input-sm select2" name="sex">
                         <option value="">Pilih Jenis Kelamin</option>
-                        @foreach ($jenis_kelamin as $data)
-                            <option value="{{ $data->id }}">{{ set_ucwords($data->nama) }}</option>
+                        @foreach (\App\Enums\JenisKelaminEnum::all() as $key => $value)
+                            <option value="{{ $key }}">{{ $value }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -89,6 +77,7 @@
                             <th nowrap>TAG ID CARD</th>
                             <th nowrap>NAMA</th>
                             <th nowrap>NO KK</th>
+                            <th nowrap>JENIS KELAMIN</th>
                             <th nowrap>ALAMAT</th>
                             <th nowrap>{{ strtoupper(setting('sebutan_dusun')) }}</th>
                             <th nowrap>RW</th>
@@ -176,6 +165,13 @@
                         },
                     },
                     {
+                        data: 'jenis_kelamin',
+                        name: 'jenis_kelamin',
+                        searchable: false,
+                        orderable: false,
+                        defaultContent: ''
+                    },
+                    {
                         data: 'alamat_sekarang',
                         name: 'alamat_sekarang',
                         searchable: false,
@@ -200,8 +196,8 @@
                         orderable: false,
                     },
                     {
-                        data: 'pendidikan_k_k.nama',
-                        name: 'pendidikan_k_k.nama',
+                        data: 'pendidikan_kk',
+                        name: 'pendidikan_kk',
                         searchable: false,
                         orderable: false,
                         defaultContent: ''
@@ -217,14 +213,14 @@
                         },
                     },
                     {
-                        data: 'pekerjaan.nama',
-                        name: 'pekerjaan.nama',
+                        data: 'pekerjaan',
+                        name: 'pekerjaan',
                         searchable: false,
                         orderable: false,
                     },
                     {
-                        data: 'status_kawin.nama',
-                        name: 'status_kawin.nama',
+                        data: 'status_perkawinan',
+                        name: 'status_perkawinan',
                         searchable: false,
                         orderable: false,
                         defaultContent: ''

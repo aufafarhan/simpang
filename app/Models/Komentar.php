@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -84,9 +84,20 @@ class Komentar extends BaseModel
      *
      * @var array
      */
-    protected $fillable = ['email', 'owner', 'subjek', 'komentar', 'tipe', 'status', 'id_artikel', 'parent_id'];
+    protected $fillable = ['email', 'owner', 'subjek', 'komentar', 'tipe', 'status', 'id_artikel', 'parent_id', 'no_hp'];
 
     protected $appends = ['foto', 'pengguna', 'url_artikel'];
+
+    protected static function booted()
+    {
+        self::boot();
+        static::addGlobalScope('isKomentar', static function (Builder $builder): void {
+            $builder->whereNotIn('id_artikel', ['null', '775'])->whereNotNull('id_artikel');
+        });
+        static::deleting(static function ($komentar): void {
+            $komentar->children()->delete();
+        });
+    }
 
     /**
      * Scope a query to only enable category.
@@ -98,6 +109,11 @@ class Komentar extends BaseModel
     public function scopeEnable($query)
     {
         return $query->where('status', static::ACTIVE);
+    }
+
+    public function scopeJumlahBaca($query, $id)
+    {
+        return $query->whereIdArtikel($id)->count();
     }
 
     /**
@@ -145,7 +161,12 @@ class Komentar extends BaseModel
             $foto = User::find($this->owner)->foto;
         }
 
-        return cache()->rememberForever('foto_komentar_' . $this->id, static fn () => AmbilFoto($foto, 'kecil_', mt_rand(1, 2)));
+        return cache()->rememberForever('foto_komentar_' . $this->id, static fn (): string => AmbilFoto($foto, 'kecil_', mt_rand(1, 2)));
+    }
+
+    public function getTglUploadAttribute()
+    {
+        return Carbon::createFromFormat('Y-m-d H:i:s', $this->attributes['tgl_upload'])->format('Y-m-d H:i:s');
     }
 
     public function children(): HasMany
@@ -158,50 +179,47 @@ class Komentar extends BaseModel
         $parent = $this->parent_id;
         $owner  = $this->owner;
 
-        return cache()->rememberForever('pengguna_komentar_' . $this->id, static function () use ($parent, $owner) {
+        return cache()->rememberForever('pengguna_komentar_' . $this->id, static function () use ($parent, $owner): array {
             if ($parent) {
                 $user = User::with('userGrup')->find($owner);
 
-                $owner = [
+                return [
                     'nama'  => ucwords($user->nama),
                     'level' => ucwords($user->userGrup->nama),
                 ];
-            } else {
-                $owner = [
-                    'nama'  => ucwords($owner),
-                    'level' => 'Pengunjung',
-                ];
             }
 
-            return $owner;
+            return [
+                'nama'  => ucwords($owner),
+                'level' => 'Pengunjung',
+            ];
         });
     }
 
     public function getUrlArtikelAttribute()
     {
-        $artikel = Artikel::find($this->id_artikel);
-        if ($artikel) {
-            $tgl_upload = Carbon::createFromFormat('Y-m-d H:i:s', $artikel->tgl_upload)->format('Y/m/d');
+        if ($this->relationLoaded('artikel')) {
+            $artikel    = $this->artikel;
+            $tgl_upload = $this->artikel->tgl_upload?->format('Y/m/d');
 
-            return site_url("artikel/{$tgl_upload}/{$artikel->slug}");
+            return $tgl_upload ? site_url("artikel/{$tgl_upload}/{$artikel?->slug}") : null;
         }
 
         return null;
     }
 
-    protected static function booted()
-    {
-        self::boot();
-        static::addGlobalScope('isKomentar', static function (Builder $builder) {
-            $builder->whereNotIn('id_artikel', ['null', '775'])->whereNotNull('id_artikel');
-        });
-        static::deleting(static function ($komentar) {
-            $komentar->children()->delete();
-        });
-    }
-
-    public function isActive()
+    public function isActive(): bool
     {
         return $this->attributes['status'] == self::ACTIVE;
+    }
+
+    public function scopeShow($query)
+    {
+        return $query->selectRaw('komentar.*, YEAR(a.tgl_upload) AS thn, MONTH(a.tgl_upload) AS bln, DAY(a.tgl_upload) AS hri, a.slug as slug')
+            ->join('artikel as a', 'komentar.id_artikel', '=', 'a.id')
+            ->where('komentar.status', 1)
+            ->where('komentar.id_artikel', '<>', 775)
+            ->whereNull('komentar.parent_id')
+            ->orderBy('komentar.tgl_upload', 'DESC');
     }
 }

@@ -23,36 +23,23 @@
         <div class="col-md-8 col-lg-9">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a
-                        href="{{ ci_route('analisis_laporan.' . $analisis_master['id'] . '.dialog.cetak') }}"
-                        class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Cetak Laporan Hasil Analisis {{ $judul['asubjek'] }}"
-                        title="Cetak"
-                    ><i class="fa fa-print"></i>Cetak</a>
-                    <a
-                        href="{{ ci_route('analisis_laporan.' . $analisis_master['id'] . '.dialog.unduh') }}"
-                        class="btn btn-social bg-navy btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Cetak Laporan Hasil Analisis {{ $judul['asubjek'] }}"
-                        title="Unduh"
-                    ><i class="fa fa-download"></i>Unduh</a>
-                    <a
-                        href="{{ ci_route('analisis_laporan.' . $analisis_master['id'] . '.ajax_multi_jawab') }}"
-                        class="btn btn-social bg-olive btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Filter Indikator"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Filter Indikator"
-                    ><i class="fa fa-search"></i>Filter Indikator</a>
-                    <a href="{{ ci_route('analisis_master.menu', $analisis_master['id']) }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar RW"><i class="fa fa-arrow-circle-left "></i>Kembali
-                        Ke
-                        {{ $analisis_master['nama'] }}</a>
+                    @include('admin.layouts.components.buttons.btn', [
+                        'url' => "analisis_laporan/{$analisis_master['id']}/ajax_multi_jawab",
+                        'judul' => 'Filter Indikator',
+                        'type' => 'btn-success',
+                        'icon' => 'fa fa-filter',
+                        'modal' => true,
+                    ])
+
+                    @include('admin.layouts.components.tombol_cetak_unduh', [
+                        'cetak' => "analisis_laporan/{$analisis_master['id']}/dialog/cetak",
+                        'unduh' => "analisis_laporan/{$analisis_master['id']}/dialog/unduh"
+                    ])
+
+                    @include('admin.layouts.components.tombol_kembali', [
+                        'url' => ci_route('analisis_master.menu', $analisis_master['id']),
+                        'label' => $analisis_master['nama']
+                    ])
                 </div>
                 <div class="box-header with-border">
                     <div class="table-responsive">
@@ -66,7 +53,7 @@
                             <tr>
                                 <td>Subjek Analisis</td>
                                 <td>:</td>
-                                <td>{{ App\Enums\AnalisisRefSubjekEnum::valueOf($analisis_master['subjek_tipe']) }}</td>
+                                <td>{{ Modules\Analisis\Enums\AnalisisRefSubjekEnum::valueOf($analisis_master['subjek_tipe']) }}</td>
                             </tr>
                             <tr>
                                 <td>Periode</td>
@@ -93,17 +80,17 @@
                     <div class="dataTables_wrapper form-inline dt-bootstrap no-footer">
                         <form id="mainform" name="mainform" method="post">
                             <div class="table-responsive">
-                                <table id="tabeldata" class="table table-bordered table-striped dataTable table-hover tabel-daftar">
+                                <table id="tabeldata" data-filters='{!! json_encode($filters) !!}' class="table table-bordered table-striped dataTable table-hover tabel-daftar">
                                     <thead class="bg-gray disabled color-palette">
                                         <tr>
                                             <th>No</th>
                                             <th>Aksi</th>
                                             <th>{{ $judul['nomor'] }}</th>
-                                            @if (in_array($analisis_master['subjek_tipe'], [App\Enums\AnalisisRefSubjekEnum::PENDUDUK, App\Enums\AnalisisRefSubjekEnum::KELUARGA, App\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA]))
-                                                <th>{{ $analisis_master['subjek_tipe'] == App\Enums\AnalisisRefSubjekEnum::PENDUDUK ? 'No. KK' : 'NIK KK' }}</th>
+                                            @if (in_array($analisis_master['subjek_tipe'], [Modules\Analisis\Enums\AnalisisRefSubjekEnum::PENDUDUK, Modules\Analisis\Enums\AnalisisRefSubjekEnum::KELUARGA, Modules\Analisis\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA]))
+                                                <th>{{ $analisis_master['subjek_tipe'] == Modules\Analisis\Enums\AnalisisRefSubjekEnum::PENDUDUK ? 'No. KK' : 'NIK KK' }}</th>
                                             @endif
                                             <th>{{ $judul['nama'] }}</th>
-                                            @if (in_array($analisis_master['subjek_tipe'], [App\Enums\AnalisisRefSubjekEnum::PENDUDUK, App\Enums\AnalisisRefSubjekEnum::KELUARGA, App\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA, App\Enums\AnalisisRefSubjekEnum::KELOMPOK]))
+                                            @if (in_array($analisis_master['subjek_tipe'], [Modules\Analisis\Enums\AnalisisRefSubjekEnum::PENDUDUK, Modules\Analisis\Enums\AnalisisRefSubjekEnum::KELUARGA, Modules\Analisis\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA, Modules\Analisis\Enums\AnalisisRefSubjekEnum::KELOMPOK]))
                                                 <th>Jenis Kelamin</th>
                                                 <th>Alamat</th>
                                             @endif
@@ -137,6 +124,7 @@
                         req.rw = $('#rw').val()
                         req.rt = $('#rt').val()
                         req.klasifikasi = $('#klasifikasi').val()
+                        req.filters = $('#tabeldata').data('filters')
                     }
                 },
                 columns: [{
@@ -152,14 +140,14 @@
                         orderable: false
                     },
                     {!! json_encode($judul['kolom'][0]) !!},
-                    @if (in_array($analisis_master['subjek_tipe'], [App\Enums\AnalisisRefSubjekEnum::PENDUDUK, App\Enums\AnalisisRefSubjekEnum::KELUARGA, App\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA]))
+                    @if (in_array($analisis_master['subjek_tipe'], [Modules\Analisis\Enums\AnalisisRefSubjekEnum::PENDUDUK, Modules\Analisis\Enums\AnalisisRefSubjekEnum::KELUARGA, Modules\Analisis\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA]))
                         {
                             data: 'kk',
-                            name: '{{ $analisis_master['subjek_tipe'] == App\Enums\AnalisisRefSubjekEnum::PENDUDUK ? 'no_kk' : 'nik' }}',
+                            name: '{{ $analisis_master['subjek_tipe'] == Modules\Analisis\Enums\AnalisisRefSubjekEnum::PENDUDUK ? 'no_kk' : 'nik_kepala' }}',
                         },
                     @endif
                     {!! json_encode($judul['kolom'][1]) !!},
-                    @if (in_array($analisis_master['subjek_tipe'], [App\Enums\AnalisisRefSubjekEnum::PENDUDUK, App\Enums\AnalisisRefSubjekEnum::KELUARGA, App\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA, App\Enums\AnalisisRefSubjekEnum::KELOMPOK]))
+                    @if (in_array($analisis_master['subjek_tipe'], [Modules\Analisis\Enums\AnalisisRefSubjekEnum::PENDUDUK, Modules\Analisis\Enums\AnalisisRefSubjekEnum::KELUARGA, Modules\Analisis\Enums\AnalisisRefSubjekEnum::RUMAH_TANGGA, Modules\Analisis\Enums\AnalisisRefSubjekEnum::KELOMPOK]))
                         {
                             data: 'sex',
                             name: 'sex',

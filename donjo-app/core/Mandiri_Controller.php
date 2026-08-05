@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -51,35 +51,42 @@ class Mandiri_Controller extends MY_Controller
         $this->is_login = $this->session->is_login;
         $this->header   = identitas();
 
-        if ($this->setting->layanan_mandiri == 0 && ! $this->cek_anjungan) {
+        if (setting('layanan_mandiri') == 0 && ! $this->cek_anjungan) {
             show_404();
         }
 
-        // Periksa jika pengguna belum terautentikasi.
-        if (! auth('penduduk')->check()) {
-            $redirectUrl = $this->session->login_ektp
-                ? 'layanan-mandiri/masuk-ektp'
-                : 'layanan-mandiri/masuk';
+        // Redirect jika tidak login di salah satu guard (penduduk atau pendudukGuest)
+        if (! auth('penduduk')->check() && ! auth('pendudukGuest')->check()) {
+            if ($this->session->login_ektp) {
+                $redirectUrl = 'layanan-mandiri/masuk-ektp';
+            } elseif ($this->session->login_penduduk_guest) {
+                $redirectUrl = 'anjungan-mandiri/penduduk-guest';
+            } else {
+                $redirectUrl = 'layanan-mandiri/masuk';
+            }
 
             return redirect($redirectUrl);
         }
 
-        /** @var App\Models\PendudukMandiri $user */
-        $user = auth('penduduk')->user();
+        // Verifikasi jika pengguna sudah terautentikasi pada guard 'penduduk'.
+        if (auth('penduduk')->check()) {
+            /** @var App\Models\PendudukMandiri $user */
+            $user = auth('penduduk')->user();
 
-        $isMustVerify         = $user instanceof Illuminate\Contracts\Auth\MustVerifyEmail;
-        $hasVerifiedEmail     = $isMustVerify && $user->hasVerifiedEmail();
-        $hasVerifiedTelegram  = $isMustVerify && $user->hasVerifiedTelegram();
-        $hasRequiredDocuments = $user->scan_ktp !== null && $user->scan_kk !== null && $user->foto_selfie !== null;
+            $isMustVerify         = $user instanceof Illuminate\Contracts\Auth\MustVerifyEmail;
+            $hasVerifiedEmail     = $isMustVerify && $user->hasVerifiedEmail();
+            $hasVerifiedTelegram  = $isMustVerify && $user->hasVerifiedTelegram();
+            $hasRequiredDocuments = $user->scan_ktp !== null && $user->scan_kk !== null && $user->foto_selfie !== null;
 
-        // Periksa jika pengguna belum verifikasi email atau telegram dan sudah memiliki dokumen yang diperlukan.
-        if (! $hasVerifiedEmail && $hasRequiredDocuments) {
-            // Pengguna belum memverifikasi email, arahkan ke halaman verifikasi email
-            return redirect('layanan-mandiri/daftar/verifikasi/email');
-        }
-        if (! $hasVerifiedTelegram && $hasRequiredDocuments) {
-            // Pengguna belum memverifikasi Telegram, arahkan ke halaman verifikasi Telegram
-            return redirect('layanan-mandiri/daftar/verifikasi/telegram');
+            // Periksa jika pengguna belum verifikasi email atau telegram dan sudah memiliki dokumen yang diperlukan.
+            if (! $hasVerifiedEmail && $hasRequiredDocuments) {
+                // Pengguna belum melakukan verifikasi email, arahkan ke halaman verifikasi email
+                return redirect('layanan-mandiri/daftar/verifikasi/email');
+            }
+            if (! $hasVerifiedTelegram && $hasRequiredDocuments) {
+                // Pengguna belum melakukan verifikasi Telegram, arahkan ke halaman verifikasi Telegram
+                return redirect('layanan-mandiri/daftar/verifikasi/telegram');
+            }
         }
     }
 }

@@ -17,13 +17,13 @@
     <div class="form-group">
         <label for="file" class="control-label">Berkas Klasifikasi Surat :</label>
         <div class="input-group input-group-sm">
-            <input type="text" class="form-control" id="file_path2">
+            <input required type="text" class="form-control" id="file_path2">
             <input type="file" class="hidden" id="file2" name="klasifikasi" accept=".xls,.xlsx,.xlsm">
             <span class="input-group-btn">
                 <button type="button" class="btn btn-info btn-flat" id="file_browser2"><i class="fa fa-search"></i> Browse</button>
             </span>
         </div>
-        <p class="help-block small">Pastikan format berkas telah sesuai. Format yang dibutuhkan dapat diunduh menggunakan tombol Unduh.</p>
+        <p class="help-block small">Pastikan format berkas telah sesuai. Format yang dibutuhkan dapat diunduh menggunakan tombol 'Format Impor' atau 'Contoh Klasifikasi'.</p>
         <a href="{{ $format_impor }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block text-center"><i class="fa fa-file-excel-o"></i> Format Impor</a>
         <a href="{{ $klasifikasi_surat }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block text-center"><i class="fa fa-file-excel-o"></i> Contoh Klasifikasi</a>
     </div>

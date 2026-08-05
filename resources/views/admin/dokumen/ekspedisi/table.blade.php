@@ -1,27 +1,29 @@
 <div class="box box-info">
     <div class="box-header with-border">
-        <a
-            href="{{ route('buku-umum.ekspedisi.dialog_cetak', ['aksi' => 'cetak']) }}"
-            class="btn btn-social bg-purple btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Cetak Dokumen"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Cetak Buku Ekspedisi"
-        >
-            <i class="fa fa-print"></i>Cetak
-        </a>
-        <a
-            href="{{ route('buku-umum.ekspedisi.dialog_cetak', ['aksi' => 'unduh']) }}"
-            class="btn btn-social bg-navy btn-sm
-			btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Unduh Dokumen"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Unduh
-			Buku Ekspedisi"
-        ><i class="fa fa-download"></i>Unduh</a>
+        @php
+            $listCetakUnduh = [
+                [
+                    'url' => "ekspedisi/dialog_cetak/cetak",
+                    'judul' => 'Cetak',
+                    'icon' => 'fa fa-print',
+                    'modal' => true,
+                ],
+                [
+                    'url' => "ekspedisi/dialog_cetak/unduh",
+                    'judul' => 'Unduh',
+                    'icon' => 'fa fa-download',
+                    'modal' => true,
+                ]
+            ];
+        @endphp
+
+        <x-split-button
+            judul="Cetak/Unduh"
+            :list="$listCetakUnduh"
+            :icon="'fa fa-arrow-circle-down'"
+            :type="'bg-purple'"
+            :target="true"
+        />
     </div>
     <div class="box-body">
         <div class="dataTables_wrapper form-inline dt-bootstrap no-footer">
@@ -30,7 +32,7 @@
                 <div class="row">
                     <div class="col-sm-2">
                         <select class="form-control input-sm select2 " name="tahun" id="tahun">
-                            <option value="">Tahun</option>
+                            <option value="">Pilih Tahun</option>
                             @foreach ($list_tahun as $thn)
                                 <option value="{{ $thn['tahun'] }}" @selected($tahun == $thn['tahun'])>
                                     {{ $thn['tahun'] }}
@@ -50,7 +52,7 @@
                                         <th>Aksi</th>
                                         <th>Tgl Pengiriman</th>
                                         <th>No. Surat</th>
-                                        <th>Tgl Surat</th>
+                                        <th>Tanggal Surat</th>
                                         <th>Isi Singkat</th>
                                         <th>Ditujukan Kepada</th>
                                         <th>Keterangan</th>
@@ -104,7 +106,7 @@
                         data: 'tanggal_surat',
                         name: 'tanggal_surat',
                         searchable: true,
-                        orderable: false,
+                        orderable: true,
                     },
                     {
                         data: 'isi_singkat',
@@ -126,7 +128,7 @@
                     }
                 ],
                 order: [
-                    [4, 'asc']
+                    [4, 'desc']
                 ],
             });
 

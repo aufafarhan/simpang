@@ -17,38 +17,16 @@
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
-                <a href="{{ ci_route('wilayah.form_' . $level, $parent) }}" id="btn-add" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
+                @include('admin.layouts.components.buttons.tambah', ['url' => "wilayah/form_{$level}/{$parent}"])
             @endif
             @if ($level == 'dusun')
-                <a
-                    href="{{ ci_route('wilayah.dialog.cetak') }}"
-                    class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                    title="Cetak Data"
-                    data-remote="false"
-                    data-toggle="modal"
-                    data-target="#modalBox"
-                    data-title="Cetak Data"
-                ><i class="fa fa-print "></i> Cetak</a>
-                <a
-                    href="{{ ci_route('wilayah.dialog.unduh') }}"
-                    title="Unduh Data"
-                    class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                    title="Unduh Data"
-                    data-remote="false"
-                    data-toggle="modal"
-                    data-target="#modalBox"
-                    data-title="Unduh Data"
-                ><i class="fa fa-download"></i> Unduh</a>
+                @include('admin.layouts.components.tombol_cetak_unduh', ['cetak' => 'wilayah/dialog/cetak', 'unduh' => 'wilayah/dialog/unduh'])
             @else
-                <a href='{{ ci_route('wilayah.cetak_' . $level, $parent) }}' class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Cetak Data" target="_blank"><i class="fa fa-print "></i> Cetak</a>
-                <a href='{{ ci_route('wilayah.unduh_' . $level, $parent) }}' title="Unduh Data" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Unduh Data" target="_blank"><i class="fa fa-download"></i> Unduh</a>
+                @include('admin.layouts.components.tombol_cetak_unduh', ['target' => true, 'cetak' => "wilayah/cetak_{$level}/{$parent}", 'unduh' => "wilayah/unduh_{$level}/{$parent}"])
             @endif
 
             @if ($parent)
-                <a href="{{ $backUrl }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                    <i class="fa fa-arrow-circle-left "></i>Kembali ke Wilayah Administratif
-                    {{ $level == 'rt' ? 'RW' : 'Dusun' }}
-                </a>
+                @include('admin.layouts.components.tombol_kembali', ['url' => $backUrl, 'label' => 'Wilayah Administratif ' . ($level == 'rt' ? 'RW' : ucwords(setting('sebutan_dusun')))])
             @endif
         </div>
         @if ($title)
@@ -84,8 +62,7 @@
                     <tbody id="dragable">
                     </tbody>
                     <tfoot>
-                        <th colspan="5">Total</th>
-                        <th></th>
+                        <th colspan="6">Total</th>
                         <th></th>
                         <th></th>
                         <th></th>
@@ -106,7 +83,7 @@
     <script>
         $(document).ready(function() {
             var level = "{{ $level }}";
-            const refreshOrder = '{{ $refreshOrder ? true : false }}'
+            var refreshOrder = {{ $refreshOrder ? true : false }};
 
             var TableData = $('#tabeldata').DataTable({
                 responsive: true,
@@ -197,16 +174,25 @@
                 createdRow: function(row, data, dataIndex) {
                     if ('{{ $level }}' == 'rw') {
                         if (data.rw == '-') {
+                            // Gabungkan kolom RW dan Kepala RW
                             $(row).find('td').eq(3).replaceWith(
                                 '<td colspan="2">Pergunakan RW ini apabila RT berada langsung di bawah {{ $wilayah }}, yaitu tidak ada RW</td>'
                             )
-                            $(row).find('td').eq(4).remove()
+                            $(row).find('td').eq(4).remove();
+
+                            // Hilangkan ikon drag
+                            $(row).find('td').eq(0).html('');
+
+                            // Tambahkan class agar tidak bisa di-drag
+                            $(row).removeClass('dragable-handle');
                         }
                     }
 
-                    $(row).attr('data-id', data.id)
+                    $(row).attr('data-id', data.id);
+                    $(row).attr('data-rw', data.rw);
                     $(row).addClass('dragable-handle');
                 },
+
                 initComplete: function(settings, json) {
                     if (refreshOrder) {
                         // trigger update urut jika ada yang masih kosong
@@ -236,7 +222,7 @@
                     var api = this.api();
 
                     // Iterasi melalui setiap kolom dan menghitung total
-                    for (var i = 5; i < api.columns().count(); i++) {
+                    for (var i = 6; i < api.columns().count(); i++) {
                         var columnData = api.column(i, {
                             page: 'current'
                         }).data();

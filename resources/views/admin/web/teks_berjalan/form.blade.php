@@ -20,9 +20,7 @@
     {!! form_open($form_action, 'class="form-horizontal" id="validasi"') !!}
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('teks_berjalan') }}" class="btn btn-social  btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Teks Berjalan">
-                <i class="fa fa-arrow-circle-left "></i>Kembali Ke Teks Berjalan
-            </a>
+            <x-kembali-button judul="Kembali Ke Daftar Teks Berjalan" url="teks_berjalan" />
         </div>
         <div class="box-body">
             <div class="col-md-12">
@@ -56,7 +54,7 @@
             <div class="col-md-12" id="eksternal" style="display: {{ in_array($teks['tipe'], [null, '1']) ? 'none' : '' }}">
                 <div class="form-group">
                     <label class="control-label">Tautan Luar</label>
-                    <input class="form-control input-sm required url short_url" placeholder="Contoh: https://opendesa.id" id="tautan_eksternal" name="tautan_eksternal" value="<?= $teks['tautan'] ?>"></input>
+                    <input class="form-control input-sm url short_url" placeholder="Contoh: https://opendesa.id" id="tautan_eksternal" name="tautan_eksternal" value="<?= $teks['tautan'] ?>"></input>
                 </div>
             </div>
             <div class="col-md-12" id="box_judul_tautan" style="display: {{ $teks['tautan'] ? '' : 'none' }}">
@@ -97,7 +95,7 @@
 
 @push('scripts')
     <script>
-        $(document).ready(function() {
+        $(document).ready(function() { 
             tipe(<?= $teks['tipe'] ?: 1 ?>);
 
             $('#tipe').on('change', function() {
@@ -105,33 +103,55 @@
             });
 
             $('#tautan_internal').on('change', function() {
-                tautan(this.value);
+                tautan($(this).val(), 'internal');
+            });
+
+            $('#tautan_eksternal').on('input', function() {
+                tautan($(this).val(), 'eksternal');
             });
 
             function tipe(param) {
                 if (param == 1) {
+                    // INTERNAL
                     $('#internal').show();
                     $('#eksternal').hide();
+
                     $("#tautan_internal").addClass("required");
-                    $("#tautan_eksternal").removeClass("required");
+                    $("#tautan_eksternal").removeClass("required url short_url");
+
+                    // judul wajib untuk internal
+                    $('#box_judul_tautan').show();
+                    $('#input_judul_tautan').prop("disabled", false).addClass("required");
+
                 } else {
+                    // EKSTERNAL
                     $('#internal').hide();
                     $('#eksternal').show();
+
                     $("#tautan_internal").removeClass("required");
-                    $("#tautan_eksternal").addClass("required");
-                    tautan(true);
+                    $("#tautan_eksternal").addClass("url short_url");
+
+                    tautan($("#tautan_eksternal").val(), 'eksternal');
                 }
             }
 
-            function tautan(params) {
-                if (params == "") {
-                    $('#box_judul_tautan').hide();
-                    $('#input_judul_tautan').prop("disabled", true);
-                } else {
+            function tautan(val, tipe) {
+                if (tipe === 'internal') {
+                    // internal selalu wajib
                     $('#box_judul_tautan').show();
-                    $('#input_judul_tautan').prop("disabled", false);
+                    $('#input_judul_tautan').prop("disabled", false).addClass("required");
+                } else {
+                    // eksternal: kalau ada isi maka wajib judul, kalau kosong tidak wajib
+                    if (val === "") {
+                        $('#box_judul_tautan').hide();
+                        $('#input_judul_tautan').prop("disabled", true).removeClass("required");
+                    } else {
+                        $('#box_judul_tautan').show();
+                        $('#input_judul_tautan').prop("disabled", false).addClass("required");
+                    }
                 }
             }
         });
+
     </script>
 @endpush

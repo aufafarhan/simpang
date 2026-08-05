@@ -19,28 +19,10 @@
         <div class="col-md-8">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a
-                        href="{{ ci_route('statistik.' . strtolower($kategori) . '.' . $lap . '.dialog.cetak') }}"
-                        class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Cetak Laporan"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Cetak Laporan"
-                    >
-                        <i class="fa fa-print "></i>Cetak
-                    </a>
-                    <a
-                        href="{{ ci_route('statistik.' . strtolower($kategori) . '.' . $lap . '.dialog.unduh') }}"
-                        class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Unduh Laporan"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Unduh Laporan"
-                    >
-                        <i class="fa fa-print "></i>Unduh
-                    </a>
+
+                    <x-cetak-button modal="true" :url="'statistik/' . strtolower($kategori) . '/' . $lap . '/dialog/cetak'" />
+                    <x-unduh-button modal="true" :url="'statistik/' . strtolower($kategori) . '/' . $lap . '/dialog/unduh'" />
+
                     <a class="btn btn-social bg-orange btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block grafikType" title="Grafik Data" id="grafikType" onclick="grafikType();">
                         <i class="fa fa-bar-chart"></i>Grafik Data
                     </a>
@@ -231,7 +213,6 @@
                     var dataJumlah = data.filter(r => r.nama === 'JUMLAH')[0];
                     var dataBelumIsi = data.filter(r => r.nama === 'BELUM MENGISI')[0];
                     var dataTotal = data.filter(r => r.nama === 'TOTAL')[0];
-                    // console.log(dataJumlah, dataBelumIsi, dataTotal);
 
                     $('#jml_total').html(dataJumlah.jumlah);
                     $('#jml_persen').html(dataJumlah.persen);
@@ -297,7 +278,6 @@
                     categories.push(index + 1);
                     seriesData.push([item.nama.toUpperCase(), jumlah]);
                 }
-                console.log(jumlah);
             });
 
             return {
@@ -308,14 +288,15 @@
 
         function grafikType() {
             var chartData = prepareChartData(serverData);
-            console.log(chartData);
 
             chart = new Highcharts.Chart({
                 chart: {
                     renderTo: 'chart',
-                    defaultSeriesType: 'column'
+                    type: 'column'
                 },
-                title: 0,
+                title: {
+                    text: null
+                },
                 xAxis: {
                     title: {
                         text: '{{ $stat }}'
@@ -341,8 +322,8 @@
                     }
                 },
                 series: [{
-                    shadow: 1,
-                    border: 1,
+                    type: 'column',
+                    name: 'Populasi',
                     data: chartData.seriesData
                 }]
             });

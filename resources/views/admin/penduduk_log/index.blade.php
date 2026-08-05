@@ -3,12 +3,12 @@
 @include('admin.layouts.components.datetime_picker')
 @section('title')
     <h1>
-        Catatan Peristiwa
+        Data {{ $module_name }}
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="active">Catatan Peristiwa</li>
+    <li class="active">Data {{ $module_name }}</li>
 @endsection
 
 @section('content')
@@ -18,30 +18,41 @@
             <div class="row">
                 <div class="col-sm-12">
                     @if (can('h') && data_lengkap())
-                        <a href="#confirm-status" title="Kembalikan Status" onclick="aksiBorongan('mainform', '{{ ci_route('penduduk_log.kembalikan_status_all') }}')"
-                            class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"
-                        ><i class='fa fa-undo'></i> Kembalikan Status Terpilih</a>
+                        <x-btn-button
+                        url=""
+                        judul="Kembalikan Status Terpilih"
+                        icon="fa fa-undo"
+                        type="btn-success hapus-terpilih"
+                        modal="true"
+                        confirm="true"
+                        confirmTarget="confirm-delete"
+                        onclick="aksiBorongan('mainform', '{{ ci_route('penduduk_log.kembalikan_status_all') }}')"
+                    />
                     @endif
-                    <a
-                        href="{{ ci_route('penduduk_log.ajax_cetak.cetak') }}"
-                        class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Cetak Data"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Cetak Data"
-                        target="_blank"
-                    ><i class="fa fa-print "></i> Cetak</a>
-                    <a
-                        href="{{ ci_route('penduduk_log.ajax_cetak.unduh') }}"
-                        class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                        title="Unduh Data"
-                        data-remote="false"
-                        data-toggle="modal"
-                        data-target="#modalBox"
-                        data-title="Unduh Data"
-                        target="_blank"
-                    ><i class="fa fa-download"></i> Unduh</a>
+                    @php
+                        $listCetakUnduh = [
+                            [
+                                'url'   => "penduduk_log/ajax_cetak/cetak",
+                                'modal' => true,
+                                'judul' => "Cetak",
+                                'icon'  => "fa fa-print",
+                            ],
+                            [
+                                'url'   => "penduduk_log/ajax_cetak/unduh",
+                                'modal' => true,
+                                'judul' => "Unduh",
+                                'icon'  => "fa fa-download",
+                            ],
+                        ];
+                        @endphp
+
+                        <x-split-button 
+                            judul="Cetak/Unduh"
+                            :list="$listCetakUnduh"
+                            icon="fa fa-arrow-circle-down"
+                            type="bg-purple"
+                            target="true"
+                        />
                 </div>
             </div>
         </div>
@@ -58,7 +69,7 @@
                 <div class="col-sm-2">
                     <select class="form-control input-sm select2" id="tahun" width="100%">
                         <option value="">Pilih Tahun</option>
-                        @for ($t = $tahun_log_pertama; $t <= date('Y'); $t++)
+                        @for ($t = date('Y'); $t >= $tahun_log_pertama; $t--)
                             <option value={{ $t }} @selected($defaultFilter['tahun'] == $t)>{{ $t }}</option>
                         @endfor
                     </select>
@@ -107,6 +118,7 @@
                             <th nowrap>NIK</th>
                             <th nowrap>NAMA</th>
                             <th nowrap>NO. KK / NAMA KK</th>
+                            <th nowrap>JENIS KELAMIN</th>
                             <th nowrap>{{ strtoupper(setting('sebutan_dusun')) }}</th>
                             <th nowrap>RW</th>
                             <th nowrap>RT</th>
@@ -125,17 +137,7 @@
     </div>
     @include('admin.layouts.components.konfirmasi', ['periksa_data' => true, 'pertanyaan' => $pertanyaan])
 @endsection
-@push('css')
-    <style>
-        .select2-results__option[aria-disabled=true] {
-            display: none;
-        }
 
-        .row.mepet>div {
-            margin-right: -25px;
-        }
-    </style>
-@endpush
 @push('scripts')
     <script>
         $(document).ready(function() {
@@ -213,6 +215,13 @@
                         searchable: true,
                         orderable: true,
                         defaultContent: ''
+                    },
+                    {
+                        data: 'penduduk.jenis_kelamin',
+                        name: 'penduduk.jenis_kelamin',
+                        searchable: false,
+                        orderable: false,
+                        defaultContent: '-',
                     },
                     {
                         data: 'penduduk.wilayah.dusun',

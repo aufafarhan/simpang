@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,31 +37,45 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+use App\Libraries\Acak;
+use App\Libraries\Database as LibrariesDatabase;
+use App\Libraries\Ekspor;
 use App\Libraries\FlxZipArchive;
+use App\Libraries\JobProses;
+use App\Libraries\OTP\OtpManager;
+use App\Libraries\Sinkronisasi;
 use App\Libraries\Sistem;
 use App\Models\LogBackup;
 use App\Models\LogRestoreDesa;
 use App\Models\Migrasi;
 use App\Models\SettingAplikasi;
 use App\Models\User;
+use App\Traits\Download;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use STS\ZipStream\Facades\Zip;
 use Symfony\Component\Process\Process;
 
 class Database extends Admin_Controller
 {
+    use Download;
+
     public $modul_ini     = 'pengaturan';
     public $sub_modul_ini = 'database';
+    private $jobProses;
+    private OtpManager $otp;
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
-        $this->load->model(['ekspor_model', 'database_model']);
         $this->load->helper('number');
-        $this->load->library('OTP/OTP_manager', null, 'otp_library');
+        $this->jobProses = new JobProses();
+        $this->otp       = new OtpManager();
     }
 
     public function index(): void
@@ -96,30 +110,51 @@ class Database extends Admin_Controller
         set_time_limit(0);              // making maximum execution time unlimited
         ob_implicit_flush(1);           // Send content immediately to the browser on every statement which produces output
         ob_end_flush();
-        $mode = $this->input->get('mode');
+        $doesntHaveMigrasiConfigId = ! Schema::hasColumn('migrasi', 'config_id');
+        $mode                      = $this->input->get('mode');
         if ($mode == 'all') {
-            Migrasi::whereNotNull('id')->delete();
+            Migrasi::when($doesntHaveMigrasiConfigId, static fn ($q) => $q->withoutConfigId())->whereNotNull('id')->delete();
         } else {
-            $migrasiTerakhir = Migrasi::orderBy('id', 'desc')->first();
+            $migrasiTerakhir = Migrasi::when($doesntHaveMigrasiConfigId, static fn ($q) => $q->withoutConfigId())->orderBy('id', 'desc')->first();
             if ($migrasiTerakhir) {
                 $migrasiTerakhir->delete();
             }
         }
 
         echo json_encode(['message' => 'Ulangi migrasi database versi ' . VERSI_DATABASE, 'status' => 0]);
-        $this->database_model->setShowProgress(1)->cek_migrasi();
+        (new LibrariesDatabase())->setShowProgress(1)->checkMigration();
         echo json_encode(['message' => 'Proses migrasi database telah berhasil', 'status' => 1]);
     }
 
     public function exec_backup()
     {
-        if (! Arr::get(Sistem::cekKebutuhanSistem(), 'memory_limit.result')) {
-            return show_404();
+        try {
+            if (! Arr::get(Sistem::cekKebutuhanSistem(), 'memory_limit.result')) {
+                throw new Exception('Memory limit tidak mencukupi untuk melakukan backup. Silakan periksa konfigurasi server.');
+            }
+
+            // Parameter force_all untuk backup semua desa (hanya valid untuk super admin, bukan database gabungan)
+            $forceAll = $this->input->get('force_all') === '1' && super_admin() && ! setting('multi_desa');
+
+            if ($forceAll) {
+                $dbName = (new Ekspor())->backup();
+            } else {
+                // Backup database desa saat ini (database gabungan)
+                $configId = identitas('id');
+                $dbName   = (new Ekspor())->setConfigId($configId)->backup();
+            }
+
+            if (! file_exists($dbName)) {
+                throw new Exception('File backup gagal dibuat. Silakan coba lagi.');
+            }
+
+            return $this->downloadFile($dbName);
+        } catch (Exception $e) {
+            logger()->error($e);
+            session_error('Backup gagal: ' . $e->getMessage());
+
+            return redirect('database');
         }
-
-        $this->ekspor_model->backup();
-
-        return null;
     }
 
     public function desa_backup()
@@ -139,7 +174,12 @@ class Database extends Admin_Controller
         if ($this->input->is_ajax_request()) {
             return datatables(LogBackup::query())
                 ->addIndexColumn()
-                ->addColumn('aksi', static fn ($row): string => '<a href="#" data-href="' . ci_route('database.inkremental_delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ')
+                ->addColumn('aksi', static function ($row): string {
+                    return View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('database.inkremental_delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
+                })
                 ->rawColumns(['aksi'])
                 ->make();
         }
@@ -193,24 +233,27 @@ class Database extends Admin_Controller
 
     public function restore(): void
     {
-        isCan('h');
+        // isMultiDB();
+        // isSiapPakai();
+        isCan('u', 'database', true, true);
 
-        if (config_item('demo_mode')) {
-            redirect($this->controller);
-        }
-
-        if (setting('multi_desa')) {
-            redirect_with('error', 'Restore database tidak diizinkan');
-        }
-
-        $token   = $this->setting->layanan_opendesa_token;
+        $token   = setting('layanan_opendesa_token');
         $pesan   = 'Proses restore database berhasil';
         $success = false;
 
         try {
             $this->session->sedang_restore = 1;
             $filename                      = $this->file_restore();
-            $success                       = $this->ekspor_model->proses_restore($filename);
+
+            // Validasi app_key dari file SQL.gz
+            if (! $this->validateAppKeyFromSqlFile($filename)) {
+                throw new Exception('File backup tidak dapat di-restore. File backup berasal dari instalasi OpenSID yang berbeda (App Key tidak cocok). Pastikan Anda menggunakan file backup dari instalasi yang sama.');
+            }
+
+            $connection = DB::connection();
+            $connection->statement('SET FOREIGN_KEY_CHECKS=0');
+            $success = (new Ekspor())->restore($filename);
+            $connection->statement('SET FOREIGN_KEY_CHECKS=1');
         } catch (Exception $e) {
             $this->session->sedang_restore = 0;
             $pesan                         = $e->getMessage();
@@ -230,15 +273,13 @@ class Database extends Admin_Controller
     public function acak()
     {
         isCan('u');
-        if ($this->setting->penggunaan_server != 6 && ! super_admin()) {
+        if (setting('penggunaan_server') != 6 && ! super_admin()) {
             return null;
         }
-
-        $this->load->model('acak_model');
-
-        $data = [
-            'penduduk' => $this->acak_model->acak_penduduk(),
-            'keluarga' => $this->acak_model->acak_keluarga(),
+        $acakModel = new Acak();
+        $data      = [
+            'penduduk' => $acakModel->acakPenduduk(),
+            'keluarga' => $acakModel->acakKeluarga(),
         ];
 
         return view('admin.database.acak.index', $data);
@@ -249,18 +290,17 @@ class Database extends Admin_Controller
     {
         isCan('u');
         $this->session->error_msg = null;
-        if ($this->setting->penggunaan_server != 6) {
+        if (setting('penggunaan_server') != 6) {
             return;
         }
-        $this->load->view('database/ajax_sinkronkan');
+        view('admin.database.ajax_sinkronkan');
     }
 
     public function proses_sinkronkan(): void
     {
         isCan('u');
-        $this->load->model('sinkronisasi_model');
 
-        $this->load->library('MY_Upload', null, 'upload');
+        $this->load->library('upload');
         $this->upload->initialize([
             'upload_path'   => sys_get_temp_dir(),
             'allowed_types' => 'zip',
@@ -275,19 +315,17 @@ class Database extends Admin_Controller
 
         $upload = $this->upload->data();
 
-        $hasil = $this->sinkronisasi_model->sinkronkan($upload['full_path']);
+        $hasil = (new Sinkronisasi())->sinkronkan($upload['full_path']);
         status_sukses($hasil);
         redirect($_SERVER['HTTP_REFERER']);
     }
 
     public function batal_backup(): void
     {
-        $this->load->library('job_prosess');
-        // ambil semua data pid yang masih dalam prosess
         $last_backup = LogBackup::where('status', '=', 0)->get();
 
         foreach ($last_backup as $value) {
-            $this->job_prosess->kill($value->pid_process);
+            $this->jobProses->kill($value->pid_process);
             $value->status = 3;
             $value->save();
         }
@@ -323,9 +361,9 @@ class Database extends Admin_Controller
             $user->token_exp = date('Y-m-d H:i:s', strtotime(date('Y-m-d H:i:s') . ' +5 minutes'));
             $user->save();
             if ($method == 'telegram') {
-                $this->otp_library->driver('telegram')->kirim_otp($user->id_telegram, $raw_token);
+                $this->otp->driver('telegram')->kirimOtp($user->id_telegram, $raw_token);
             } else {
-                $this->otp_library->driver('email')->kirim_otp($user->email, $raw_token);
+                $this->otp->driver('email')->kirimOtp($user->email, $raw_token);
             }
 
             return json([
@@ -364,6 +402,10 @@ class Database extends Admin_Controller
 
     public function upload_restore()
     {
+        // isMultiDB();
+        // isSiapPakai();
+        isCan('u', 'database', true, true);
+
         if (! $this->cek_otp(bilangan($this->session->kode_otp))) {
             return json([
                 'status'  => false,
@@ -379,7 +421,7 @@ class Database extends Admin_Controller
             'max_size'      => max_upload() * 1024,
             'check_script'  => false,
         ];
-        $this->load->library('MY_Upload', null, 'upload');
+        $this->load->library('upload');
         $this->upload->initialize($config);
 
         try {
@@ -428,21 +470,13 @@ class Database extends Admin_Controller
         redirect($this->controller);
     }
 
-    private function cek_otp($otp)
-    {
-        return User::where('id', '=', ci_auth()->id)
-            ->where('token_exp', '>', date('Y-m-d H:i:s'))
-            ->where('token', '=', hash('sha256', (string) bilangan($otp)))
-            ->exists();
-    }
-
     public function file_restore()
     {
-        $this->load->library('MY_Upload', null, 'upload');
+        $this->load->library('upload');
         $uploadConfig = [
             'upload_path'   => sys_get_temp_dir(),
-            'allowed_types' => 'sql', // File sql terdeteksi sebagai text/plain
-            'file_ext'      => 'sql',
+            'allowed_types' => 'sql|gz', // File sql terdeteksi sebagai text/plain
+            'file_ext'      => 'sql|gz',
             'max_size'      => max_upload() * 1024,
             'cek_script'    => false,
         ];
@@ -456,5 +490,88 @@ class Database extends Admin_Controller
         $uploadData = $this->upload->data();
 
         return $uploadConfig['upload_path'] . '/' . $uploadData['file_name'];
+    }
+
+    private function cek_otp($otp)
+    {
+        return User::where('id', '=', ci_auth()->id)
+            ->where('token_exp', '>', date('Y-m-d H:i:s'))
+            ->where('token', '=', hash('sha256', (string) bilangan($otp)))
+            ->exists();
+    }
+
+    /**
+     * Validasi app_key dari file SQL.gz dengan app_key sistem saat ini.
+     */
+    private function validateAppKeyFromSqlFile(string $filename): bool
+    {
+        try {
+            // Buka file SQL.gz
+            $handle = strcasecmp(substr($filename, -3), '.gz') ? fopen($filename, 'rb') : gzopen($filename, 'rb');
+
+            if (! $handle) {
+                return false;
+            }
+
+            $currentAppKey = get_app_key();
+            $foundAppKey   = null;
+            $lineCount     = 0;
+            $maxLines      = 3000; // Increase limit based on test result
+            $searchBuffer  = '';
+
+            // Cari INSERT statement untuk tabel config
+            while (! feof($handle) && $lineCount < $maxLines) {
+                $line = fgets($handle);
+                $lineCount++;
+                $searchBuffer .= $line;
+
+                // Cari INSERT INTO config
+                if (preg_match('/INSERT INTO\s+`?config`?/i', $searchBuffer)) {
+
+                    // Pattern utama: VALUES dengan single quotes (berdasarkan test yang berhasil)
+                    if (preg_match("/VALUES\\s*\\(\\s*\\d+\\s*,\\s*'([^']+)'/i", $searchBuffer, $matches)) {
+                        $foundAppKey = $matches[1];
+                        break;
+                    }
+
+                    // Pattern alternatif: VALUES dengan double quotes
+                    if (preg_match('/VALUES\\s*\\(\\s*\\d+\\s*,\\s*"([^"]+)"/i', $searchBuffer, $matches)) {
+                        $foundAppKey = $matches[1];
+                        break;
+                    }
+
+                    // Pattern untuk multi-line VALUES
+                    if (preg_match("/\\(\\s*\\d+\\s*,\\s*'([^']+)'/i", $searchBuffer, $matches)) {
+                        $foundAppKey = $matches[1];
+                        break;
+                    }
+                }
+
+                // Reset buffer jika terlalu besar untuk mencegah memory issue
+                if (strlen($searchBuffer) > 15000) {
+                    $searchBuffer = substr($searchBuffer, -5000);
+                }
+            }
+
+            // Tutup file handle
+            if (strcasecmp(substr($filename, -3), '.gz')) {
+                fclose($handle);
+            } else {
+                gzclose($handle);
+            }
+
+            // Jika tidak menemukan app_key, anggap valid (untuk kompatibilitas dengan backup lama)
+            if ($foundAppKey === null) {
+                return true;
+            }
+
+            // Bandingkan app_key
+            return $foundAppKey === $currentAppKey;
+        } catch (Exception $e) {
+            logger()->error($e);
+
+            // Jika terjadi error dalam validasi, anggap valid untuk menghindari blocking
+            return true;
+        }
     }
 }

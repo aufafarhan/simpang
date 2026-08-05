@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,14 @@
 
 namespace App\Console;
 
+use App\Console\Commands\AcakDataCommand;
+use App\Console\Commands\DeactivateInactiveAccounts;
+use App\Console\Commands\DesaBaruCommand;
+use App\Console\Commands\ModuleCommand;
+use App\Console\Commands\Modules\MigrationMakeCommand;
+use App\Console\Commands\Modules\SeedMakeCommand;
+use App\Console\Commands\SetupCommand;
+use App\Console\Commands\ViewClearCommand;
 use App\Exceptions\Handler;
 use App\Services\Laravel;
 use Illuminate\Console\Application as Artisan;
@@ -85,9 +93,14 @@ class Kernel implements KernelContract
      * @var array
      */
     protected $commands = [
-        Commands\AcakDataCommand::class,
-        Commands\ViewClearCommand::class,
-        Commands\ModuleCommand::class,
+        AcakDataCommand::class,
+        DesaBaruCommand::class,
+        MigrationMakeCommand::class,
+        ModuleCommand::class,
+        SeedMakeCommand::class,
+        SetupCommand::class,
+        ViewClearCommand::class,
+        DeactivateInactiveAccounts::class,
     ];
 
     /**
@@ -112,53 +125,24 @@ class Kernel implements KernelContract
     }
 
     /**
-     * Set the request instance for URL generation.
-     *
-     * @return void
-     */
-    protected function setRequestForConsole(Laravel $app)
-    {
-        $server = $_SERVER;
-
-        $server = array_merge($server, [
-            'SCRIPT_FILENAME' => 'artisan',
-            'SCRIPT_NAME'     => 'artisan',
-            'PHP_SELF'        => 'artisan',
-            'PATH_TRANSLATED' => 'artisan',
-            'argv'            => Arr::except($server['argv'], 0),
-        ]);
-
-        $_SERVER = $server;
-
-        $app->instance('request', Request::create(
-            base_url(),
-            'GET',
-            [],
-            [],
-            [],
-            $server
-        ));
-    }
-
-    /**
      * Re-route the Symfony command events to their Laravel counterparts.
      *
      * @internal
      *
      * @return $this
      */
-    public function rerouteSymfonyCommandEvents()
+    public function rerouteSymfonyCommandEvents(): static
     {
         if (null === $this->symfonyDispatcher) {
             $this->symfonyDispatcher = new EventDispatcher();
 
-            $this->symfonyDispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event) {
+            $this->symfonyDispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event): void {
                 $this->app[Dispatcher::class]->dispatch(
                     new CommandStarting($event->getCommand()->getName(), $event->getInput(), $event->getOutput())
                 );
             });
 
-            $this->symfonyDispatcher->addListener(ConsoleEvents::TERMINATE, function (ConsoleTerminateEvent $event) {
+            $this->symfonyDispatcher->addListener(ConsoleEvents::TERMINATE, function (ConsoleTerminateEvent $event): void {
                 $this->app[Dispatcher::class]->dispatch(
                     new CommandFinished($event->getCommand()->getName(), $event->getInput(), $event->getOutput(), $event->getExitCode())
                 );
@@ -166,21 +150,6 @@ class Kernel implements KernelContract
         }
 
         return $this;
-    }
-
-    /**
-     * Define the application's command schedule.
-     *
-     * @return void
-     */
-    protected function defineConsoleSchedule()
-    {
-        $this->app->instance(
-            Schedule::class,
-            $schedule = new Schedule()
-        );
-
-        $this->schedule($schedule);
     }
 
     /**
@@ -226,16 +195,6 @@ class Kernel implements KernelContract
     }
 
     /**
-     * Define the application's command schedule.
-     *
-     * @return void
-     */
-    protected function schedule(Schedule $schedule)
-    {
-
-    }
-
-    /**
      * Run an Artisan console command by name.
      *
      * @param string     $command
@@ -276,6 +235,60 @@ class Kernel implements KernelContract
     public function output()
     {
         return $this->getArtisan()->output();
+    }
+
+    /**
+     * Set the request instance for URL generation.
+     *
+     * @return void
+     */
+    protected function setRequestForConsole(Laravel $app)
+    {
+        $server = $_SERVER;
+
+        $server = array_merge($server, [
+            'SCRIPT_FILENAME' => 'artisan',
+            'SCRIPT_NAME'     => 'artisan',
+            'PHP_SELF'        => 'artisan',
+            'PATH_TRANSLATED' => 'artisan',
+            'argv'            => Arr::except($server['argv'], 0),
+        ]);
+
+        $_SERVER = $server;
+
+        $app->instance('request', Request::create(
+            base_url(),
+            'GET',
+            [],
+            [],
+            [],
+            $server
+        ));
+    }
+
+    /**
+     * Define the application's command schedule.
+     *
+     * @return void
+     */
+    protected function defineConsoleSchedule()
+    {
+        $this->app->instance(
+            Schedule::class,
+            $schedule = new Schedule()
+        );
+
+        $this->schedule($schedule);
+    }
+
+    /**
+     * Define the application's command schedule.
+     *
+     * @return void
+     */
+    protected function schedule(Schedule $schedule)
+    {
+
     }
 
     /**

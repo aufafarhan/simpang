@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,14 +29,15 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Models\Config;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\Console\Output\ConsoleOutput;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -70,41 +71,17 @@ class Koneksi_database extends CI_Controller
         redirect(ci_route('koneksi_database.encryptPassword'));
     }
 
-    public function desaBaru(): void
+    public function desaBaru()
     {
-        $this->load->database();
-        if (Config::appKey()->count() == 0) {
-            reset_auto_increment('config');
+        Artisan::call(command: 'opensid:desa-baru', outputBuffer: new ConsoleOutput());
+    }
 
-            // Tambahkan data sementara
-            Config::create([
-                'app_key'           => get_app_key(),
-                'nama_desa'         => '',
-                'kode_desa'         => '',
-                'nama_kecamatan'    => '',
-                'kode_kecamatan'    => '',
-                'nama_kabupaten'    => '',
-                'kode_kabupaten'    => '',
-                'nama_propinsi'     => '',
-                'kode_propinsi'     => '',
-                'nama_kepala_camat' => '',
-                'nip_kepala_camat'  => '',
-            ]);
-
-            $this->load->model('migrations/data_awal', 'data_awal');
-            $this->data_awal->up();
-
-            DB::table('migrasi')->truncate();
-            $this->load->model('database_model');
-            $this->database_model->cek_migrasi(true);
-
-            // hapus cache
-            resetCacheDesa();
-
-            // hapus session
-            session_destroy();
-        }
-
+    public function encryptPassword(): void
+    {
+        // setelah appKey diganti, password terenkrip harus diganti juga
+        $password = (new Config())->getConnection()->getConfig('password');
+        updateConfigFile('password', encrypt($password));
+        redirect(site_url());
     }
 
     private function cekConfig(): array
@@ -128,13 +105,5 @@ class Koneksi_database extends CI_Controller
             'appKey'   => $appKey,
             'appKeyDb' => $appKeyDb->app_key,
         ];
-    }
-
-    public function encryptPassword(): void
-    {
-        // setelah appKey diganti, password terenkrip harus diganti juga
-        $password = (new Config())->getConnection()->getConfig('password');
-        updateConfigFile('password', encrypt($password));
-        redirect(site_url());
     }
 }

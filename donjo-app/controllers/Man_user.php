@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,19 +39,29 @@ use App\Models\Pamong;
 use App\Models\User;
 use App\Models\UserGrup;
 use App\Models\Wilayah;
+use App\Services\MasaAktifAkunService;
+use App\Traits\UploadFotoUser;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Man_user extends Admin_Controller
 {
+    use UploadFotoUser;
+
     public $modul_ini     = 'pengaturan';
     public $sub_modul_ini = 'pengguna';
-    private int $tab_ini  = 10;
+    protected MasaAktifAkunService $masaAktifAkunService;
+    private int $tab_ini = 10;
 
     public function __construct()
     {
+        // Pastikan MasaAktifAkunService diinisialisasi di sini
         parent::__construct();
         isCan('b');
+        $this->masaAktifAkunService = new MasaAktifAkunService();
         $this->form_validation->set_error_delimiters('', '');
     }
 
@@ -89,20 +99,21 @@ class Man_user extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . site_url("man_user/form/{$row->id}") . '" class="btn bg-orange btn-sm" title="Ubah"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'man_user/form/' . $row->id,
+                    ])->render();
+
                     if ($row->id != super_admin()) {
                         if (can('u')) {
-                            if ($row->active == '0') {
-                                $aksi .= '<a href="' . site_url("man_user/user_unlock/{$row->id}") . '" class="btn bg-navy btn-sm" title="Aktifkan Pengguna"><i class="fa fa-lock"></i></a> ';
-                            } elseif ($row->active == '1') {
-                                $aksi .= '<a href="' . site_url("man_user/user_lock/{$row->id}") . '" class="btn bg-navy btn-sm" title="Non Aktifkan Pengguna"><i class="fa fa-unlock"></i></a> ';
-                            }
+                            $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                                'url'    => $row->active == '0' ? site_url("man_user/user_unlock/{$row->id}") : site_url("man_user/user_lock/{$row->id}"),
+                                'active' => $row->active,
+                            ])->render();
                         }
-                        if (can('h')) {
-                            $aksi .= '<a href="#" data-href="' . site_url("man_user/delete/{$row->id}") . '" class="btn bg-maroon btn-sm" title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
-                        }
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => site_url("man_user/delete/{$row->id}"),
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;
@@ -112,7 +123,7 @@ class Man_user extends Admin_Controller
                     : '<span class="label label-info">Bukan Staf</span>')
                 ->editColumn('last_login', static fn ($row) => tgl_indo2($row->last_login))
                 ->editColumn('email_verified_at', static fn ($row) => tgl_indo2($row->email_verified_at))
-                ->rawColumns(['ceklist', 'aksi', 'pamong_status'])
+                ->rawColumns(['ceklist', 'aksi', 'pamong_status', 'status_label'])
                 ->make();
         }
 
@@ -133,10 +144,18 @@ class Man_user extends Admin_Controller
             $data['action']      = 'Tambah';
         }
 
-        $data['wilayah']    = Wilayah::tree();
-        $data['user_group'] = UserGrup::status()->when(super_admin() == $id, static function ($query): void {
-                                            $query->where('slug', UserGrup::ADMINISTRATOR);
-                                        })->get(['id', 'nama']);
+        if (Schema::hasColumn('user', 'batasi_wilayah') && Schema::hasColumn('user', 'akses_wilayah')) {
+            $data['wilayah'] = Wilayah::tree();
+        }
+
+        $data['user_group'] = UserGrup::status()
+            ->when(super_admin() == $id, static function ($query): void {
+                $query->where('slug', UserGrup::ADMINISTRATOR);
+            })
+            ->when(! is_super_admin(), static function ($query): void {
+                $query->where('slug', '!=', UserGrup::ADMINISTRATOR);
+            })
+            ->get(['id', 'nama']);
         $data['akses']               = (new UserGrup())->getGrupSistem();
         $data['pamong']              = Pamong::selectData()->aktif()->bukanPengguna($id)->get();
         $data['notifikasi_telegram'] = setting('telegram_notifikasi');
@@ -170,12 +189,6 @@ class Man_user extends Admin_Controller
 
             redirect_with('success', 'Berhasil Tambah Data');
         }
-    }
-
-    private function set_form_validation(): void
-    {
-        $this->form_validation->set_rules('password', 'Kata Sandi Baru', 'required|callback_syarat_sandi');
-        $this->form_validation->set_message('syarat_sandi', 'Harus 6 sampai 20 karakter dan sekurangnya berisi satu angka dan satu huruf besar dan satu huruf kecil');
     }
 
     // Kata sandi harus 6 sampai 20 karakter dan sekurangnya berisi satu angka dan satu huruf besar dan satu huruf kecil
@@ -250,7 +263,20 @@ class Man_user extends Admin_Controller
     {
         isCan('u');
 
-        User::findOrFail($id)->update(['active' => 0]);
+        $user = User::findOrFail($id);
+
+        if ($user->id == super_admin()) {
+            redirect_with('error', 'Tidak dapat menonaktifkan akun Super Admin.');
+        }
+
+        $user->update(['active' => 0]);
+
+        try {
+            $this->masaAktifAkunService->sendAccountActivatedNotification($user);
+            set_session('success', 'Notifikasi aktivasi akun berhasil dikirim.');
+        } catch (Exception $e) {
+            log_message('error', 'Failed to send account activation notification: ' . $e->getMessage());
+        }
 
         redirect_with('success', 'Berhasil Ubah Data');
     }
@@ -259,9 +285,17 @@ class Man_user extends Admin_Controller
     {
         isCan('u');
 
-        User::findOrFail($id)->update(['active' => 1]);
+        $user = User::findOrFail($id);
+        $user->update(['active' => 1]);
 
+        try {
+            $this->masaAktifAkunService->sendAccountActivatedNotification($user);
+            set_session('success', 'Notifikasi aktivasi akun berhasil dikirim.');
+        } catch (Exception $e) {
+            log_message('error', 'Failed to send account activation notification: ' . $e->getMessage());
+        }
         redirect_with('success', 'Berhasil Ubah Data');
+
     }
 
     protected function delete_user($id = '')
@@ -279,15 +313,25 @@ class Man_user extends Admin_Controller
 
     protected function validate($request = [], $id = ''): array
     {
-        $data = [
-            'active'         => (int) ($request['aktif'] ?? 0),
+        $isSuperAdmin = $id && (int) $id === super_admin();
+        // Cegah privilege escalation: hanya Super Admin yang boleh menetapkan grup Administrator
+        $idGrupRequest = $request['id_grup'] ?? null;
+        if (! empty($idGrupRequest)) {
+            $adminGrupId = UserGrup::where('slug', UserGrup::ADMINISTRATOR)->value('id');
+
+            if ((int) $idGrupRequest === (int) $adminGrupId && ! is_super_admin()) {
+                redirect_with('error', 'Hanya Super Admin yang dapat menetapkan grup Administrator.');
+            }
+        }
+        $data         = [
+            'active'         => $isSuperAdmin ? 1 : (int) ($request['aktif'] ?? 0),
             'username'       => isset($request['username']) ? alfanumerik($request['username']) : null,
             'nama'           => isset($request['nama']) ? strip_tags((string) nama($request['nama'])) : null,
             'phone'          => isset($request['phone']) ? htmlentities((string) $request['phone']) : null,
             'email'          => empty($request['email']) ? null : htmlentities((string) $request['email']),
-            'id_grup'        => $request['id_grup'] ?? null,
+            'id_grup'        => $idGrupRequest,
             'pamong_id'      => empty($request['pamong_id']) ? null : $request['pamong_id'],
-            'foto'           => isset($request['foto']) ? $this->user_model->urusFoto($id) : null,
+            'foto'           => isset($request['foto']) ? $this->urusFoto($id) : null,
             'notif_telegram' => (int) ($request['notif_telegram'] ?? 0),
             'id_telegram'    => (int) ($request['id_telegram'] ?? 0),
             'config_id'      => identitas('id'),
@@ -296,7 +340,7 @@ class Man_user extends Admin_Controller
         ];
 
         if (! empty($request['password'])) {
-            $data['password'] = generatePasswordHash($request['password']);
+            $data['password'] = Hash::make($request['password']);
         }
 
         if (empty($id)) {
@@ -304,5 +348,11 @@ class Man_user extends Admin_Controller
         }
 
         return $data;
+    }
+
+    private function set_form_validation(): void
+    {
+        $this->form_validation->set_rules('password', 'Kata Sandi Baru', 'required|callback_syarat_sandi');
+        $this->form_validation->set_message('syarat_sandi', 'Harus 6 sampai 20 karakter dan sekurangnya berisi satu angka dan satu huruf besar dan satu huruf kecil');
     }
 }

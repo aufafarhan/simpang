@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Kehadiran Perangkat {{ ucwords($setting->sebutan_desa) }} </title>
+    <title>Kehadiran Perangkat {{ ucwords(setting('sebutan_desa')) }} </title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="robots" content="noindex">
     <link rel="shortcut icon" href="<?= favico_desa() ?>" />
@@ -26,14 +26,10 @@
     <link rel="stylesheet" href="{{ asset('css/admin-style.css') }}" />
     <!-- Plugins -->
     <link rel="stylesheet" href="{{ asset('css/bootstrap-toggle.min.css') }}" />
-    <link rel="stylesheet" href="{{ module_asset('css/style.css') }}" />
-    @php
-        $latarKehadiran = default_file(LATAR_LOGIN . $setting->latar_kehadiran, config('app.default_latar_kehadiran'));
-    @endphp
-
+    <link rel="stylesheet" href="{{ module_asset('kehadiran', 'css/style.css') }}" />
     <style type="text/css">
         .form-left {
-            background-image: url('{{ $latarKehadiran }}');
+            background-image: url('{{ ci_route('kehadiran.latar-kehadiran') }}');
         }
     </style>
     @stack('css')

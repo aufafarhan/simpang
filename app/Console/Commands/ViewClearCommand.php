@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -58,32 +58,24 @@ class ViewClearCommand extends Command
     protected $description = 'Clear all compiled view files';
 
     /**
-     * The filesystem instance.
-     *
-     * @var Filesystem
-     */
-    protected $files;
-
-    /**
      * Create a new config clear command instance.
      *
      * @return void
      */
-    public function __construct(Filesystem $files)
-    {
+    public function __construct(/**
+     * The filesystem instance.
+     */
+    protected Filesystem $files
+    ) {
         parent::__construct();
-
-        $this->files = $files;
     }
 
     /**
      * Execute the console command.
      *
      * @throws RuntimeException
-     *
-     * @return void
      */
-    public function handle()
+    public function handle(): void
     {
         $this->laravel->configure('view');
 

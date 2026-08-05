@@ -15,11 +15,13 @@
     @include('admin.layouts.components.notifikasi')
     <div class="box box-info">
         <div class="box-header with-border">
-            @if (can('u'))
-                <a href="{{ ci_route('mandiri.ajax_pin') }}" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Buat PIN Warga" class="btn btn-social btn-success btn-sm"><i class="fa fa-plus"></i> Tambah Pengguna</a>
-            @endif
+            <x-tambah-button modal="true" judul="Tambah" :url="'mandiri/ajax_pin'" />
         </div>
         <div class="box-body">
+            <div class="row mepet">
+                @include('admin.layouts.components.select_status')
+            </div>
+            <hr class="batas">
             <div class="table-responsive">
                 <table class="table table-bordered table-hover" id="tabeldata">
                     <thead>
@@ -30,6 +32,7 @@
                             <th>Nama Penduduk</th>
                             <th class="padat">Tanggal Buat</th>
                             <th class="padat">Login Terakhir</th>
+                            <th class="padat">Status</th>
                         </tr>
                     </thead>
                 </table>
@@ -58,7 +61,7 @@
                         <button type='button' class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                         <h4 class="modal-title' id='myModalLabel">PIN Warga ({{ $info['nama'] }})</h4>
                     </div>
-                    <form action="{{ ci_route('mandiri.kirim', $info['id_pend']) }}" method="post" id="validasi" target="_blank">
+                    <form action="{{ ci_route('mandiri.kirim', $info['id']) }}" method="post" id="validasi" target="_blank">
                         <input type="hidden" id="pin" name="pin" value="{{ $info['pin'] }}">
                         <div class="modal-body">
                             Berikut adalah kode pin yang baru saja di hasilkan, silakan dicatat atau di ingat dengan baik,
@@ -93,14 +96,25 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+            let status = @json(request('status', 1));
+
+            $('#status').val(status).trigger('change');
+
             @if (session('info'))
                 $('#pinBox').modal('show');
             @endif
+
             var TableData = $('#tabeldata').DataTable({
                 responsive: true,
                 processing: true,
                 serverSide: true,
-                ajax: "{{ ci_route('mandiri.datatables') }}",
+                ajax: {
+                    url: "{{ ci_route('mandiri.datatables') }}",
+                    type: "GET",
+                    data: function(req) {
+                        req.status = $('#status').val();
+                    }
+                },
                 columns: [{
                         data: 'DT_RowIndex',
                         class: 'padat',
@@ -140,6 +154,13 @@
                         orderable: true,
                         class: 'padat'
                     },
+                    {
+                        data: 'status_label',
+                        name: 'status',
+                        searchable: false,
+                        orderable: true,
+                        class: 'padat'
+                    },
                 ],
                 order: [
                     [4, 'desc']
@@ -154,6 +175,10 @@
             if (ubah == 0 && hapus == 0) {
                 TableData.column(1).visible(false);
             }
+
+            $('#status').change(function() {
+                TableData.draw();
+            })
         });
     </script>
 @endpush

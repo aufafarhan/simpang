@@ -20,6 +20,27 @@ $(window).on("load", function() {
 });
 
 $(document).ready(function() {
+    // Lengkapi komponen
+    const observer = new MutationObserver(() => {
+        const mappings = [
+            { selector: "a.bg-purple", icon: "i.fa-bars", title: "Rincian" },
+            { selector: "a.bg-orange", icon: "i.fa-edit", title: "Ubah" },
+            { selector: "a.bg-maroon", icon: "i.fa-trash-o", title: "Hapus" },
+            { selector: "a.bg-navy", icon: "i.fa-unlock", title: "Aktifkan" },
+            { selector: "a.bg-navy", icon: "i.fa-lock", title: "Nonaktifkan" },
+        ];
+
+        mappings.forEach(({ selector, icon, title }) => {
+            $(selector).each(function () {
+                if ($(this).find(icon).length && !$(this).attr("title")) {
+                    $(this).attr("title", title);
+                }
+            });
+        });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+
     // Fungsi untuk tombol kembali ke atas
     $(window).on("scroll", function() {
         if ($(this).scrollTop() > 100) {
@@ -49,29 +70,126 @@ $(document).ready(function() {
         });
     });
 
+    // Objek untuk menyimpan nilai default src elemen img
+    var defaultImgSrc = {};
+
+    $("form img").each(function(index, el) {
+        var inputFileName = $(el).closest('.preview-img').find('input[type="file"]').attr("name");
+        if (inputFileName) {
+            var src = $(el).attr("src");
+            // case ketika menggunakan lazyload
+            if(src.includes("img-loader.gif")) {
+                src = $(el).parent().attr("href");
+            }
+            defaultImgSrc[inputFileName] = src;
+        }
+    });
+
+    // Variabel untuk menyimpan nilai tanggal mulai dan akhir surat
+    var tglMulai;
+    var tglAkhir;
+
+    setTimeout(() => {
+        tglMulai = $("#surat_tgl_mulai").val();
+        tglAkhir = $("#surat_tgl_akhir").val();
+    }, 100);
+    
 
     // Tombol reset semua
     $("button[type='reset']").on("click", function() {
-        $($(this).closest("form")).trigger("reset")
-        var form =  $(this).closest("form")
-        // tipe select
-        form.find("select").trigger("change");
+        var form = $(this).closest("form");
+        var isUpdate = form.data("is-update"); // Read data-is-update from form
+
+        // Convert isUpdate to boolean (handles "true" as a string)
+        isUpdate = (isUpdate === true || isUpdate === "true");
+
+        $("body").find("select, input[type='radio'], input[type='text'], textarea, img").attr("data-reset", "true");
+
+        form.trigger("reset");
+
+        form.find('.my-colorpicker2>input').each(function() {
+            let currentVal = $(this).val(); // Ambil nilai input saat ini
+            let defaultVal = '#FFFFFF'; // Warna default
         
-        // tipe input radio
+            if (!currentVal) { // Jika kosong, gunakan default
+                $(this).val(defaultVal);
+            }
+        
+            $(this).trigger('change'); // Tetap trigger change untuk refresh
+        });
+        
+        // Reset Select2 only if NOT in update mode
+        if (!isUpdate) {
+            form.find("select").trigger("change");
+        }
+
+        // Handle input radio
         form.find("input[type='radio']").each(function(index, el) {
-            var value = $(el).val();
             var checked = $(el)[0].checked;
-            if (checked == true) {
-                if ($(el).parent().is('label')) {
-                    $(el).parent().addClass('active');
+            if (checked) {
+                if ($(el).parent().is("label")) {
+                    $(el).parent().addClass("active");
                 }
             } else {
-                if ($(el).parent().is('label')) {
-                    $(el).parent().removeClass('active');
+                if ($(el).parent().is("label")) {
+                    $(el).parent().removeClass("active");
                 }
             }
         });
+
+        // Reset margin dan format nomor surat global
+        var marginGlobal = form.find("input[name=margin_global]:checked").val();
+        var formatNomorGlobal = form.find("input[name=format_nomor_global]:checked").val();
+        
+        if(marginGlobal == 1) {
+            setTimeout(function() {
+                $('#manual_margin').hide();
+            }, 100);
+        }
+        
+        if(formatNomorGlobal == 1) {
+            setTimeout(function() {
+                $('#manual_nomor_surat').hide();
+            }, 100);
+        }
+
+        // Reset atas nama penandatangan pada form surat
+        var penandaTangan = form.find("select[name=pilih_atas_nama]");
+        
+        if(penandaTangan.length > 0) {
+            setTimeout(function() {
+                $('#pamong').val($("#pamong option[data-jenis='1']").val());
+                // Hide data penduduk desa, event show ada di komponen form_desa
+                form.find('.data_penduduk_desa').hide();
+            }, 100);
+        }
+
+        if(tglMulai && tglAkhir) {
+            setTimeout(function() {
+                $("#surat_tgl_mulai").val(tglMulai);
+                $("#surat_tgl_akhir").val(tglAkhir);    
+            }, 100);
+        }
+        
         form.find("input[type='radio']").trigger("change");
+
+        form.find(".has-error").removeClass("has-error");
+        form.find(".error").remove();
+
+        // Reset img src attribute
+        form.find("img").each(function() {
+            var inputFileName = $(this).closest('.preview-img').find('input[type="file"]').attr("name");
+            if (inputFileName && defaultImgSrc[inputFileName]) {
+                $(this).attr("src", defaultImgSrc[inputFileName]);
+            }
+        });
+
+        // Remove the reset flag after a short delay
+        setTimeout(function() {
+            $("body").find("select, input[type='radio'], input[type='text'], textarea, img").removeAttr("data-reset");
+        }, 100);
+
+        form.find("input.opsional").removeClass("required");
     });
 
     // Fungsi untuk filter menu
@@ -166,6 +284,58 @@ $(document).ready(function() {
         modal.find(".modal-title").text("");
     });
 
+    // Submit form via AJAX
+    $(document).on('submit', 'form.form-submit', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        var btn = form.find('button[type="submit"]');
+        var btnHtml = btn.html();
+
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            dataType: 'json',
+            beforeSend: function() {
+                // Hapus pesan error sebelumnya dan disable tombol sebelum request
+                form.find('.form-group').removeClass('has-error');
+                form.find('.help-block').remove();
+                btn.attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Menyimpan...');
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Jika sukses, redirect atau reload
+                    if (response.redirect) {
+                        window.location.href = response.redirect;
+                    } else {
+                        location.reload();
+                    }
+                } else {
+                    // Jika validasi gagal, tampilkan pesan error
+                    $.each(response.errors, function(key, value) {
+                        var input = form.find('[name="' + key + '"]');
+                        var formGroup = input.closest('.form-group');
+                        formGroup.addClass('has-error');
+                        // Tambahkan elemen help-block jika belum ada
+                        if (formGroup.find('.help-block').length === 0) {
+                            input.after('<small class="help-block"></small>');
+                        }
+                        formGroup.find('.help-block').text(value[0]);
+                    });
+                    // Kembalikan tombol ke kondisi semula
+                    btn.attr('disabled', false).html(btnHtml);
+                }
+            },
+            error: function(xhr) {
+                // Handle error server yang tidak terduga
+                toastr.error('Terjadi kesalahan internal. Silakan coba lagi atau hubungi administrator.');
+                console.error(xhr.responseText);
+                // Kembalikan tombol ke kondisi semula
+                btn.attr('disabled', false).html(btnHtml);
+            },
+        });
+    });
+
     //Confirm Delete Modal
     $("#confirm-delete").on("show.bs.modal", function(e) {
         var string = document.getElementById("confirm-delete").innerHTML;
@@ -180,6 +350,8 @@ $(document).ready(function() {
         document.getElementById("confirm-delete").innerHTML = hasil2;
         $(this).find(".btn-ok").attr("href", $(e.relatedTarget).data("href"));
     });
+
+   
 
     $("#confirm-status").on("show.bs.modal", function(e) {
         $(this).find(".btn-ok").attr("href", $(e.relatedTarget).data("href"));
@@ -200,7 +372,7 @@ $(document).ready(function() {
         }
     });
     $("#file_path").click(function() {
-        $("#file_browser").click();
+        $("#file").click();
     });
 
     $("#file_browser1").click(function(e) {
@@ -216,7 +388,7 @@ $(document).ready(function() {
         }
     });
     $("#file_path1").click(function() {
-        $("#file_browser1").click();
+        $("#file1").click();
     });
 
     $("#file_browser2").click(function(e) {
@@ -434,6 +606,17 @@ function enableHapusTerpilih() {
 function deleteAllBox(idForm, action) {
     $("#confirm-delete").modal("show");
     $("#ok-delete").click(function() {
+        $("#" + idForm).attr("action", action);
+        // addCsrfField($("#" + idForm)[0]);
+        refreshFormCsrf();
+        $("#" + idForm).submit();
+    });
+    return false;
+}
+
+function tambahRtmAllBox(idForm, action) {
+    $("#tambah-rtm").modal("show");
+    $("#ok-tambah-rtm").click(function() {
         $("#" + idForm).attr("action", action);
         // addCsrfField($("#" + idForm)[0]);
         refreshFormCsrf();
@@ -705,25 +888,19 @@ function ditolak(
         cancelButtonText: "Tutup",
         showLoaderOnConfirm: true,
         preConfirm: (alasan) => {
-            const formData = new FormData();
-            formData.append("sidcsrf", getCsrfToken());
-            formData.append("id", id);
-            formData.append("alasan", alasan);
-
-            return fetch(ajax_url, {
-                    method: "POST",
-                    body: formData,
-                })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error(response.statusText);
-                    }
-                    return response.json();
-                })
-                .catch((error) => {
-                    console.log(error);
-                    Swal.showValidationMessage(`Request failed: ${error}`);
-                });
+            return $.ajax({
+                url: ajax_url,
+                type: "POST",
+                data: {
+                    id: id,
+                    alasan: alasan
+                },
+                dataType: 'json'
+            })
+            .fail((error) => {
+                console.log(error);
+                Swal.showValidationMessage(`Request failed: ${error.statusText}`);
+            });
         },
     }).then((result) => {
         if (result.isConfirmed) {
@@ -808,3 +985,14 @@ function parseJwt(token) {
 
     return JSON.parse(jsonPayload);
 }
+
+// Handler baru untuk tombol dari split button
+$(document).on('click', '.aksi-tambah-rtm', function (e) {
+    e.preventDefault();
+
+    const form = $(this).data('form');
+    const url = $(this).data('url');
+
+    // Panggil fungsi lama yang sudah ada
+    tambahRtmAllBox(form, url);
+});

@@ -2,12 +2,12 @@
 @include('admin.layouts.components.asset_validasi')
 @section('title')
     <h1>
-        Data Anggota {{ $tipe }}
+        Data Anggota {{ $module_name }}
     </h1>
 @endsection
 @section('breadcrumb')
-    <li><a href="{{ site_url($controller) }}"> Daftar {{ $tipe }}</a></li>
-    <li class="active">Data Anggota {{ $tipe }}</li>
+    <li><a href="{{ site_url(str_replace('_anggota', '', $controller)) }}"> Daftar {{ $tipe }}</a></li>
+    <li class="active">Data Anggota {{ $module_name }}</li>
 @endsection
 
 @section('content')
@@ -24,9 +24,11 @@
         <div class="col-md-9">
             <div class="box box-primary">
                 <div class="box-header with-border">
-                    <a href="{{ site_url("{$controller}/detail/{$kelompok}") }}" class="btn btn-social btn-info btn-sm
-                    visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left "></i> Kembali Ke Anggota
-                        {{ $tipe }}</a>
+                    <x-kembali-button 
+                        :url="$controller . '/detail/' . $kelompok"
+                        :judul="'Kembali Ke Daftar Anggota ' . $tipe"
+                    />
+
                 </div>
                 <div class="box-body">
                     <div class="form-group">

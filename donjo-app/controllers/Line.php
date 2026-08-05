@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,15 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\AktifEnum;
 use App\Models\Line as LineModel;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -59,7 +61,6 @@ class Line extends Admin_Controller
         if ($data['tipe'] == '2') {
             $data['parent_jenis'] = LineModel::find($data['parent'])->nama ?? '';
         }
-        $data['status'] = [LineModel::LOCK => 'Aktif', LineModel::UNLOCK => 'Tidak Aktif'];
 
         view('admin.peta.line.index', $data);
     }
@@ -67,11 +68,11 @@ class Line extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
+            $status = $this->input->get('status');
             $parent = $this->input->get('parent') ?? $this->parent;
+            $tipe   = $this->input->get('tipe') ?? $this->tipe;
 
-            $tipe = $this->input->get('tipe') ?? $this->tipe;
-
-            return datatables()->of(LineModel::whereParrent($parent)->whereTipe($tipe))
+            return datatables()->of(LineModel::status($status)->whereParrent($parent)->whereTipe($tipe))
                 ->addColumn('ceklist', static function ($row) {
                     if (can('h')) {
                         return '<input type="checkbox" name="id_cb[]" value="' . $row->id . '"/>';
@@ -80,33 +81,35 @@ class Line extends Admin_Controller
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('line.form', implode('/', [$row->parrent, $row->id])) . '" class="btn btn-warning btn-sm"  title="Ubah"><i class="fa fa-edit"></i></a> ';
-                    }
 
                     if ($row->tipe == LineModel::ROOT) {
-                        $aksi .= '<a href="' . ci_route('line.index') . '?parent=' . $row->id . '&tipe=' . LineModel::CHILD . '" class="btn bg-purple btn-sm"  title="Rincian ' . $row->nama . '" data-title="Rincian ' . $row->nama . '"><i class="fa fa-bars"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.rincian', [
+                            'url'   => ci_route('line.index') . '?parent=' . $row->id . '&tipe=' . LineModel::CHILD,
+                            'judul' => 'Rincian ' . $row->nama,
+                        ])->render();
                     }
+
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'line/form/' . implode('/', [$row->parrent, $row->id]),
+                    ])->render();
 
                     if (can('u')) {
-                        if ($row->enabled == LineModel::UNLOCK) {
-                            $aksi .= '<a href="' . ci_route('line.lock', implode('/', [$row->parrent, $row->id])) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock">&nbsp;</i></a> ';
-                        }
-
-                        if ($row->enabled == LineModel::LOCK) {
-                            $aksi .= '<a href="' . ci_route('line.unlock', implode('/', [$row->parrent, $row->id])) . '" class="btn bg-navy btn-sm" title="Non Aktifkan"><i class="fa fa-unlock"></i></a> ';
-                        }
+                        $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                            'url'    => site_url("line/lock/{$row->parrent}/{$row->id}"),
+                            'active' => $row->enabled,
+                        ])->render();
                     }
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('line.delete', implode('/', [$row->parrent, $row->id])) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('line.delete', implode('/', [$row->parrent, $row->id])),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
-                ->editColumn('enabled', static fn ($row): string => $row->enabled == LineModel::LOCK ? 'Ya' : 'Tidak')
+                ->editColumn('enabled', static fn ($row): string => '<span class="label label-' . ($row->enabled ? 'success' : 'danger') . '">' . AktifEnum::valueOf($row->enabled) . '</span>')
                 ->editColumn('color', static fn ($row): string => '<hr style="vertical-align: middle; margin: 0; border-bottom: ' . $row->tebal . 'px ' . $row->jenis . '  ' . $row->color . '">')
-                ->rawColumns(['aksi', 'ceklist', 'color'])
+                ->rawColumns(['aksi', 'ceklist', 'color', 'enabled'])
                 ->make();
         }
 
@@ -142,10 +145,10 @@ class Line extends Admin_Controller
 
         try {
             LineModel::create($dataInsert);
-            redirect_with('success', 'Tipe garis berhasil disimpan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            redirect_with('success', __('notification.created.success'), ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe garis gagal disimpan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            redirect_with('error', __('notification.created.error'), ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
         }
     }
 
@@ -154,72 +157,79 @@ class Line extends Admin_Controller
         isCan('u');
         $dataUpdate            = $this->validasi($this->input->post());
         $dataUpdate['parrent'] = $parent;
-        $tipe                  = $this->tipe($parent);
-        $dataUpdate['tipe']    = $tipe;
+        $tipe                  = $this->tipe($id);
 
         try {
             LineModel::where(['id' => $id, 'parrent' => $parent])->update($dataUpdate);
-            redirect_with('success', 'Tipe garis berhasil disimpan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            redirect_with('success', __('notification.updated.success'), ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe garis gagal disimpan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            redirect_with('error', __('notification.updated.error'), ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
         }
     }
 
     public function delete($parent, $id = null): void
     {
-        $tipe = $this->tipe($parent);
+        $tipe = $this->tipe($id);
         isCan('h');
+
+        if ($this->hasChild($this->request['id_cb'] ?? $id)) {
+            redirect_with('error', __('notification.deleted.error') . '. Silakan hapus subdata terlebih dahulu.', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+        }
 
         try {
             LineModel::destroy($this->request['id_cb'] ?? $id);
-            redirect_with('success', 'Tipe garis berhasil dihapus', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            redirect_with('success', __('notification.deleted.success'), ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe garis gagal dihapus', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            redirect_with('error', __('notification.deleted.error'), ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
         }
     }
 
-    public function lock($parent, $id): void
+    public function lock($parent, $id)
     {
         isCan('u');
-        $tipe = $this->tipe($parent);
 
         try {
-            LineModel::where(['id' => $id])->update(['enabled' => LineModel::LOCK]);
-            redirect_with('success', 'Tipe garis berhasil dinonaktifkan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+            $status  = LineModel::gantiStatus($id, 'enabled');
+            $success = (bool) $status;
+
+            return json([
+                'success' => $success,
+                'message' => $success ? __('notification.status.success') : __('notification.status.error'),
+            ]);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe garis gagal dinonaktifkan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+
+            return json([
+                'success' => false,
+                'message' => __('notification.status.error'),
+            ]);
         }
     }
 
-    public function unlock($parent, $id): void
+    private function hasChild($id): bool
     {
-        isCan('u');
-        $tipe = $this->tipe($parent);
-
-        try {
-            LineModel::where(['id' => $id])->update(['enabled' => LineModel::UNLOCK]);
-            redirect_with('success', 'Tipe garis berhasil diaktifkan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
-        } catch (Exception $e) {
-            log_message('error', $e->getMessage());
-            redirect_with('error', 'Tipe garis gagal diaktifkan', ci_route('line.index') . '?parent=' . $parent . '&tipe=' . $tipe);
+        if (is_array($id)) {
+            return LineModel::whereIn('parrent', $id)->exists();
         }
+
+        return LineModel::where('parrent', $id)->exists();
     }
 
     private function validasi(array $post): array
     {
         return [
-            'nama'  => nomor_surat_keputusan($post['nama']),
-            'jenis' => nomor_surat_keputusan($post['jenis']),
-            'tebal' => bilangan($post['tebal']),
-            'color' => warna($post['color']),
+            'nama'    => nomor_surat_keputusan($post['nama']),
+            'jenis'   => nomor_surat_keputusan($post['jenis']),
+            'tebal'   => bilangan($post['tebal']),
+            'color'   => warna($post['color']),
+            'enabled' => $post['enabled'] ?? AktifEnum::TIDAK_AKTIF,
         ];
     }
 
-    private function tipe($parent): int
+    private function tipe($id): int
     {
-        return ($parent == 1) ? LineModel::ROOT : LineModel::CHILD;
+        return LineModel::whereId($id)->doesntHave('parent')->exists() ? LineModel::ROOT : LineModel::CHILD;
     }
 }

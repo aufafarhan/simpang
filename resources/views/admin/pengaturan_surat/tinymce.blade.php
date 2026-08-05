@@ -6,7 +6,7 @@
 
     <div class="box-body">
         <div class="form-group">
-            <textarea name="template_desa" data-filemanager='<?= json_encode(['external_filemanager_path'=> base_url('assets/kelola_file/'), 'filemanager_title' => 'Responsive Filemanager', 'filemanager_access_key' => $session->fm_key]) ?>' data-salintemplate="isi" class="form-control input-sm editor required">{{ $suratMaster->template_desa ?? $suratMaster->template }}</textarea>
+            <textarea name="template_desa" data-filemanager='<?= json_encode(['external_filemanager_path'=> base_url('rfm/'), 'filemanager_title' => 'Responsive Filemanager', 'filemanager_access_key' => $session->fm_key]) ?>' data-salintemplate="isi" class="form-control input-sm editor required">{{ $suratMaster->template_desa ?? $suratMaster->template }}</textarea>
         </div>
     </div>
 </div>
@@ -262,6 +262,16 @@
                                                 <select id="sumber_data_{{ $item }}" class="form-control input-sm isi-sumber-data" name="kategori_sumber[{{ $item }}]" onchange='tampil_sumber_dinamis("#tab-{{ $item }}", this.value)'>
                                                     <option value="1" @selected('1' == $suratMaster->form_isian->{$item}->sumber)>YA
                                                     <option value="0" @selected('0' == $suratMaster->form_isian->{$item}->sumber)>TIDAK
+                                                </select>
+                                            </td>
+                                        </tr>
+
+                                        <tr class="sumber_data {{ $tampil_sumber }}">
+                                            <td>Sumber Data Wajib Diisi</td>
+                                            <td>
+                                                <select id="sumber_data_wajib_{{ $item }}" class="form-control input-sm" name="sumber_data_wajib[{{ $item }}]">
+                                                    <option value="1" @selected(1 == $suratMaster->form_isian->{$item}->sumber_wajib)>YA
+                                                    <option value="0" @selected(0 == $suratMaster->form_isian->{$item}->sumber_wajib)>TIDAK
                                                 </select>
                                             </td>
                                         </tr>

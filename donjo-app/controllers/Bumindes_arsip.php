@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Services\ArsipFisikSurat;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -91,19 +92,40 @@ class Bumindes_arsip extends Admin_Controller
             )
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
+                    $aksi .= View::make('admin.layouts.components.buttons.rincian', [
+                        'url'   => "{$row->modul_asli}",
+                        'judul' => 'Tampilkan di modul aslinya',
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url'   => "bumindes_arsip/tindakan_ubah/{$row->kategori}/{$row->id}",
+                        'modal' => true,
+                    ])->render();
+
                     if (isset($row->lampiran)) {
                         if ($row->lampiran != '') {
-                            $aksi .= '<a href="' . ci_route('keluar.unduh.lampiran', $row->id) . '" class="btn bg-blue btn-sm" title="Unduh Lampiran"><i class="fa fa-paperclip">&nbsp;</i></a> ';
+                            $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                'url'        => ci_route('keluar.unduh.lampiran', $row->id),
+                                'icon'       => 'fa fa-paperclip',
+                                'judul'      => 'Unduh Lampiran',
+                                'type'       => 'bg-blue',
+                                'buttonOnly' => true,
+                            ])->render();
                         }
-                        $aksi .= '<a href="' . ci_route('keluar.unduh.rtf', $row->id) . '" class="btn bg-black btn-sm" title="Unduh Berkas"><i class="fa fa-download">&nbsp;</i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.unduh', [
+                            'url'        => ci_route('keluar.unduh.rtf', $row->id),
+                            'buttonOnly' => true,
+                        ])->render();
                     } else {
-                        $aksi .= '<a href="' . site_url("bumindes_arsip/tindakan_lihat/{$row->kategori}/{$row->id}/lihat") . '" target="_blank" class="btn bg-blue btn-sm" title="Lihat Berkas"><i class="fa fa-eye">&nbsp;</i></a> ';
-                        $aksi .= '<a href="' . site_url("bumindes_arsip/tindakan_lihat/{$row->kategori}/{$row->id}/unduh") . '" class="btn bg-black btn-sm" title="Unduh Berkas"><i class="fa fa-download">&nbsp;</i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.lihat', [
+                            'url'   => site_url("bumindes_arsip/tindakan_lihat/{$row->kategori}/{$row->id}/lihat"),
+                            'blank' => true,
+                        ])->render();
+                        $aksi .= View::make('admin.layouts.components.buttons.unduh', [
+                            'url'        => site_url("bumindes_arsip/tindakan_lihat/{$row->kategori}/{$row->id}/unduh"),
+                            'buttonOnly' => true,
+                        ])->render();
                     }
-                    if (can('u')) {
-                        $aksi .= '<a href="' . site_url("bumindes_arsip/tindakan_ubah/{$row->kategori}/{$row->id}") . '" class="btn bg-yellow btn-sm" title="Ubah Lokasi Arsip" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Lokasi Arsip"><i class="fa fa-edit">&nbsp;</i></a> ';
-                    }
-                    $aksi .= '<a href="' . ci_route($row->modul_asli) . '" class="btn bg-green btn-sm" title="Tampilkan di modul aslinya"><i class="fa fa-list">&nbsp;</i></a> ';
 
                     return $aksi;
                 })

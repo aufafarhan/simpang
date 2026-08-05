@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,23 +37,46 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+use App\Events\Surat\PermohonanSuratSubmitted;
+use App\Libraries\TinyMCE;
 use App\Models\DokumenHidup;
 use App\Models\FormatSurat;
 use App\Models\LogSurat;
 use App\Models\Penduduk;
 use App\Models\PermohonanSurat;
 use App\Models\SyaratSurat;
+use App\Services\LayananSuratCetakService;
 use Mike42\Escpos\PrintConnectors\NetworkPrintConnector;
 use Mike42\Escpos\Printer;
 
 class Surat extends Mandiri_Controller
 {
+    protected TinyMCE $tinymce;
+
+    private LayananSuratCetakService $layananSuratCetak;
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        $this->tinymce           = new TinyMCE();
+        $this->layananSuratCetak = new LayananSuratCetakService();
+    }
+
     public function index()
     {
         if ($this->input->is_ajax_request()) {
             $printer = $this->print_connector();
 
-            return datatables(PermohonanSurat::with(['logSurat', 'surat'])->belumDiambil()->whereIdPemohon($this->is_login->id_pend))
+            $query = PermohonanSurat::with([
+                'logSurat:id,tte',
+                'surat:id,nama',
+            ])
+                ->without(['penduduk'])
+                ->belumDiambil()
+                ->whereIdPemohon($this->is_login->id_pend);
+
+            return datatables($query)
                 ->addIndexColumn()
                 ->addColumn('aksi', function ($item) use ($printer) {
                     $aksi = '';
@@ -116,9 +139,9 @@ class Surat extends Mandiri_Controller
                 ->addColumn('aksi', static function ($item) use ($isTte) {
                     $aksi = '';
 
-                    if ($isTte && $isTte) {
+                    if ($isTte) {
                         $url = site_url("layanan-mandiri/surat/cetak/{$item->id}");
-                        $aksi .= "<a href='{{ {$url} }}' class='btn btn-flat bg-fuchsia btn-sm' title='Cetak Surat PDF' target='_blank'><i class='fa fa-file-pdf-o'></i></a>";
+                        $aksi .= "<a href='{$url}' class='btn bg-fuchsia btn-sm' title='Cetak Surat PDF' target='_blank'><i class='fa fa-file-pdf-o'></i></a>";
                     }
 
                     return $aksi;
@@ -174,18 +197,18 @@ class Surat extends Mandiri_Controller
                 ->all();
 
             return datatables($syaratSurat)
-                ->addColumn('pilihan_syarat', function ($item) use ($dokumen, $syaratPermohonan) {
-                    return view(
-                        view: 'layanan_mandiri.surat.pilihan_syarat',
-                        data: [
-                            'dokumen'           => $dokumen,
-                            'syarat_permohonan' => json_decode($syaratPermohonan, true) ?? [],
-                            'syarat_id'         => $item->ref_syarat_id,
-                            'cek_anjungan'      => $this->cek_anjungan,
-                        ],
-                        returnView: true
-                    );
-                })
+                ->addColumn('pilihan_syarat', fn ($item) => view(
+                    view: 'layanan_mandiri.surat.pilihan_syarat',
+                    data: [
+                        'dokumen'           => $dokumen,
+                        'syarat_permohonan' => is_array($syaratPermohonan)
+                            ? $syaratPermohonan
+                            : (json_decode($syaratPermohonan, true) ?? []),
+                        'syarat_id'    => $item->ref_syarat_id,
+                        'cek_anjungan' => $this->cek_anjungan,
+                    ],
+                    returnView: true
+                ))
                 ->rawColumns(['pilihan_syarat'])
                 ->addIndexColumn()
                 ->skipPaging()
@@ -224,14 +247,17 @@ class Surat extends Mandiri_Controller
 
         $surat    = FormatSurat::find($data['id_surat']);
         $penduduk = Penduduk::find($id_pend) ?? show_404();
-        $individu = $penduduk->formIndividu();
+
+        $penandatangan     = $this->tinymce->formPenandatangan();
+        $data['pamong']    = $penandatangan['penandatangan'];
+        $data['atas_nama'] = $penandatangan['atas_nama'];
 
         $data = array_merge($data, [
             'url'          => $surat->url_surat,
-            'individu'     => $individu,
+            'individu'     => $penduduk->toArray(),
             'anggota'      => $penduduk?->keluarga?->anggota?->toArray(),
             'surat_url'    => rtrim($_SERVER['REQUEST_URI'], '/clear'),
-            'form_action'  => ci_route("surat/cetak/{$surat->url_surat}"),
+            'form_action'  => route('layanan-mandiri.surat.kirim', $permohonan['id']),
             'cek_anjungan' => $this->cek_anjungan,
             'mandiri'      => 1,
         ]);
@@ -243,8 +269,6 @@ class Surat extends Mandiri_Controller
 
     public function kirim($id = ''): void
     {
-        $this->load->library('Telegram/telegram');
-
         $data_permohonan = $this->session->data_permohonan;
 
         $post = $this->input->post();
@@ -252,11 +276,11 @@ class Surat extends Mandiri_Controller
             'config_id'   => identitas('id'),
             'id_pemohon'  => bilangan($post['nik']),
             'id_surat'    => FormatSurat::where('url_surat', $post['url_surat'])->first()->id,
-            'isian_form'  => json_encode($post, JSON_THROW_ON_ERROR),
+            'isian_form'  => $post,
             'status'      => 1, // Selalu 1 bagi penggun layanan mandiri
             'keterangan'  => $this->security->xss_clean($data_permohonan['keterangan']),
             'no_hp_aktif' => bilangan($data_permohonan['no_hp_aktif'] ?? $post['no_hp_aktif']),
-            'syarat'      => json_encode($data_permohonan['syarat'], JSON_THROW_ON_ERROR),
+            'syarat'      => $data_permohonan['syarat'],
             'updated_at'  => date('Y-m-d H:i:s'),
         ];
 
@@ -265,30 +289,12 @@ class Surat extends Mandiri_Controller
         } else {
             $data['created_at'] = $data['updated_at'];
 
-            PermohonanSurat::insert($data);
+            $permohonan = PermohonanSurat::create($data);
+            $surat      = $permohonan->load('surat')->surat;
+            $penduduk   = auth('penduduk')->user();
 
-            if (setting('telegram_notifikasi') && cek_koneksi_internet()) {
-                try {
-                    // Data pesan telegram yang akan digantikan
-                    $pesanTelegram = [
-                        '[nama_penduduk]' => $this->is_login->nama,
-                        '[judul_surat]'   => FormatSurat::find($post['id_surat'])->nama,
-                        '[tanggal]'       => tgl_indo2(date('Y-m-d H:i:s')),
-                        '[melalui]'       => 'Layanan Mandiri',
-                        '[website]'       => APP_URL,
-                    ];
-
-                    $kirimPesan = setting('notifikasi_pengajuan_surat');
-                    $kirimPesan = str_replace(array_keys($pesanTelegram), array_values($pesanTelegram), $kirimPesan);
-                    $this->telegram->sendMessage([
-                        'text'       => $kirimPesan,
-                        'parse_mode' => 'Markdown',
-                        'chat_id'    => $this->setting->telegram_user_id,
-                    ]);
-                } catch (Exception $e) {
-                    log_message('error', $e->getMessage());
-                }
-            }
+            // Dispatch event to send notifications
+            event(new PermohonanSuratSubmitted($permohonan, $penduduk, $surat));
         }
 
         $this->session->unset_userdata('data_permohonan');
@@ -296,21 +302,12 @@ class Surat extends Mandiri_Controller
         redirect('layanan-mandiri/permohonan-surat');
     }
 
-    private function get_data_untuk_form($url, array &$data): void
-    {
-        // Panggil 1 penduduk berdasarkan datanya sendiri
-        $data['penduduk'] = [$data['periksa']['penduduk']];
-
-        $data['surat_terakhir']     = LogSurat::lastNomerSurat($url);
-        $data['surat']              = FormatSurat::where('url_surat', $url)->first()->toArray();
-        $data['input']              = $this->input->post();
-        $data['input']['nomor']     = $data['surat_terakhir']['no_surat_berikutnya'];
-        $data['format_nomor_surat'] = FormatSurat::format_penomoran_surat($data);
-    }
-
     public function proses($id = ''): void
     {
-        $permohanan         = PermohonanSurat::with(['surat'])->find($id);
+        $permohanan = PermohonanSurat::with(['surat'])
+            ->where('id', $id)
+            ->milikPenduduk($this->is_login->id_pend)
+            ->firstOrFail();
         $permohanan->status = PermohonanSurat::DIBATALKAN;
         $permohanan->save();
 
@@ -360,6 +357,23 @@ class Surat extends Mandiri_Controller
         redirect($_SERVER['HTTP_REFERER']);
     }
 
+    public function cetak($id)
+    {
+        $surat = $this->layananSuratCetak->milikPenduduk($id, $this->is_login->id_pend);
+
+        // Cek ada file
+        if (file_exists(FCPATH . LOKASI_ARSIP . $surat->nama_surat)) {
+            return ambilBerkas($surat->nama_surat, $this->controller, null, LOKASI_ARSIP, true);
+        }
+        echo 'Berkas tidak ditemukan';
+    }
+
+    public function nomor_surat_duplikat(): void
+    {
+        $hasil = LogSurat::isDuplikat('log_surat', $_POST['nomor'], $_POST['url']);
+        echo $hasil ? 'false' : 'true';
+    }
+
     protected function print_connector()
     {
         if (null === ($anjungan = $this->cek_anjungan)) {
@@ -377,14 +391,15 @@ class Surat extends Mandiri_Controller
         return $connector;
     }
 
-    public function cetak($id)
+    private function get_data_untuk_form($url, array &$data): void
     {
-        $surat = LogSurat::find($id);
+        // Panggil 1 penduduk berdasarkan datanya sendiri
+        $data['penduduk'] = [$data['periksa']['penduduk']];
 
-        // Cek ada file
-        if (file_exists(FCPATH . LOKASI_ARSIP . $surat->nama_surat)) {
-            return ambilBerkas($surat->nama_surat, $this->controller, null, LOKASI_ARSIP, true);
-        }
-        echo 'Berkas tidak ditemukan';
+        $data['surat_terakhir']     = LogSurat::lastNomerSurat($url);
+        $data['surat']              = FormatSurat::where('url_surat', $url)->first()->toArray();
+        $data['input']              = $this->input->post();
+        $data['input']['nomor']     = $data['surat_terakhir']['no_surat_berikutnya'];
+        $data['format_nomor_surat'] = FormatSurat::format_penomoran_surat($data);
     }
 }

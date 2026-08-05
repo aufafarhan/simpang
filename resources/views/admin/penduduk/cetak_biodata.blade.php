@@ -66,7 +66,7 @@
                 <tr>
                     <td>Jenis Kelamin</td>
                     <td>:</td>
-                    <td>{{ strtoupper(App\Enums\JenisKelaminEnum::valueOf($penduduk->sex)) }}</td>
+                    <td>{{ $penduduk->jenis_kelamin }}</td>
                 </tr>
                 <tr>
                     <td>Akta lahir</td>
@@ -76,27 +76,32 @@
                 <tr>
                     <td>Agama</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->agama->nama) }}</td>
+                    <td>{{ $penduduk->agama }}</td>
                 </tr>
                 <tr>
                     <td>Pendidikan Terakhir</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->pendidikanKK->nama) }}</td>
+                    <td>{{ $penduduk->pendidikan_kk }}</td>
                 </tr>
                 <tr>
                     <td>Pekerjaan</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->pekerjaan->nama) }}</td>
+                    <td>{{ $penduduk->pekerjaan }}</td>
+                </tr>
+                <tr>
+                    <td>Pekerja Migran</td>
+                    <td>:</td>
+                    <td>{{ $penduduk->pekerja_migran }}</td>
                 </tr>
                 <tr>
                     <td>Golongan Darah</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->golonganDarah->nama) }}</td>
+                    <td>{{ $penduduk->golongan_darah }}</td>
                 </tr>
                 <tr>
                     <td>Cacat</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->cacat->nama) }}</td>
+                    <td>{{ $penduduk->cacat }}</td>
                 </tr>
                 <tr>
                     <td>Status Kawin</td>
@@ -106,12 +111,12 @@
                 <tr>
                     <td>Hubungan dalam Keluarga</td>
                     <td>:</td>
-                    <td>{{ strtoupper(App\Enums\SHDKEnum::valueOf($penduduk->kk_level)) }}</td>
+                    <td>{{ strtoupper($penduduk->penduduk_hubungan) }}</td>
                 </tr>
                 <tr>
                     <td>Warga Negara</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->warganegara->nama) }}</td>
+                    <td>{{ $penduduk->warganegara }}</td>
                 </tr>
                 <tr>
                     <td>Suku/Etnis</td>
@@ -187,7 +192,7 @@
                 <tr>
                     <td>Tanggal Perkawinan</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->tanggalperkawinan) }}</td>
+                    <td>{{ tgl_indo_out($penduduk->tanggalperkawinan) }}</td>
                 </tr>
                 <tr>
                     <td>Akta Perceraian</td>
@@ -197,12 +202,17 @@
                 <tr>
                     <td>Tanggal Perceraian</td>
                     <td>:</td>
-                    <td>{{ strtoupper($penduduk->tanggalperceraian) }}</td>
+                    <td>{{ tgl_indo_out($penduduk->tanggalperceraian) }}</td>
                 </tr>
                 <tr>
                     <td>Nomor BPJS Ketenagakerjaan</td>
                     <td>:</td>
                     <td>{{ strtoupper($penduduk->bpjs_ketenagakerjaan) }}</td>
+                </tr>
+                <tr>
+                    <td>Status Kepersertaan Asuransi Kesehatan</td>
+                    <td>:</td>
+                    <td>{{ strtoupper(\App\Enums\AktifEnum::valueOf($penduduk->status_asuransi)) }}</td>
                 </tr>
             </table>
             <table width="100%" border="0" cellspacing="0" cellpadding="0">

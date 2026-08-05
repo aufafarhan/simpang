@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,7 +39,6 @@ use App\Enums\StatusEnum;
 use App\Models\MediaSosial;
 use App\Models\Theme;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -63,7 +62,7 @@ if (! function_exists('theme_list')) {
     /**
      * Get list of themes
      *
-     * @return App\Models\Theme[]
+     * @return Theme[]
      */
     function theme_list()
     {
@@ -86,22 +85,16 @@ if (! function_exists('theme_active')) {
      */
     function theme_active()
     {
-        return cache()->rememberForever('theme_active', static function () {
-            if (theme() === null) {
-                return (object) [
-                    'nama'       => 'esensi',
-                    'slug'       => 'esensi',
-                    'versi'      => VERSION,
-                    'sistem'     => 1,
-                    'path'       => 'vendor/themes/esensi',
-                    'full_path'  => 'vendor/themes/esensi',
-                    'view_path'  => '../../vendor/themes/esensi',
-                    'keterangan' => 'Tema bawaan sistem',
-                ];
-            }
+        if (theme()->doesntExist()) {
+            // Scan ulang tema dan set tema default
+            theme_scan();
+        }
 
-            return theme()->aktif();
-        });
+        $theme = theme()->aktif();
+
+        view()->addNamespace('theme', base_path($theme->view_path));
+
+        return $theme;
     }
 }
 
@@ -137,23 +130,25 @@ if (! function_exists('theme_view_path')) {
      */
     function theme_view_path()
     {
-        return theme_active()->view_path;
+        return theme_active()->view_path . '/resources/views';
     }
 }
 
 if (! function_exists('theme_asset')) {
     /**
-     * Get asset path of active theme
+     * Generate an asset URL for the active theme
      *
-     * @param mixed $uri
+     * @param string $uri    The URI path to the asset file within the theme
+     * @param array  $config Additional query parameters for the asset URL (optional)
      *
-     * @return string
+     * @return string The complete URL to the theme asset with version parameter
      */
-    function theme_asset(string $uri)
+    function theme_asset(string $uri, $config = [])
     {
-        $path = theme_active()->asset_path . '/assets/' . $uri;
+        $params      = array_merge(['file' => $uri, 'v' => VERSION], $config);
+        $queryString = http_build_query($params);
 
-        return base_url($path);
+        return base_url('theme_asset/' . theme_active()->slug . '?' . $queryString);
     }
 }
 
@@ -186,6 +181,7 @@ if (! function_exists('theme_config')) {
     }
 }
 
+// TODO : Jika sudah sepenuhnya menggunakan Blade, hapus fungsi ini
 if (! function_exists('theme_view')) {
     /**
      * Render view tema
@@ -209,30 +205,19 @@ if (! function_exists('theme_scan')) {
      */
     function theme_scan(): void
     {
-        $themeSistem = glob('vendor/themes/*', GLOB_ONLYDIR);
-        $themeDesa   = glob('desa/themes/*', GLOB_ONLYDIR);
+        $themeSistem   = glob(Theme::PATH_SISTEM . '*', GLOB_ONLYDIR);
+        $themeDesa     = glob('desa/themes/*', GLOB_ONLYDIR);
+        $templateBlade = 'resources/views/template.blade.php';
 
         $themeList = collect($themeSistem)->merge($themeDesa)
-            ->filter(static fn ($tema): bool => is_file(FCPATH . $tema . '/template.php'))
+            ->filter(static fn ($tema): bool => is_file(FCPATH . $tema . '/composer.json') && is_file(FCPATH . $tema . '/' . $templateBlade))
             ->map(static function (string $tema) {
-                $sistem = preg_match('/vendor/', $tema) ? 1 : 0;
-                if (! $sistem) {
-                    $configPath = get_instance()->config->item('theme_path') ?? '';
-                    if ($configPath) {
-                        $tema = $configPath . $tema;
-                    }
-                }
-                if (! is_file(FCPATH . $tema . '/composer.json')) {
-                    $versi = VERSION;
-                    $nama  = basename($tema);
-                    $slug  = Str::slug(($sistem ? 'sistem ' : 'desa ') . $nama);
-                } else {
-                    $composer   = json_decode(file_get_contents(FCPATH . $tema . '/composer.json'), true);
-                    $versi      = $composer['version'] ?? VERSION;
-                    $nama       = str_replace('-', ' ', explode('/', $composer['name'])[1]);
-                    $slug       = Str::slug(($sistem ? '' : 'desa ') . $nama);
-                    $keterangan = $composer['description'];
-                }
+                $sistem     = preg_match('/storage/', $tema) ? 1 : 0;
+                $composer   = json_decode(file_get_contents(FCPATH . $tema . '/composer.json'), true);
+                $versi      = $composer['version'] ?? VERSION;
+                $nama       = str_replace('-', ' ', explode('/', $composer['name'])[1]);
+                $slug       = Str::slug(($sistem ? '' : 'desa ') . $nama);
+                $keterangan = $composer['description'];
 
                 return [
                     'config_id'  => identitas('id'),
@@ -241,15 +226,19 @@ if (! function_exists('theme_scan')) {
                     'versi'      => $versi,
                     'sistem'     => $sistem,
                     'path'       => $tema,
-                    'keterangan' => $keterangan ?: (preg_match('/vendor/', $tema) ? 'Tema bawaan sistem' : 'Tema buatan desa'),
+                    'keterangan' => $keterangan ?: (preg_match('/storage/', $tema) ? 'Tema bawaan sistem' : 'Tema buatan desa'),
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now(),
                 ];
             })
             ->toArray();
 
-        DB::table('theme')->upsert($themeList, 'slug');
-        (new Theme())->flushQueryCache();
+        $theme = new Theme();
+        $theme->delete();
+        $theme->upsert($themeList, 'slug');
+        $theme->flushQueryCache();
+
+        cache()->forget('theme_active');
     }
 }
 
@@ -280,5 +269,55 @@ if (! function_exists('sinergi_program')) {
         }
 
         return cache()->rememberForever('sinergi_program', static fn () => App\Models\SinergiProgram::status(App\Models\SinergiProgram::ACTIVE)->orderBy('urut')->get()->toArray());
+    }
+}
+
+if (! function_exists('module_path')) {
+    /**
+     * Get the full path to a specific module directory
+     *
+     * @param string $name The name of the module
+     * @param string $path Optional path within the module directory
+     *
+     * @return string The full path to the module or module subdirectory
+     */
+    function module_path($name, $path = '')
+    {
+        return FCPATH . 'Modules' . DIRECTORY_SEPARATOR . $name . ($path ? DIRECTORY_SEPARATOR . $path : $path);
+    }
+}
+
+if (! function_exists('module_storage')) {
+    /**
+     * Get the storage path for a specific module
+     *
+     * @param string $name The name of the module
+     * @param string $path Optional path within the module storage directory
+     *
+     * @return string The full path to the module storage directory
+     */
+    function module_storage($name, $path = '')
+    {
+        return app()->basePath() . '/Modules/' . $name . '/Storage' . ($path ? DIRECTORY_SEPARATOR . $path : $path);
+    }
+}
+
+if (! function_exists('module_asset')) {
+    /**
+     * Generate an asset URL for a specific module file
+     *
+     * @param string $name   The name of the module
+     * @param string $path   The path to the asset file within the module
+     * @param array  $config Additional query parameters for the asset URL
+     *
+     * @return string The URL to the module asset with version parameter
+     */
+    function module_asset($name, $path, $config = [])
+    {
+        $name        = strtolower($name);
+        $params      = array_merge(['file' => $path, 'v' => VERSION], $config);
+        $queryString = http_build_query($params);
+
+        return base_url("module_asset/{$name}?{$queryString}");
     }
 }

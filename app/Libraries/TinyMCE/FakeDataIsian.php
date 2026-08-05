@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -52,14 +52,14 @@ class FakeDataIsian
     private $result;
     private array $data = [];
 
-    public function __construct(private $request, private $jenis = null)
+    public function __construct(private $request, private $jenis = null, private $redirect = true)
     {
         $this->tinymce = new TinyMCE();
     }
 
-    public static function set($request, $jenis = null)
+    public static function set($request, $jenis = null, $redirect = true): static
     {
-        return (new self($request, $jenis))->replaceData();
+        return (new self($request, $jenis, $redirect))->replaceData();
     }
 
     public function getResult()
@@ -72,23 +72,25 @@ class FakeDataIsian
         return $key ? data_get($this->data, $key, $default) : $this->data;
     }
 
-    private function replaceData()
+    private function replaceData(): static
     {
-        $this->tempate();
+        $this->templat();
         $this->formDinamis();
         $this->formStatis();
         $this->sumberData();
         $this->formPengikut();
         $this->prosesReplace();
 
+        $this->data['input']['lampiran'] = explode(',', $this->request['lampiran'] ?? '');
+
         return $this;
     }
 
-    private function tempate(): void
+    private function templat(): void
     {
         $setting_header = $this->request['header'] == StatusEnum::TIDAK ? '' : setting("header_surat{$this->jenis}");
         $setting_footer = $this->request['footer'] == StatusEnum::YA ? (setting('tte') == StatusEnum::YA ? setting("footer_surat{$this->jenis}_tte") : setting("footer_surat{$this->jenis}")) : '';
-        $this->result   = preg_replace('/\\\\/', '', $setting_header) . '<!-- pagebreak -->' . ($this->request['template_desa']) . '<!-- pagebreak -->' . preg_replace('/\\\\/', '', $setting_footer);
+        $this->result   = preg_replace('/\\\\/', '', (string) $setting_header) . '<!-- pagebreak -->' . ($this->request['template_desa']) . '<!-- pagebreak -->' . preg_replace('/\\\\/', '', (string) $setting_footer);
     }
 
     private function sumberData(): void
@@ -102,13 +104,19 @@ class FakeDataIsian
                 if ($value) {
                     if (in_array(1, ($value['data'] ?? []))) {
                         $this->data['input']['id_pend_' . $key] = Penduduk::filters([
-                            'sex'          => $value['sex'],
-                            'status_dasar' => $value['status_dasar'],
-                            'kk_level'     => $value['kk_level'],
+                            'sex'      => $value['sex'],
+                            'kk_level' => $value['kk_level'],
                         ])->orderBy(DB::raw('RAND()'))->first('id')->id;
 
                         if (! $this->data['input']['id_pend_' . $key]) {
-                            redirect_with('error', 'Tidak ditemukan penduduk untuk dijadikan contoh');
+                            if ($this->redirect) {
+                                redirect_with('error', 'Tidak ditemukan penduduk untuk dijadikan contoh');
+                            } else {
+                                logger()->warning('Tidak ditemukan penduduk untuk dijadikan contoh', [
+                                    'key'   => $key,
+                                    'value' => $value,
+                                ]);
+                            }
                         }
 
                         // untuk individu ganti jadi $this->data['id_pend']
@@ -155,6 +163,10 @@ class FakeDataIsian
                     break;
 
                 case 'date':
+                case 'time':
+                    $nilai_isian = date('H:i');
+                    break;
+
                 case 'hari':
                 case 'hari-tanggal':
                     $nilai_isian = $tanggal;
@@ -223,7 +235,7 @@ class FakeDataIsian
     {
         // Pengikut Pindah
         if (preg_match('/pengikut_pindah/i', (string) $this->request['template_desa'])) {
-            $pengikutPindah                = Penduduk::with('pendudukHubungan')->orderBy(DB::raw('RAND()'))->take(3)->get();
+            $pengikutPindah                = Penduduk::orderBy(DB::raw('RAND()'))->take(3)->get();
             $this->data['pengikut_pindah'] = generatePengikutPindah($pengikutPindah);
         }
 

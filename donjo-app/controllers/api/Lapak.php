@@ -12,7 +12,8 @@ class Lapak extends MY_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('lapak_model');
+        // Pengganti Lapak_model — di 2607 Lapak jadi modul HMVC Modules/Lapak.
+        $this->load->helper('api_v1');
 
         if (strtolower($this->input->method()) === 'options') {
             $this->cors();
@@ -24,10 +25,7 @@ class Lapak extends MY_Controller
     /** GET /api/v1/lapak — hanya produk, kategori, foto, dan kontak usaha. */
     public function index(): void
     {
-        $produk = $this->lapak_model->get_produk('', 1)
-            ->order_by('pr.updated_at', 'desc')
-            ->get()
-            ->result();
+        $produk = lapak_produk_api();
 
         $data = array_map(function ($item): array {
             $foto = json_decode($item->foto ?? '[]', true);

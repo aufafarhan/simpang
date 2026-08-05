@@ -22,14 +22,10 @@
     @include('admin.layouts.components.notifikasi')
     <div class="box box-info">
         <div class="box-header with-border">
-            @if (can('u'))
-                <a href="{{ route('cdesa.create_mutasi', ['id_cdesa' => $cdesa['id']]) }}" class="btn btn-social btn-success btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah Persil">
-                    <i class="fa fa-plus"></i>Tambah Mutasi Persil
-                </a>
-            @endif
-            <a href="{{ ci_route('cdesa') }}" class="btn btn-social btn-primary btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar C-DESA"><i class="fa fa-arrow-circle-o-left"></i> Kembali Ke Daftar C-DESA</a>
-            <a href="{{ ci_route('cdesa.rincian', $cdesa['id']) }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar C-DESA"><i class="fa fa-arrow-circle-o-left"></i> Kembali Ke Rincian
-                C-DESA</a>
+            <x-tambah-button url="cdesa/mutasi/{{ $cdesa['id'] }}/form" judul="Tambah Mutasi Persil"/>
+            <x-kembali-button judul="Kembali Ke Daftar C-DESA" url="cdesa"/>
+            <x-kembali-button judul="Kembali Ke Rincian C-Desa" url="cdesa/rincian/{{ $cdesa['id'] }}"/>
+
         </div>
         <div class="box-body">
             {{-- rincian cdesa --}}

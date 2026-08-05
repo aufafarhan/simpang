@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -42,6 +42,7 @@ use App\Models\Persil;
 use App\Models\RefPersilKelas;
 use App\Models\RefPersilMutasi;
 use App\Models\Wilayah;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -84,16 +85,33 @@ class Cdesa_mutasi extends Admin_Controller
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
+
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'cdesa/mutasi/' . $row->id_cdesa_masuk . '/form/' . $row->id_persil . '/' . $row->id,
+                    ])->render();
+
                     if (can('u')) {
-                        $aksi .= '<a href="' . route('cdesa.create_mutasi', ['id_cdesa' => $row->id_cdesa_masuk, 'id_persil' => $row->id_persil, 'id_mutasi' => $row->id]) . '" class="btn bg-orange btn-sm" title="Ubah"><i class="fa fa-edit"></i></a>';
-                        $aksi .= '<a href="#" data-path="' . $row->path . '" class="btn bg-olive btn-sm area-map" title="Lihat Map" data-toggle="modal" data-target="#map-modal"><i class="fa fa-map"></i></a>';
-                        if ($row->jenis_mutasi != '9') {
-                            if (can('h')) {
-                                $aksi .= '<a href="#" data-href="' . route('cdesa.hapus_mutasi', ['id_cdesa' => $row->id_cdesa_masuk, 'id_persil' => $row->id_persil, 'id_mutasi' => $row->id]) . '" class="btn bg-maroon btn-sm" title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a>';
-                            }
-                        } else {
-                            $aksi .= '<a href="#" data-href="' . ci_route('cdesa.awal_persil', [$row->id_cdesa_masuk, $row->id_persil, 1]) . '" class="btn bg-maroon btn-sm" title="Bukan pemilik awal" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a>';
-                        }
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'         => '#',
+                            'icon'        => 'fa fa-map',
+                            'judul'       => 'Lihat Map',
+                            'type'        => 'bg-olive',
+                            'modalTarget' => 'map-modal',
+                            'buttonOnly'  => true,
+                            'modal'       => true,
+                            'attributes'  => ['data-path' => $row->path, 'class' => 'area-map'],
+                        ])->render();
+                    }
+                    if ($row->jenis_mutasi != '9') {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => route('cdesa.hapus_mutasi', ['id_cdesa' => $row->id_cdesa_masuk, 'id_persil' => $row->id_persil, 'id_mutasi' => $row->id]),
+                            'confirmDelete' => true,
+                        ])->render();
+                    } else {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => ci_route('cdesa.awal_persil', [$row->id_cdesa_masuk, $row->id_persil, 1]),
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;
@@ -138,8 +156,6 @@ class Cdesa_mutasi extends Admin_Controller
         $data['list_cdesa'] = CdesaModel::listCdesa([$id_cdesa]);
 
         $data['list_persil'] = Persil::list();
-
-        $data['desa'] = $this->header['desa'];
 
         $data['persil_kelas']        = RefPersilKelas::get()->toArray();
         $data['persil_sebab_mutasi'] = RefPersilMutasi::get()->toArray();

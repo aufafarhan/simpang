@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -267,7 +267,7 @@ class ConsoleServiceProvider extends ServiceProvider
      */
     protected function registerQueueClearCommand()
     {
-        $this->app->singleton('command.queue.clear', static fn () => new ClearQueueCommand());
+        $this->app->singleton('command.queue.clear', static fn (): \Illuminate\Queue\Console\ClearCommand => new ClearQueueCommand());
     }
 
     /**
@@ -407,7 +407,7 @@ class ConsoleServiceProvider extends ServiceProvider
      */
     protected function registerScheduleFinishCommand()
     {
-        $this->app->singleton('command.schedule.finish', static fn () => new ScheduleFinishCommand());
+        $this->app->singleton('command.schedule.finish', static fn (): \Illuminate\Console\Scheduling\ScheduleFinishCommand => new ScheduleFinishCommand());
     }
 
     /**
@@ -417,7 +417,7 @@ class ConsoleServiceProvider extends ServiceProvider
      */
     protected function registerScheduleRunCommand()
     {
-        $this->app->singleton('command.schedule.run', static fn () => new ScheduleRunCommand());
+        $this->app->singleton('command.schedule.run', static fn (): \Illuminate\Console\Scheduling\ScheduleRunCommand => new ScheduleRunCommand());
     }
 
     /**
@@ -427,7 +427,7 @@ class ConsoleServiceProvider extends ServiceProvider
      */
     protected function registerScheduleWorkCommand()
     {
-        $this->app->singleton('command.schedule.work', static fn () => new ScheduleWorkCommand());
+        $this->app->singleton('command.schedule.work', static fn (): \Illuminate\Console\Scheduling\ScheduleWorkCommand => new ScheduleWorkCommand());
     }
 
     /**
@@ -437,7 +437,7 @@ class ConsoleServiceProvider extends ServiceProvider
      */
     protected function registerScheduleListCommand()
     {
-        $this->app->singleton('command.schedule.list', static fn () => new ScheduleListCommand());
+        $this->app->singleton('command.schedule.list', static fn (): \Illuminate\Console\Scheduling\ScheduleListCommand => new ScheduleListCommand());
     }
 
     /**

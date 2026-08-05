@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+// TODO: dihapus setelah pamong_model dihapus
 class Urut_model extends MY_Model
 {
     private $tabel;
@@ -64,6 +65,31 @@ class Urut_model extends MY_Model
             ->where($subset)
             ->get($this->tabel)
             ->row()->urut;
+    }
+
+    /**
+     * @param       $id     Id data yg akan digeser
+     * @param       $arah   Arah untuk menukar dengan unsur lain: 1) turun, 2) naik
+     * @param mixed $subset
+     *
+     * @return int Nomer urut unsur lain yang ditukar
+     */
+    public function urut($id, $arah, $subset = ['1' => '1'])
+    {
+        $this->urut_semua($subset);
+        $unsur1 = $this->config_id()
+            ->where($this->kolom_id, $id)
+            ->get($this->tabel)
+            ->row_array();
+
+        $daftar = $this->config_id()
+            ->select("{$this->kolom_id}, urut")
+            ->where($subset)
+            ->order_by('urut')
+            ->get($this->tabel)
+            ->result_array();
+
+        return $this->urut_daftar($id, $arah, $daftar, $unsur1);
     }
 
     private function urut_semua($subset = ['1' => '1']): void
@@ -98,31 +124,6 @@ class Urut_model extends MY_Model
             $data['urut'] = $i + 1;
             $this->config_id()->where($this->kolom_id, $daftar[$i][$this->kolom_id])->update($this->tabel, $data);
         }
-    }
-
-    /**
-     * @param       $id     Id data yg akan digeser
-     * @param       $arah   Arah untuk menukar dengan unsur lain: 1) turun, 2) naik
-     * @param mixed $subset
-     *
-     * @return int Nomer urut unsur lain yang ditukar
-     */
-    public function urut($id, $arah, $subset = ['1' => '1'])
-    {
-        $this->urut_semua($subset);
-        $unsur1 = $this->config_id()
-            ->where($this->kolom_id, $id)
-            ->get($this->tabel)
-            ->row_array();
-
-        $daftar = $this->config_id()
-            ->select("{$this->kolom_id}, urut")
-            ->where($subset)
-            ->order_by('urut')
-            ->get($this->tabel)
-            ->result_array();
-
-        return $this->urut_daftar($id, $arah, $daftar, $unsur1);
     }
 
     private function urut_daftar($id, $arah, $daftar, $unsur1)

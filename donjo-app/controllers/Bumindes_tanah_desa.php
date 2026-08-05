@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 use App\Models\Penduduk;
 use App\Models\TanahDesa;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -68,15 +69,19 @@ class Bumindes_tanah_desa extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    $aksi .= '<a href="' . ci_route('bumindes_tanah_desa.form') . '/' . $row->id . '/' . 1 . '" class="btn btn-info btn-sm"  title="Lihat Data"><i class="fa fa-eye"></i></a> ';
+                    $aksi .= View::make('admin.layouts.components.buttons.lihat', [
+                        'url'   => ci_route('bumindes_tanah_desa.form') . '/' . $row->id . '/' . 1,
+                        'judul' => 'Lihat Data',
+                    ])->render();
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('bumindes_tanah_desa.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "bumindes_tanah_desa/form/{$row->id}",
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('bumindes_tanah_desa.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('bumindes_tanah_desa.delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -89,11 +94,6 @@ class Bumindes_tanah_desa extends Admin_Controller
         }
 
         return show_404();
-    }
-
-    private function sumberData()
-    {
-        return TanahDesa::with('penduduk')->visible();
     }
 
     public function form($id = '', $view = false)
@@ -152,6 +152,35 @@ class Bumindes_tanah_desa extends Admin_Controller
         }
 
         redirect_with('error', 'Gagal Hapus Data');
+    }
+
+    public function dialog($aksi = 'cetak')
+    {
+        $data['aksi']       = $aksi;
+        $data['formAction'] = ci_route('bumindes_tanah_desa.cetak', $aksi);
+
+        return view('admin.bumindes.umum.dialog', $data);
+    }
+
+    public function cetak($aksi = '')
+    {
+        $query = datatables($this->sumberData());
+
+        $data              = $this->modal_penandatangan();
+        $data['aksi']      = $aksi;
+        $data['main']      = $query->prepareQuery()->results();
+        $data['isi']       = 'admin.bumindes.pembangunan.tanah_di_desa.cetak';
+        $data['letak_ttd'] = ['1', '1', '23'];
+        $data['bulan']     = date('m');
+        $data['tahun']     = date('Y');
+        $data['tgl_cetak'] = $this->request['tgl_cetak'];
+
+        return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    private function sumberData()
+    {
+        return TanahDesa::with('penduduk')->visible();
     }
 
     private function validate(array $data, $id = 0): array
@@ -237,29 +266,5 @@ class Bumindes_tanah_desa extends Admin_Controller
         }
 
         return null;
-    }
-
-    public function dialog($aksi = 'cetak')
-    {
-        $data['aksi']       = $aksi;
-        $data['formAction'] = ci_route('bumindes_tanah_desa.cetak', $aksi);
-
-        return view('admin.bumindes.pembangunan.tanah_di_desa.dialog', $data);
-    }
-
-    public function cetak($aksi = '')
-    {
-        $query             = $this->sumberData();
-        $data              = $this->modal_penandatangan();
-        $data['aksi']      = $aksi;
-        $data['main']      = $query->get();
-        $data['config']    = $this->header['desa'];
-        $data['bulan']     = date('m');
-        $data['tahun']     = date('Y');
-        $data['tgl_cetak'] = $this->input->post('tgl_cetak');
-        $data['isi']       = 'admin.bumindes.pembangunan.tanah_di_desa.cetak';
-        $data['letak_ttd'] = ['1', '1', '23'];
-
-        return view('admin.layouts.components.format_cetak', $data);
     }
 }

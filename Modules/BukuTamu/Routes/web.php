@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -48,6 +48,7 @@ Route::group('buku-tamu', ['namespace' => 'BukuTamu/FrontEnd'], static function 
 Route::group('buku_tamu', ['namespace' => 'BukuTamu/BackEnd'], static function (): void {
     Route::get('/', 'TamuController@index')->name('buku_tamu.index');
     Route::get('/edit/{id}', 'TamuController@edit')->name('buku_tamu.edit');
+    Route::get('/detail/{id}', 'TamuController@detail')->name('buku_tamu.detail');
     Route::post('/update/{id}', 'TamuController@update')->name('buku_tamu.update');
     Route::get('/delete/{id?}', 'TamuController@delete')->name('buku_tamu.delete');
     Route::post('/deleteAll', 'TamuController@delete')->name('buku_tamu.delete-all');
@@ -59,7 +60,7 @@ Route::group('buku_tamu', ['namespace' => 'BukuTamu/BackEnd'], static function (
 Route::group('buku_kepuasan', ['namespace' => 'BukuTamu/BackEnd'], static function (): void {
     Route::get('/', 'KepuasanController@index')->name('buku_kepuasan.index');
     Route::get('/show/{id}', 'KepuasanController@show')->name('buku_kepuasan.show');
-    Route::get('/datatables_show/{id}', 'KepuasanController@datatables_show')->name('buku_kepuasan.datatables-show');
+    Route::get('/datatables_show/{id}', 'KepuasanController@datatablesShow')->name('buku_kepuasan.datatables-show');
     Route::get('/delete/{id?}', 'KepuasanController@delete')->name('buku_kepuasan.delete');
     Route::post('/deleteAll', 'KepuasanController@deleteAll')->name('buku_kepuasan.delete-all');
 });

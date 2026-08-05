@@ -22,9 +22,7 @@
             {!! form_open_multipart($form_action, 'class="form-horizontal" id="validasi"') !!}
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ site_url('polygon') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                        <i class="fa fa-arrow-circle-left "></i>Kembali ke Tipe Area
-                    </a>
+                    @include('admin.layouts.components.tombol_kembali', ['url' => site_url('polygon'), 'label' => 'Tipe Area'])
                 </div>
                 <div class="box-body">
                     <div class="form-group">
@@ -42,6 +40,18 @@
                                     <i></i>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-3 control-label" for="enabled">Status</label>
+                        <div class="col-sm-6">
+                            <select name="enabled" id="enabled" class="form-control input-sm required">
+                                @foreach (\App\Enums\AktifEnum::all() as $value => $label)
+                                <option value="{{ $value }}" @selected($polygon['enabled'] == $value)>
+                                    {{ $label }}
+                                </option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
                 </div>

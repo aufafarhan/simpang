@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,14 +29,16 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\InventarisSubMenuEnum;
 use App\Models\InventarisKontruksi;
 use App\Models\Pamong;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -44,6 +46,7 @@ class Inventaris_kontruksi extends Admin_Controller
 {
     public $modul_ini     = 'sekretariat';
     public $sub_modul_ini = 'inventaris';
+    public $akses_modul   = 'inventaris-kontruksi';
 
     public function __construct()
     {
@@ -53,7 +56,9 @@ class Inventaris_kontruksi extends Admin_Controller
 
     public function index()
     {
-        $data['tip'] = 1;
+        $data['tip']    = 1;
+        $data['action'] = 'Daftar';
+        $data['header'] = InventarisSubMenuEnum::KONSTRUKSI['header'];
 
         return view('admin.inventaris.kontruksi.index', $data);
     }
@@ -66,15 +71,19 @@ class Inventaris_kontruksi extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    $aksi .= '<a href="' . ci_route('inventaris_kontruksi.form') . '/' . $row->id . '/' . 1 . '" class="btn btn-info btn-sm"  title="Lihat Data"><i class="fa fa-eye"></i></a> ';
+                    $aksi .= View::make('admin.layouts.components.buttons.lihat', [
+                        'url'   => ci_route('inventaris_kontruksi.form') . '/' . $row->id . '/' . 1,
+                        'judul' => 'Lihat Data',
+                    ])->render();
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('inventaris_kontruksi.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "inventaris_kontruksi/form/{$row->id}",
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('inventaris_kontruksi.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('inventaris_kontruksi.delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -84,11 +93,6 @@ class Inventaris_kontruksi extends Admin_Controller
         }
 
         return show_404();
-    }
-
-    private function sumberData()
-    {
-        return InventarisKontruksi::visible();
     }
 
     public function form($id = '', $view = false)
@@ -106,9 +110,8 @@ class Inventaris_kontruksi extends Admin_Controller
             $data['main']        = null;
             $data['view_mark']   = null;
         }
-        $data['tip'] = 1;
-
-        $data['tip'] = 1;
+        $data['tip']    = 1;
+        $data['header'] = InventarisSubMenuEnum::KONSTRUKSI['header'];
 
         return view('admin.inventaris.kontruksi.form', $data);
     }
@@ -143,11 +146,43 @@ class Inventaris_kontruksi extends Admin_Controller
     {
         isCan('h');
 
-        if (InventarisKontruksi::findOrFail($id)->update(['visible' => 0])) {
+        if (InventarisKontruksi::findOrFail($id)->delete()) {
             redirect_with('success', 'Berhasil Hapus Data');
         }
 
         redirect_with('error', 'Gagal Hapus Data');
+    }
+
+    public function dialog($aksi = 'cetak')
+    {
+        $data               = $this->modal_penandatangan();
+        $data['aksi']       = $aksi;
+        $data['formAction'] = ci_route('inventaris_kontruksi.cetak', $aksi);
+
+        return view('admin.inventaris.dialog_cetak', $data);
+    }
+
+    public function cetak($aksi = '')
+    {
+        $query          = $this->sumberData();
+        $data           = $this->modal_penandatangan();
+        $data['aksi']   = $aksi;
+        $data['main']   = $query->get();
+        $data['pamong'] = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong')])->first()->toArray();
+        if ($tahun = $this->input->post('tahun')) {
+            $data['main'] = $query->whereYear('tanggal', $tahun)->get();
+        }
+
+        $data['total'] = total_jumlah($data['main'], 'harga');
+
+        $data['file'] = 'inventaris_kontruksi_' . date('Y-m-d');
+
+        view('admin.inventaris.kontruksi.cetak', $data);
+    }
+
+    private function sumberData()
+    {
+        return InventarisKontruksi::query();
     }
 
     private function validate(array $data): array
@@ -169,38 +204,5 @@ class Inventaris_kontruksi extends Admin_Controller
         $data['visible']              = 1;
 
         return $data;
-    }
-
-    public function dialog($aksi = 'cetak')
-    {
-        $data               = $this->modal_penandatangan();
-        $data['aksi']       = $aksi;
-        $data['formAction'] = ci_route('inventaris_kontruksi.cetak', $aksi);
-
-        return view('admin.inventaris.dialog_cetak', $data);
-    }
-
-    public function cetak($aksi = '')
-    {
-        $query          = $this->sumberData();
-        $data           = $this->modal_penandatangan();
-        $data['aksi']   = $aksi;
-        $data['main']   = $query->get();
-        $data['config'] = $this->header['desa'];
-        $data['pamong'] = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong')])->first()->toArray();
-        if ($tahun = $this->input->post('tahun')) {
-            $data['main'] = $query->whereYear('tanggal', $tahun)->get();
-        }
-
-        $data['total'] = total_jumlah($data['main'], 'harga');
-
-        if ($aksi == 'unduh') {
-            header('Content-type: application/octet-stream');
-            header('Content-Disposition: attachment; filename=inventaris_kontruksi_' . date('Y-m-d') . '.xls');
-            header('Pragma: no-cache');
-            header('Expires: 0');
-        }
-
-        return view('admin.inventaris.kontruksi.cetak', $data);
     }
 }

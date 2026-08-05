@@ -8,24 +8,30 @@
 @endpush
 <div class="box box-info">
     <div class="box-header with-border">
-        <a
-            href="{{ route('bumindes_penduduk_ktpkk.dialog_cetak', ['aksi' => 'cetak']) }}"
-            class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Cetak Buku KTP dan KK"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Cetak Buku KTP dan KK"
-        ><i class="fa fa-print "></i> Cetak</a>
-        <a
-            href="{{ route('bumindes_penduduk_ktpkk.dialog_cetak', ['aksi' => 'unduh']) }}"
-            class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Unduh Buku KTP dan KK"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Unduh Buku KTP dan KK"
-        ><i class="fa fa-download"></i> Unduh</a>
+         @php
+            $listCetakUnduh = [
+                [
+                    'url' => "{$controller}/dialog_cetak/cetak",
+                    'judul' => 'Cetak',
+                    'icon' => 'fa fa-print',
+                    'modal' => true,
+                ],
+                [
+                    'url' => "{$controller}/dialog_cetak/unduh",
+                    'judul' => 'Unduh',
+                    'icon' => 'fa fa-download',
+                    'modal' => true,
+                ]
+            ];
+        @endphp
+
+        <x-split-button
+            judul="Cetak/Unduh"
+            :list="$listCetakUnduh"
+            :icon="'fa fa-arrow-circle-down'"
+            :type="'bg-purple'"
+            :target="true"
+        />
     </div>
     <div class="box-body">
         <div class="row mepet">
@@ -33,7 +39,7 @@
                 <select id="tahun" class="form-control input-sm select2">
                     <option value="">Pilih Tahun</option>
                     @foreach ($list_tahun as $value)
-                        <option value="{{ $value['tahun'] }}">{{ $value['tahun'] }}</option>
+                        <option @selected($value['tahun'] == date('Y')) value="{{ $value['tahun'] }}">{{ $value['tahun'] }}</option>
                     @endforeach
                 </select>
             </div>
@@ -41,7 +47,7 @@
                 <select id="bulan" class="form-control input-sm select2">
                     <option value="">Pilih Bulan</option>
                     @foreach (bulan() as $index => $value)
-                        <option value="{{ $index }}">{{ $value }}</option>
+                        <option @selected($index == date('m')) value="{{ $index }}">{{ $value }}</option>
                     @endforeach
                 </select>
             </div>
@@ -128,8 +134,8 @@
                         orderable: false
                     },
                     {
-                        data: 'sex',
-                        name: 'sex',
+                        data: 'jenis_kelamin_inisial',
+                        name: 'jenis_kelamin_inisial',
                         searchable: false,
                         orderable: false
                     },

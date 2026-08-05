@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -38,6 +38,7 @@
 use App\Enums\OfflineModeEnum;
 use App\Models\Modul as ModulModel;
 use App\Models\SettingAplikasi;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -52,7 +53,6 @@ class Modul extends Admin_Controller
     {
         parent::__construct();
         isCan('b');
-        $this->load->model(['modul_model']);
     }
 
     public function index(?int $parent = 0): void
@@ -83,20 +83,32 @@ class Modul extends Admin_Controller
             return datatables()->of(ModulModel::with(['children'])->whereParent($parent)->whereNotIn('modul', ModulModel::SELALU_AKTIF)
                 ->when(! $order, static fn ($q) => $q->orderBy('urut', 'asc')))
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row) use ($parent, $canUpdate, $lockParent): string {
+                ->addColumn('aksi', static function ($row) use ($parent, $lockParent): string {
                     $aksi = '';
-                    if ($canUpdate) {
-                        $aksi .= '<a href="' . ci_route('modul.form', $row->id) . '" class="btn bg-orange btn-sm" title="Ubah Data" ><i class="fa fa-edit"></i></a> ';
-                        if (! $lockParent && $row->isLock()) {
-                            $aksi .= '<a href="' . ci_route('modul.unlock', $row->id) . '" class="btn bg-navy btn-sm"  title="Aktifkan"><i class="fa fa-lock">&nbsp;</i></a> ';
-                        }
 
-                        if (! $row->isLock()) {
-                            $aksi .= '<a href="' . ci_route('modul.lock', $row->id) . '" class="btn bg-navy btn-sm"  title="Non Aktifkan"><i class="fa fa-unlock"></i></a> ';
-                        }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'modul/form/' . $row->id,
+                    ])->render();
+
+                    if (! $lockParent && $row->isLock()) {
+                        $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                            'url'    => ci_route('modul.lock', $row->id),
+                            'active' => 0,
+                        ])->render();
                     }
+
+                    if (! $row->isLock()) {
+                        $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                            'url'    => ci_route('modul.lock', $row->id),
+                            'active' => 1,
+                        ])->render();
+                    }
+
                     if (! $parent && $row->children->count()) {
-                        $aksi .= '<a href="' . ci_route('modul.index', $row->id) . '" class="btn bg-olive btn-sm" title="Lihat Sub Modul" ><i class="fa fa-list"></i></a>';
+                        $aksi .= View::make('admin.layouts.components.tombol_detail', [
+                            'url'   => ci_route('modul.index', $row->id),
+                            'judul' => 'Lihat Sub Modul',
+                        ])->render();
                     }
 
                     return $aksi;
@@ -150,28 +162,12 @@ class Modul extends Admin_Controller
         $parent = $obj->parent;
 
         try {
-            ModulModel::where(['id' => $id])->orWhere(['parent' => $id])->update(['aktif' => ModulModel::LOCK]);
+            ModulModel::gantiStatus($id, 'aktif');
             cache()->flush();
-            redirect_with('success', 'Modul berhasil dinonaktifkan', ci_route('modul.index', $parent));
+            redirect_with('success', 'Modul berhasil ubah status', ci_route('modul.index', $parent));
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Modul gagal dinonaktifkan', ci_route('modul.index', $parent));
-        }
-    }
-
-    public function unlock($id): void
-    {
-        isCan('u');
-        $obj    = ModulModel::findOrFail($id);
-        $parent = $obj->parent;
-
-        try {
-            ModulModel::where(['id' => $id])->orWhere(['parent' => $id])->update(['aktif' => ModulModel::UNLOCK]);
-            cache()->flush();
-            redirect_with('success', 'Modul berhasil dinonaktifkan', ci_route('modul.index', $parent));
-        } catch (Exception $e) {
-            log_message('error', $e->getMessage());
-            redirect_with('error', 'Modul gagal dinonaktifkan', ci_route('modul.index', $parent));
+            redirect_with('error', 'Modul gagal ubah status', ci_route('modul.index', $parent));
         }
     }
 
@@ -180,13 +176,13 @@ class Modul extends Admin_Controller
         isCan('u');
 
         try {
-            $mode                        = $this->input->post('offline_mode_saja');
-            $this->setting->offline_mode = ($mode === '0' || $mode) ? $mode : $this->input->post('offline_mode');
-            SettingAplikasi::where('key', 'offline_mode')->update(['value' => $this->setting->offline_mode]);
-            $penggunaan_server                = $this->input->post('server_mana') ?: $this->input->post('jenis_server');
-            $this->setting->penggunaan_server = $penggunaan_server;
+            $mode = $this->input->post('offline_mode_saja');
+            setting('offline_mode', ($mode === '0' || $mode) ? $mode : $this->input->post('offline_mode'));
+            SettingAplikasi::where('key', 'offline_mode')->update(['value' => setting('offline_mode')]);
+            $penggunaan_server = $this->input->post('server_mana') ?: $this->input->post('jenis_server');
+            setting('penggunaan_server', $penggunaan_server);
             SettingAplikasi::where('key', 'penggunaan_server')->update(['value' => $penggunaan_server]);
-            // model seperti diatas tidak bisa otomatis invalidated cache, jadi harus dihapus manual
+            // model seperti di atas tidak bisa otomatis invalidated cache, jadi harus dihapus manual
             (new SettingAplikasi())->flushQueryCache();
             redirect_with('success', 'Berhasil menyimpan pengaturan aplikasi');
         } catch (Exception $e) {
@@ -211,12 +207,12 @@ class Modul extends Admin_Controller
         6 - online di hosting, dan ada offline di kantor desa
     */
 
-        switch ($this->setting->penggunaan_server) {
+        switch (setting('penggunaan_server')) {
             case '1':
             case '5':
                 ModulModel::whereNotNull('id')->update(['aktif' => ModulModel::UNLOCK]);
                 // Kalau web tidak diaktifkan sama sekali, non-aktifkan modul Admin Web
-                if ($this->setting->offline_mode == OfflineModeEnum::NONAKTIF) {
+                if (setting('offline_mode') == OfflineModeEnum::NONAKTIF) {
                     $modul_web = 13;
                     ModulModel::where(['id' => $modul_web])->orWhere(['parent' => $modul_web])->update(['aktif' => ModulModel::LOCK]);
                 }

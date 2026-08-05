@@ -1,30 +1,32 @@
 <div class="box box-info">
     <div class="box-header with-border">
-        @if (can('u'))
-            <a href="{{ route('bumindes_tanah_kas_desa.form') }}" class="btn btn-social btn-success btn-sm btn-sm
-			visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah"><i class="fa fa-plus"></i>Tambah</a>
-        @endif
+        <x-tambah-button :url="'bumindes_tanah_kas_desa/form/'" />
+       
+        @php
+            $listCetakUnduh = [
+                [
+                    'url' => 'bumindes_tanah_kas_desa/dialog_cetak/cetak',
+                    'judul' => 'Cetak',
+                    'icon' => 'fa fa-print',
+                    'modal' => true,
+                ],
+                [
+                    'url' => 'bumindes_tanah_kas_desa/dialog_cetak/unduh',
+                    'judul' => 'Unduh',
+                    'icon' => 'fa fa-download',
+                    'modal' => true,
+                ]
+            ];
+        @endphp
 
-        <a
-            href="{{ route('bumindes_tanah_kas_desa.dialog_cetak', ['aksi' => 'cetak']) }}"
-            class="btn btn-social bg-purple btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Cetak Buku Tanah Kas Desa"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Buku Tanah Kas Desa"
-        ><i class="fa fa-print"></i> Cetak</a>
+        <x-split-button
+            judul="Cetak/Unduh"
+            :list="$listCetakUnduh"
+            :icon="'fa fa-arrow-circle-down'"
+            :type="'bg-purple'"
+            :target="true"
+        />
 
-        <a
-            href="{{ route('bumindes_tanah_kas_desa.dialog_cetak', ['aksi' => 'unduh']) }}"
-            class="btn btn-social bg-navy btn-sm
-		btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Unduh Buku Tanah Kas Desa"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Buku Tanah Kas Desa"
-        ><i class="fa fa-download"></i>Unduh</a>
     </div>
     <div class="box-body">
         <div class="row">
@@ -32,7 +34,7 @@
                 <div class="row">
                     <div class="col-sm-12">
                         <div class="table-responsive">
-                            <table id="tabel-tanahkasdesa" class="table table-bordered dataTable table-hover">
+                            <table id="tabeldata" class="table table-bordered dataTable table-hover">
                                 <thead class="bg-gray">
                                     <tr>
                                         <th class="text-center">No</th>
@@ -61,7 +63,7 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
-            var TableData = $('#tabel-tanahkasdesa').DataTable({
+            var TableData = $('#tabeldata').DataTable({
                 responsive: true,
                 processing: true,
                 serverSide: true,
@@ -84,12 +86,12 @@
                         orderable: false
                     },
                     {
-                        data: 'ref_asal_tanah_kas.nama',
-                        name: 'ref_asal_tanah_kas.nama',
-                        searchable: true,
-                        orderable: true,
+                        data: 'asal_tanah_kas_label',
+                        name: 'asal_tanah_kas_label',
+                        searchable: false,
+                        orderable: false,
                         render: function(data, type, row) {
-                            return data.toUpperCase();
+                            return data?.toUpperCase();
                         }
                     },
                     {

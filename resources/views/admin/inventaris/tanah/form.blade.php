@@ -4,13 +4,11 @@
 @include('admin.layouts.components.datetime_picker')
 
 @section('title')
-    <h1>
-        {{ $action }} Inventaris Tanah
-    </h1>
+    <h1>{{ $action }} {{ $header }}</h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="active">{{ $action }} Inventaris Tanah</li>
+    <li class="active">{{ $action }} {{ $header }}</li>
 @endsection
 
 @push('css')
@@ -31,7 +29,7 @@
         <div class="col-sm-9">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ site_url('inventaris_tanah') }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Inventaris Tanah</a>
+                <x-kembali-button judul="Kembali Ke Daftar {{ $header }}" url="inventaris_tanah" />
                 </div>
                 {!! form_open($form_action, 'class="form-horizontal" id="validasi"') !!}
                 <div class="box-body">
@@ -79,7 +77,7 @@
                                 <label class="col-sm-3 control-label" for="tahun_pengadaan">Tahun Pengadaan</label>
                                 <div class="col-sm-4">
                                     <select name="tahun_pengadaan" id="tahun_pengadaan" class="form-control input-sm required">
-                                        @for ($i = date('Y'); $i >= 1900; $i--)
+                                        @for ($i = date('Y'); $i >= 1945; $i--)
                                             <option value="{{ $i }}" @selected(date('Y', strtotime($main->tanggal_dokument ?? 'now')) == $i)>{{ $i }}</option>
                                         @endfor
                                     </select>
@@ -114,20 +112,20 @@
                             <div class="form-group">
                                 <label class="col-sm-3 control-label" for="tanggal_sertifikat">Tanggal Sertifikat</label>
                                 <div class="col-sm-4">
-                                    <input maxlength="50" value="{{ date('d-m-Y', strtotime($main->tanggal_sertifikat ?? 'now')) }}" class="form-control input-sm datepicker required" name="tanggal_sertifikat" id="tanggal_sertifikat" type="text" />
+                                    <input maxlength="50" value="{{ $main->tanggal_sertifikat ? date('d-m-Y', strtotime($main->tanggal_sertifikat)) : '' }}" class="form-control input-sm datepicker" name="tanggal_sertifikat" id="tanggal_sertifikat" type="text" />
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="col-sm-3 control-label" for="no_sertifikat">Nomor Sertifikat</label>
                                 <div class="col-sm-8">
-                                    <input maxlength="50" class="form-control input-sm required" name="no_sertifikat" id="no_sertifikat" type="text" value="{{ $main->no_sertifikat }}" />
+                                    <input maxlength="50" class="form-control input-sm" name="no_sertifikat" id="no_sertifikat" type="text" value="{{ $main->no_sertifikat }}" />
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="col-sm-3 control-label" for="penggunaan">Penggunaan </label>
                                 <div class="col-sm-4">
                                     <select name="penggunaan" id="penggunaan" class="form-control input-sm required">
-                                        <option value="">-- Pilih Pilih Kegunaan --</option>
+                                        <option value="">-- Pilih Kegunaan --</option>
                                         @foreach (['Industri', 'Jalan', 'Komersial', 'Permukiman', 'Tanah Publik', 'Tanah Kosong', 'Perkebunan', 'Pertanian'] as $item)
                                             <option @selected($item == $main->penggunaan) value="{{ $item }}">{{ $item }}</option>
                                         @endforeach

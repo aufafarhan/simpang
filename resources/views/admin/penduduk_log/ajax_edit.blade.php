@@ -11,7 +11,7 @@
                     <option value="">{{ App\Models\LogPenduduk::kodePeristiwaAll($log_status_dasar['kode_peristiwa']) }}</option>
                 </select>
             </div>
-            @if ($log_status_dasar['kode_peristiwa'] == App\Models\LogPenduduk::MATI)
+            @if ($log_status_dasar['kode_peristiwa'] == App\Enums\PeristiwaPendudukEnum::MATI->value)
                 <div class="form-group mati">
                     <label for="meninggal_di">Tempat Meninggal</label>
                     <input name="meninggal_di" class="form-control input-sm required" type="text" maxlength="50" placeholder="Tempat Meninggal" value="{{ $log_status_dasar['meninggal_di'] }}"></input>
@@ -69,20 +69,23 @@
                     <label for="akta_mati">Nomor Akta Kematian</label>
                     <input name="akta_mati" class="form-control input-sm" type="text" maxlength="50" placeholder="Nomor Akta Kematian" value="{{ $log_status_dasar['akta_mati'] }}"></input>
                 </div>
-            @endif
-            <div class="form-group mati">
-                <label for="file">File Akta Kematian <code>(.jpg, .jpeg, .png, .pdf)</code></label>
-                <div class="input-group input-group-sm">
-                    <input type="text" class="form-control" id="file_path" name="satuan">
-                    <input type="file" class="hidden" id="file" name="nama_file" accept=".jpg,.jpeg,.png,.pdf">
-                    <span class="input-group-btn">
-                        <button type="button" class="btn btn-info" id="file_browser"><i class="fa fa-search"></i> Cari</button>
+                <div class="form-group mati">
+                    <label for="file">File Akta Kematian <code>(.jpg, .jpeg, .png, .pdf)</code></label>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="file_path" name="satuan">
+                        <input type="file" class="hidden" id="file" name="nama_file" accept=".jpg,.jpeg,.png,.pdf">
+                        <span class="input-group-btn">
+                            <button type="button" class="btn btn-info" id="file_browser"><i class="fa fa-search"></i> Cari</button>
+                        </span>
+                    </div>
+                    <span class="help-block">
+                        <code>Kosongkan jika tidak ingin mengubah dokumen. Ukuran maksimal
+                            <strong>{{ max_upload(true) }}</strong>.
+                        </code>
                     </span>
                 </div>
-                <span class="help-block"><code>Kosongkan jika tidak ingin mengubah dokumen. Ukuran maksimal
-                        <strong>{{ max_upload() }} MB</strong>.</code></span>
-            </div>
-            @if ($log_status_dasar['kode_peristiwa'] == App\Models\LogPenduduk::PINDAH_KELUAR)
+            @endif
+            @if ($log_status_dasar['kode_peristiwa'] == App\Enums\PeristiwaPendudukEnum::PINDAH_KELUAR->value)
                 <div class="form-group pindah">
                     <label for="ref_pindah">Tujuan Pindah</label>
                     <select name="ref_pindah" class="form-control select2 input-sm required">
@@ -98,7 +101,7 @@
                     <textarea id="alamat_tujuan" name="alamat_tujuan" class="form-control input-sm required" placeholder="Alamat Tujuan" rows="5">{{ $log_status_dasar['alamat_tujuan'] }}</textarea>
                 </div>
             @endif
-            @if ($log_status_dasar['kode_peristiwa'] == App\Models\LogPenduduk::BARU_PINDAH_MASUK)
+            @if ($log_status_dasar['kode_peristiwa'] == App\Enums\PeristiwaPendudukEnum::BARU_PINDAH_MASUK->value)
                 <div class="form-group">
                     <label for="alamat_sebelumnya">Alamat Sebelumnya</label>
                     <textarea id="alamat_sebelumnya" name="alamat_sebelumnya" class="form-control input-sm required" placeholder="Alamat Sebelumnya" rows="5">{{ $log_status_dasar->penduduk->alamat_sebelumnya }}</textarea>
@@ -148,12 +151,14 @@
 
     $('#tgl_1').datetimepicker({
         format: 'DD-MM-YYYY',
-        locale: 'id'
+        locale: 'id',
+        maxDate: moment().endOf('year')
     });
 
     $('#tgl_lapor').datetimepicker({
         format: 'DD-MM-YYYY',
-        locale: 'id'
+        locale: 'id',
+        maxDate: moment().endOf('year')
     });
 
     setTimeout(function() {

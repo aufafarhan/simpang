@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,92 +29,44 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\SasaranEnum;
+use App\Traits\Migrator;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
-class Migrasi_2024090171 extends MY_Model
+class Migrasi_2024090171
 {
+    use Migrator;
+
     public function up()
     {
-        $hasil = true;
-
-        $hasil = $this->migrasi_2024080851($hasil);
-        $hasil = $this->migrasi_2024080752($hasil);
-        $hasil = $this->migrasi_2024080753($hasil);
-        $hasil = $this->migrasi_2024081252($hasil);
-        $hasil = $this->migrasi_2024081151($hasil);
-        $hasil = $this->migrasi_2024080852($hasil);
-        $hasil = $this->migrasi_2024081651($hasil);
-        $hasil = $this->migrasi_2024082051($hasil);
-
-        // Migrasi berdasarkan config_id
-        $config_id = DB::table('config')->pluck('id')->toArray();
-
-        foreach ($config_id as $id) {
-            $hasil && $this->migrasi_2024082651($hasil, $id);
-            $hasil && $this->migrasi_2024082751($hasil, $id);
-        }
-
-        $hasil = $hasil && $this->migrasi_2024080651($hasil);
-        $hasil = $hasil && $this->migrasi_2024082951($hasil);
-        $hasil = $hasil && $this->migrasi_2024083051($hasil);
-        $hasil = $hasil && $this->migrasi_2024083052($hasil);
-
-        return $hasil && true;
+        $this->migrasi_2024080851();
+        $this->migrasi_2024080752();
+        $this->migrasi_2024080753();
+        $this->migrasi_2024081252();
+        $this->migrasi_2024081151();
+        $this->migrasi_2024080852();
+        $this->migrasi_2024081651();
+        $this->migrasi_2024082051();
+        $this->migrasi_2024082651();
+        $this->migrasi_2024082751();
+        $this->migrasi_2024080651();
+        $this->migrasi_2024082951();
+        $this->migrasi_2024083052();
     }
 
-    protected function migrasi_2024080851($hasil)
-    {
-        // mutasi_inventaris_peralatan
-        $hasil = $hasil && $this->hapus_foreign_key('inventaris_peralatan', 'FK_mutasi_inventaris_peralatan', 'mutasi_inventaris_peralatan');
-        $hasil = $hasil && $this->tambahForeignKey('FK_mutasi_inventaris_peralatan', 'mutasi_inventaris_peralatan', 'id_inventaris_peralatan', 'inventaris_peralatan', 'id', true);
-        // mutasi_inventaris_jalan
-        $hasil = $hasil && $this->hapus_foreign_key('inventaris_jalan', 'FK_mutasi_inventaris_jalan', 'mutasi_inventaris_jalan');
-        $hasil = $hasil && $this->tambahForeignKey('FK_mutasi_inventaris_jalan', 'mutasi_inventaris_jalan', 'id_inventaris_jalan', 'inventaris_jalan', 'id', true);
-        // mutasi_inventaris_gedung
-        $hasil = $hasil && $this->hapus_foreign_key('inventaris_gedung', 'FK_mutasi_inventaris_gedung', 'mutasi_inventaris_gedung');
-        $hasil = $hasil && $this->tambahForeignKey('FK_mutasi_inventaris_gedung', 'mutasi_inventaris_gedung', 'id_inventaris_gedung', 'inventaris_gedung', 'id', true);
-        // mutasi_inventaris_asset
-        $hasil = $hasil && $this->hapus_foreign_key('inventaris_asset', 'FK_mutasi_inventaris_asset', 'mutasi_inventaris_asset');
-
-        return $hasil && $this->tambahForeignKey('FK_mutasi_inventaris_asset', 'mutasi_inventaris_asset', 'id_inventaris_asset', 'inventaris_asset', 'id', true);
-    }
-
-    protected function migrasi_2024080752($hasil)
-    {
-        // sebenarnya constraint ini sudah ada, barangkali ada db yang gagal membuat constraint ini.
-        $hasil = $hasil && $this->hapus_foreign_key('suplemen', 'suplemen_terdata_suplemen_1', 'suplemen_terdata');
-        $hasil = $hasil && $this->hapus_foreign_key('suplemen', 'suplemen_terdata_suplemen_fk', 'suplemen_terdata');
-
-        return $hasil && $this->tambahForeignKey('suplemen_terdata_suplemen_fk', 'suplemen_terdata', 'id_suplemen', 'suplemen', 'id', true);
-    }
-
-    protected function migrasi_2024080753($hasil)
-    {
-        $cek = count(DB::select("SHOW INDEX FROM kelompok WHERE Key_name = 'slug_config'"));
-
-        if ($cek) {
-            Schema::table('kelompok', static function (Blueprint $table) {
-                $table->dropIndex('slug_config');
-                $table->unique(['slug', 'config_id'], 'slug_config_tipe');
-            });
-        }
-
-        return $hasil;
-    }
-
-    public function migrasi_2024080852($hasil)
+    public function migrasi_2024080852()
     {
         $daftarKomentar = DB::table('komentar')->whereNull('id_artikel')->get();
 
@@ -140,26 +92,58 @@ class Migrasi_2024090171 extends MY_Model
             DB::table('komentar')->where('id', $komentar->id)->delete();
         }
 
-        return $hasil;
     }
 
-    protected function migrasi_2024081151($hasil)
+    public function migrasi_2024080851()
     {
-        if (! $this->db->field_exists('remember_token', 'user')) {
-            $hasil = $hasil && $this->dbforge->add_column('user', [
-                'remember_token' => [
-                    'type'       => 'VARCHAR',
-                    'constraint' => 255,
-                    'null'       => true,
-                    'after'      => 'password',
-                ],
-            ]);
+        // mutasi_inventaris_peralatan
+        $this->hapus_foreign_key('inventaris_peralatan', 'FK_mutasi_inventaris_peralatan', 'mutasi_inventaris_peralatan');
+        $this->tambahForeignKey('FK_mutasi_inventaris_peralatan', 'mutasi_inventaris_peralatan', 'id_inventaris_peralatan', 'inventaris_peralatan', 'id', true);
+        // mutasi_inventaris_jalan
+        $this->hapus_foreign_key('inventaris_jalan', 'FK_mutasi_inventaris_jalan', 'mutasi_inventaris_jalan');
+        $this->tambahForeignKey('FK_mutasi_inventaris_jalan', 'mutasi_inventaris_jalan', 'id_inventaris_jalan', 'inventaris_jalan', 'id', true);
+        // mutasi_inventaris_gedung
+        $this->hapus_foreign_key('inventaris_gedung', 'FK_mutasi_inventaris_gedung', 'mutasi_inventaris_gedung');
+        $this->tambahForeignKey('FK_mutasi_inventaris_gedung', 'mutasi_inventaris_gedung', 'id_inventaris_gedung', 'inventaris_gedung', 'id', true);
+        // mutasi_inventaris_asset
+        $this->hapus_foreign_key('inventaris_asset', 'FK_mutasi_inventaris_asset', 'mutasi_inventaris_asset');
+
+        $this->tambahForeignKey('FK_mutasi_inventaris_asset', 'mutasi_inventaris_asset', 'id_inventaris_asset', 'inventaris_asset', 'id', true);
+    }
+
+    public function migrasi_2024080752()
+    {
+        // sebenarnya constraint ini sudah ada, barangkali ada db yang gagal membuat constraint ini.
+        $this->hapus_foreign_key('suplemen', 'suplemen_terdata_suplemen_1', 'suplemen_terdata');
+        $this->hapus_foreign_key('suplemen', 'suplemen_terdata_suplemen_fk', 'suplemen_terdata');
+
+        $this->tambahForeignKey('suplemen_terdata_suplemen_fk', 'suplemen_terdata', 'id_suplemen', 'suplemen', 'id', true);
+    }
+
+    public function migrasi_2024080753()
+    {
+        $cek = count(DB::select("SHOW INDEX FROM kelompok WHERE Key_name = 'slug_config'"));
+
+        if ($cek) {
+            Schema::table('kelompok', static function (Blueprint $table) {
+                $table->dropIndex('slug_config');
+                $table->unique(['slug', 'config_id'], 'slug_config_tipe');
+            });
         }
 
-        return $hasil;
     }
 
-    protected function migrasi_2024081252($hasil)
+    public function migrasi_2024081151()
+    {
+        if (! Schema::hasColumn('user', 'remember_token')) {
+            Schema::table('user', static function (Blueprint $table) {
+                $table->string('remember_token', 255)->nullable()->after('password');
+            });
+        }
+
+    }
+
+    public function migrasi_2024081252()
     {
         if (DB::table('tweb_penduduk')->whereNull('tanggallahir')->exists()) {
             log_message('error', 'Terdapat data tanggallahir yang null pada tabel tweb_penduduk');
@@ -169,10 +153,9 @@ class Migrasi_2024090171 extends MY_Model
             });
         }
 
-        return $hasil;
     }
 
-    protected function migrasi_2024081651($hasil)
+    public function migrasi_2024081651()
     {
         $tables = [
             'keuangan_ta_spp',
@@ -188,15 +171,16 @@ class Migrasi_2024090171 extends MY_Model
         ];
 
         foreach ($tables as $table) {
-            Schema::table($table, static function (Blueprint $table) {
-                $table->text('Keterangan')->nullable()->change();
-            });
+            if (Schema::hasTable($table)) {
+                Schema::table($table, static function (Blueprint $table) {
+                    $table->text('Keterangan')->nullable()->change();
+                });
+            }
         }
 
-        return $hasil;
     }
 
-    protected function migrasi_2024082051($hasil)
+    public function migrasi_2024082051()
     {
         if (! Schema::hasColumn('log_surat', 'isi_surat_temp')) {
             Schema::table('log_surat', static function (Blueprint $table) {
@@ -204,10 +188,9 @@ class Migrasi_2024090171 extends MY_Model
             });
         }
 
-        return $hasil;
     }
 
-    protected function migrasi_2024080651($hasil)
+    public function migrasi_2024080651()
     {
         if (! Schema::hasColumn('config', 'nama_kontak')) {
             Schema::table('config', static function (Blueprint $table) {
@@ -217,85 +200,89 @@ class Migrasi_2024090171 extends MY_Model
             });
         }
 
-        return $hasil;
     }
 
-    protected function migrasi_2024082651($hasil, $config_id)
+    public function migrasi_2024082651()
     {
-        if (! $this->db->field_exists('penduduk_id', 'suplemen_terdata')) {
-            $hasil = $hasil && $this->dbforge->add_column('suplemen_terdata', [
-                'penduduk_id' => ['type' => 'INT', 'constraint' => 11, 'unsigned' => true, 'null' => true, 'after' => 'id_terdata'],
-                'keluarga_id' => ['type' => 'INT', 'constraint' => 11, 'unsigned' => true, 'null' => true, 'after' => 'id_terdata'],
-            ]);
+        if (! Schema::hasColumn('suplemen_terdata', 'penduduk_id')) {
+            Schema::table('suplemen_terdata', static function (Blueprint $table) {
+                $table->unsignedInteger('penduduk_id')->nullable()->after('id_terdata');
+                $table->unsignedInteger('keluarga_id')->nullable()->after('id_terdata');
+            });
 
-            $hasil = $hasil && $this->tambahForeignKey('suplemen_terdata_penduduk_fk', 'suplemen_terdata', 'penduduk_id', 'tweb_penduduk', 'id', true);
-            $hasil = $hasil && $this->tambahForeignKey('suplemen_terdata_keluarga_fk', 'suplemen_terdata', 'keluarga_id', 'tweb_keluarga', 'id', true);
+            $this->tambahForeignKey('suplemen_terdata_penduduk_fk', 'suplemen_terdata', 'penduduk_id', 'tweb_penduduk', 'id', true);
+            $this->tambahForeignKey('suplemen_terdata_keluarga_fk', 'suplemen_terdata', 'keluarga_id', 'tweb_keluarga', 'id', true);
         }
 
-        DB::table('suplemen_terdata')
-            ->where('config_id', $config_id)
-            ->update([
-                'penduduk_id' => DB::raw("
-                    case
-                        when sasaran = 1 then (select id from tweb_penduduk where config_id = {$config_id} and tweb_penduduk.id = suplemen_terdata.id_terdata)
-                    end
-                "),
-                'keluarga_id' => DB::raw("
-                    case
-                        when sasaran = 2 then (select id from tweb_keluarga where config_id = {$config_id} and tweb_keluarga.id = suplemen_terdata.id_terdata)
-                    end
-                "),
-            ]);
+        DB::beginTransaction();
 
-        return $hasil;
+        try {
+            $config_id = identitas('id');
+
+            // Isi penduduk_id jika sasaran = 1
+            DB::table('suplemen_terdata AS st')
+                ->join('tweb_penduduk AS p', static function ($join) {
+                    $join->on('p.id', '=', 'st.id_terdata')
+                        ->on('p.config_id', '=', 'st.config_id');
+                })
+                ->where('st.config_id', $config_id)
+                ->where('st.sasaran', SasaranEnum::PENDUDUK)
+                ->whereNull('st.penduduk_id')
+                ->update([
+                    'st.penduduk_id' => DB::raw('p.id'),
+                ]);
+
+            // Isi keluarga_id jika sasaran = 2
+            DB::table('suplemen_terdata AS st')
+                ->join('tweb_keluarga AS k', static function ($join) {
+                    $join->on('k.id', '=', 'st.id_terdata')
+                        ->on('k.config_id', '=', 'st.config_id');
+                })
+                ->where('st.config_id', $config_id)
+                ->where('st.sasaran', SasaranEnum::KELUARGA)
+                ->whereNull('st.keluarga_id')
+                ->update([
+                    'st.keluarga_id' => DB::raw('k.id'),
+                ]);
+
+            DB::commit(); // semua berhasil
+
+        } catch (Exception $e) {
+            DB::rollBack(); // batalkan semua
+            Log::error('Migrasi 2024082651 gagal: ' . $e->getMessage());
+        }
+
     }
 
-    protected function migrasi_2024082751($hasil, $config_id)
+    public function migrasi_2024082751()
     {
         DB::table('kelompok_anggota')
             ->join('kelompok', 'kelompok_anggota.id_kelompok', '=', 'kelompok.id')
-            ->where('kelompok_anggota.config_id', $config_id)
+            ->where('kelompok_anggota.config_id', identitas('id'))
             ->whereColumn('kelompok_anggota.tipe', '!=', 'kelompok.tipe')
             ->update([
                 'kelompok_anggota.tipe' => DB::raw('kelompok.tipe'),
             ]);
 
-        return $hasil;
     }
 
-    protected function migrasi_2024082951($hasil)
+    public function migrasi_2024082951()
     {
         if (! Schema::hasTable('log_login')) {
-            $directoryTable = 'donjo-app/models/migrations/struktur_tabel';
-            $migrationFiles = [
-                '2023_12_22_015242_create_log_login_table.php',
-                '2023_12_22_015245_add_foreign_keys_to_log_login_table.php',
-            ];
-
-            foreach ($migrationFiles as $file) {
-                $migrateFile = require $directoryTable . DIRECTORY_SEPARATOR . $file;
-                $migrateFile->up();
-            }
-        }
-
-        return $hasil;
-    }
-
-    protected function migrasi_2024083051($hasil)
-    {
-        (new Filesystem())->copyDirectory('vendor/tecnickcom/tcpdf/fonts', LOKASI_FONT_DESA);
-
-        return $hasil;
-    }
-
-    protected function migrasi_2024083052($hasil)
-    {
-        if (! $this->db->field_exists('foto', 'kelompok_anggota')) {
-            $hasil = $hasil && $this->dbforge->add_column('kelompok_anggota', [
-                'foto' => ['type' => 'VARCHAR', 'constraint' => 100, 'null' => true],
+            $this->runMigration([
+                '2023_12_22_015242_create_log_login_table',
+                '2023_12_22_015245_add_foreign_keys_to_log_login_table',
             ]);
         }
+    }
 
-        return $hasil;
+    public function migrasi_2024083052()
+    {
+        if (! Schema::hasColumn('kelompok_anggota', 'foto')) {
+            Schema::table('kelompok_anggota', static function (Blueprint $table) {
+                $table->string('foto', 100)->nullable();
+            });
+        }
+
     }
 }

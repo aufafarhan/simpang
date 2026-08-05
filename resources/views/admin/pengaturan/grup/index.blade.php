@@ -23,34 +23,19 @@
             <div class="box box-info">
                 <?php if (can('u')) : ?>
                 <div class="box-header with-border">
+                    <x-tambah-button :url="'grup/form'" />
+                    <x-hapus-button 
+                        confirmDelete="true" 
+                        selectData="true" 
+                        :url="'grup/delete'" 
+                    />
+
                     @if (can('u'))
-                        <a href="{{ ci_route('grup/form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
-                    @endif
-                    @if (can('h'))
-                        <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform','{{ ci_route('grup/delete') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
-                                class='fa fa-trash-o'></i> Hapus</a>
-                    @endif
-                    @if (can('u'))
-                        <div class="btn-group-vertical radius-3">
-                            <a class="btn btn-social btn-sm bg-navy" data-toggle="dropdown"><i class='fa fa-arrow-circle-down'></i>
-                                Impor / Ekspor</a>
-                            <ul class="dropdown-menu" role="menu">
-                                <li>
-                                    <a
-                                        href="{{ ci_route('grup.impor') }}"
-                                        class="btn btn-social btn-block btn-sm"
-                                        data-target="#impor-pengguna"
-                                        data-remote="false"
-                                        data-toggle="modal"
-                                        data-backdrop="false"
-                                        data-keyboard="false"
-                                    ><i class="fa fa-upload"></i> Impor Pengguna</a>
-                                </li>
-                                <li>
-                                    <a target="_blank" class="btn btn-social btn-block btn-sm aksi-terpilih" title="Ekspor Pengguna" onclick="formAction('mainform', '{{ ci_route('grup.ekspor') }}'); return false;"><i class="fa fa-download"></i> Ekspor Pengguna</a>
-                                </li>
-                            </ul>
-                        </div>
+                        <x-impor-ekspor-grup-button 
+                            impor="grup/impor"
+                            ekspor="grup/ekspor"
+                            target=""
+                        />
                     @endif
                 </div>
                 @endif

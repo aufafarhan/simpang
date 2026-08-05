@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -50,7 +50,7 @@ class Checker
     // Konstruktor untuk menginisialisasi direktori dan pola
     public function __construct($appKey, $currentName)
     {
-        $this->appKey = preg_replace('/[^a-zA-Z0-9]/', '', $appKey);
+        $this->appKey = preg_replace('/[^a-zA-Z0-9]/', '', (string) $appKey);
 
         foreach ($this->prefix as $prefix) {
             if (str_starts_with((string) $currentName, (string) $prefix)) {
@@ -103,7 +103,7 @@ class Checker
     /**
      * Get the value of fileDb
      */
-    public function getFileDb()
+    public function getFileDb(): string
     {
         return $this->fileDb;
     }

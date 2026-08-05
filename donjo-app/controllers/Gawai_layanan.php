@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 use App\Enums\StatusEnum;
 use App\Models\Gawai;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -51,6 +52,42 @@ class Gawai_layanan extends Admin_Controller
         isCan('b');
     }
 
+    // Hanya filter inputan
+    protected static function validate($request = [], $id = null)
+    {
+        $anjungan      = Gawai::find($id);
+        $ip_address    = Gawai::where('ip_address', $request['ip_address'])->first();
+        $mac_address   = Gawai::where('mac_address', $request['mac_address'])->first();
+        $id_pengunjung = Gawai::where('id_pengunjung', $request['id_pengunjung'])->first();
+
+        if ($ip_address && $anjungan->ip_address != $request['ip_address']) {
+            redirect_with('error', 'IP Address telah digunakan');
+        }
+
+        if ($mac_address && $anjungan->mac_address != $request['mac_address']) {
+            redirect_with('error', 'Mac Address telah digunakan');
+        }
+
+        if ($id_pengunjung && $anjungan->id_pengunjung != $request['id_pengunjung']) {
+            redirect_with('error', 'ID Pengunjung telah digunakan');
+        }
+
+        $validated = [
+            'ip_address'    => bilangan_titik($request['ip_address']),
+            'mac_address'   => alfanumerik_kolon($request['mac_address']),
+            'id_pengunjung' => alfanumerik($request['id_pengunjung']),
+            'printer_ip'    => bilangan_titik($request['printer_ip']),
+            'printer_port'  => bilangan($request['printer_port']),
+            'keyboard'      => bilangan($request['keyboard']),
+            'keterangan'    => htmlentities((string) $request['keterangan']),
+            'status'        => $request['status'] ?? 0,
+        ];
+
+        $validated['created_by'] = $id ? $validated['updated_by'] = ci_auth()->id : ci_auth()->id;
+
+        return $validated;
+    }
+
     public function index()
     {
         return view('admin.gawai_layanan.index');
@@ -59,7 +96,10 @@ class Gawai_layanan extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
-            return datatables()->of(Gawai::query())
+            $status = $this->input->get('status') ?? null;
+            $query  = Gawai::status($status);
+
+            return datatables()->of($query)
                 ->addColumn('ceklist', static function ($row) {
                     if (can('h')) {
                         return '<input type="checkbox" name="id_cb[]" value="' . $row->id . '"/>';
@@ -69,20 +109,19 @@ class Gawai_layanan extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('gawai_layanan.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                        $url_kunci = site_url("gawai_layanan/kunci/{$row->id}");
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => '/gawai_layanan/form/' . $row->id,
+                    ])->render();
 
-                        if ($row->status) {
-                            $aksi .= '<a href="' . $url_kunci . '/' . StatusEnum::YA . '" class="btn bg-navy btn-sm" title="Nonaktifkan Gawai Layanan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . $url_kunci . '/' . StatusEnum::TIDAK . '" class="btn bg-navy btn-sm" title="Aktifkan Gawai Layanan"><i class="fa fa-lock"></i></a> ';
-                        }
-                    }
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => '/gawai_layanan/kunci/' . $row->id,
+                        'active' => $row->status,
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('gawai_layanan.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => '/gawai_layanan/delete/' . $row->id,
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -153,41 +192,5 @@ class Gawai_layanan extends Admin_Controller
         $kunci->update(['status' => ($val == StatusEnum::YA) ? StatusEnum::TIDAK : StatusEnum::YA]);
 
         redirect_with('success', 'Berhasil Ubah Data');
-    }
-
-    // Hanya filter inputan
-    protected static function validate($request = [], $id = null)
-    {
-        $anjungan      = Gawai::find($id);
-        $ip_address    = Gawai::where('ip_address', $request['ip_address'])->first();
-        $mac_address   = Gawai::where('mac_address', $request['mac_address'])->first();
-        $id_pengunjung = Gawai::where('id_pengunjung', $request['id_pengunjung'])->first();
-
-        if ($ip_address && $anjungan->ip_address != $request['ip_address']) {
-            redirect_with('error', 'IP Address telah digunakan');
-        }
-
-        if ($mac_address && $anjungan->mac_address != $request['mac_address']) {
-            redirect_with('error', 'Mac Address telah digunakan');
-        }
-
-        if ($id_pengunjung && $anjungan->id_pengunjung != $request['id_pengunjung']) {
-            redirect_with('error', 'ID Pengunjung telah digunakan');
-        }
-
-        $validated = [
-            'ip_address'    => bilangan_titik($request['ip_address']),
-            'mac_address'   => alfanumerik_kolon($request['mac_address']),
-            'id_pengunjung' => alfanumerik($request['id_pengunjung']),
-            'printer_ip'    => bilangan_titik($request['printer_ip']),
-            'printer_port'  => bilangan($request['printer_port']),
-            'keyboard'      => bilangan($request['keyboard']),
-            'keterangan'    => htmlentities((string) $request['keterangan']),
-            'tipe'          => 2,
-        ];
-
-        $validated['created_by'] = $id ? $validated['updated_by'] = ci_auth()->id : ci_auth()->id;
-
-        return $validated;
     }
 }

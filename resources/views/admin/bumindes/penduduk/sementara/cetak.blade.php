@@ -3,10 +3,10 @@
         <tr>
             <td>
                 @if ($aksi != 'unduh')
-                    <img class="logo" src="{{ gambar_desa($config['logo']) }}" alt="logo-desa">
+                    <img class="logo" src="{{ gambar_desa($desa['logo']) }}" alt="logo-desa">
                 @endif
                 <h1 class="judul">
-                    PEMERINTAH {!! strtoupper(setting('sebutan_kabupaten') . ' ' . $config['nama_kabupaten'] . ' <br>' . setting('sebutan_kecamatan') . ' ' . $config['nama_kecamatan'] . ' <br>' . setting('sebutan_desa') . ' ' . $config['nama_desa']) !!}
+                    PEMERINTAH {!! strtoupper(setting('sebutan_kabupaten') . ' ' . $desa['nama_kabupaten'] . ' <br>' . setting('sebutan_kecamatan') . ' ' . $desa['nama_kecamatan'] . ' <br>' . setting('sebutan_desa') . ' ' . $desa['nama_desa']) !!}
                 </h1>
             </td>
         </tr>
@@ -22,7 +22,7 @@
         </tr>
         <tr>
             <td class="text-center">
-                <h4>BUKU PENDUDUK SEMENTARA BULAN {{ strtoupper(getBulan(date('m'))) }} TAHUN {{ date('Y') }}</h4>
+                <h4>BUKU PENDUDUK SEMENTARA BULAN {{ strtoupper(getBulan($filters['bulan'] ?? date('m'))) }} TAHUN {{ $filters['tahun'] ?? date('Y') }}</h4>
             </td>
         </tr>
         <tr>
@@ -80,8 +80,8 @@
                                 <td class="padat">{{ $data->sex == 2 ? 'P' : '' }}</td>
                                 <td>{!! $privasi_nik ? sensor_nik_kk($data->nik) : ($aksi == 'unduh' ? $data->nik . '&nbsp' : $data->nik) !!}</td>
                                 <td>{{ $data->tempatlahir . ', ' . tgl_indo_out($data->tanggallahir) }}</td>
-                                <td>{{ $data->pekerjaan->nama }}</td>
-                                <td>{{ $data->warganegara->nama }}</td>
+                                <td>{{ $data->pekerjaan }}</td>
+                                <td>{{ $data->warganegara }}</td>
                                 <td>{{ empty($data->negara_asal) ? '-' : $data->negara_asal }}</td>
                                 <td>{{ empty($data->alamat_sebelumnya) ? '-' : $data->alamat_sebelumnya }}</td>
                                 <td>{{ empty($data->log_latest->maksud_tujuan_kedatangan) ? '-' : $data->log_latest->maksud_tujuan_kedatangan }}</td>

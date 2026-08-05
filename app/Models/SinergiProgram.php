@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -38,6 +38,7 @@
 namespace App\Models;
 
 use App\Traits\ConfigId;
+use App\Traits\StatusTrait;
 use App\Traits\Uuid;
 use Spatie\EloquentSortable\SortableTrait;
 
@@ -48,16 +49,10 @@ class SinergiProgram extends BaseModel
     use ConfigId;
     use Uuid;
     use SortableTrait;
+    use StatusTrait;
 
     public const ACTIVE   = 1;
     public const INACTIVE = 0;
-
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'sinergi_program';
 
     /**
      * The timestamps for the model.
@@ -65,6 +60,26 @@ class SinergiProgram extends BaseModel
      * @var bool
      */
     public $timestamps = false;
+
+    /**
+     * {@inheritDoc}
+     */
+    public $statusColumName = 'status';
+
+    /**
+     * {@inheritDoc}
+     */
+    public $sortable = [
+        'order_column_name'  => 'urut',
+        'sort_when_creating' => true,
+    ];
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'sinergi_program';
 
     /**
      * The attributes that are mass assignable.
@@ -83,30 +98,14 @@ class SinergiProgram extends BaseModel
         'gambar_url',
     ];
 
-    /**
-     * {@inheritDoc}
-     */
-    public $sortable = [
-        'order_column_name'  => 'urut',
-        'sort_when_creating' => true,
-    ];
-
-    public function scopeStatus($query, $status = null)
+    public static function deleteFile($model, ?string $file, $deleting = false): void
     {
-        if ($status === null) {
-            return $query;
+        if ($model->isDirty($file) || $deleting) {
+            $gambar = LOKASI_SINERGI_PROGRAM . $model->getOriginal($file);
+            if (file_exists($gambar)) {
+                unlink($gambar);
+            }
         }
-
-        return $query->where('status', $status);
-    }
-
-    public function getGambarUrlAttribute()
-    {
-        if (file_exists(FCPATH . LOKASI_SINERGI_PROGRAM . $this->gambar)) {
-            return base_url(LOKASI_SINERGI_PROGRAM . $this->gambar);
-        }
-
-        return asset('images/404-image-not-found.jpg');
     }
 
     protected static function boot()
@@ -124,13 +123,12 @@ class SinergiProgram extends BaseModel
         });
     }
 
-    public static function deleteFile($model, ?string $file, $deleting = false): void
+    public function getGambarUrlAttribute()
     {
-        if ($model->isDirty($file) || $deleting) {
-            $gambar = LOKASI_SINERGI_PROGRAM . $model->getOriginal($file);
-            if (file_exists($gambar)) {
-                unlink($gambar);
-            }
+        if (file_exists(FCPATH . LOKASI_SINERGI_PROGRAM . $this->gambar)) {
+            return base_url(LOKASI_SINERGI_PROGRAM . $this->gambar);
         }
+
+        return asset('images/404-image-not-found.jpg');
     }
 }

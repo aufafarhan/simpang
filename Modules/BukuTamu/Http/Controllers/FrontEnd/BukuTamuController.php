@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,25 +29,30 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\JawabanKepuasanEnum;
+use App\Enums\JawabanKepuasanEnum;
 use App\Enums\StatusEnum;
+use App\Events\BukuTamu\TamuSubmitted;
 use App\Models\RefJabatan;
 use Carbon\Carbon;
 use Modules\BukuTamu\Models\KeperluanModel;
 use Modules\BukuTamu\Models\KepuasanModel;
 use Modules\BukuTamu\Models\PertanyaanModel;
 use Modules\BukuTamu\Models\TamuModel;
+use NotificationChannels\Telegram\Telegram;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class BukuTamuController extends WebModulController
 {
+    public $moduleName = 'BukuTamu';
+
     public function __construct()
     {
         parent::__construct();
@@ -72,7 +77,7 @@ class BukuTamuController extends WebModulController
 
     public function registrasi(): void
     {
-        if ($this->input->post()) {
+        if (request()->post()) {
             $post = $this->validate($this->request);
 
             // Identifikasi registrasi yang sama
@@ -85,8 +90,32 @@ class BukuTamuController extends WebModulController
 
             if ($cek_registrasi) {
                 set_session('error', 'Registrasi Gagal Disimpan<br>Anda Sudah Melakukan Registrasi Hari Ini');
-            } elseif (TamuModel::create($post)) {
+            } elseif ($tamu = TamuModel::create($post)) {
                 set_session('success', 'Registrasi Berhasil Disimpan');
+
+                // Kirim notifikasi ke Telegram
+                $pesan = '<b>Registrasi Buku Tamu Baru</b>' . "\n\n"
+                    . '<b>Nama:</b> ' . $tamu->nama . "\n"
+                    . '<b>Telepon:</b> ' . $tamu->telepon . "\n"
+                    . '<b>Instansi:</b> ' . $tamu->instansi . "\n"
+                    . '<b>Jenis Kelamin:</b> ' . $tamu->jenis_kelamin . "\n"
+                    . '<b>Alamat:</b> ' . $tamu->alamat . "\n"
+                    . '<b>Bertemu:</b> ' . $tamu->bidang . "\n"
+                    . '<b>Keperluan:</b> ' . $tamu->keperluan;
+
+                if (setting('telegram_notifikasi') && cek_koneksi_internet()) {
+                    try {
+                        $telegram = new Telegram(setting('telegram_token'));
+                        $telegram->sendMessage([
+                            'text'       => $pesan,
+                            'parse_mode' => 'HTML',
+                            'chat_id'    => setting('telegram_user_id'),
+                        ]);
+                    } catch (Exception $e) {
+                        log_message('error', $e->getMessage());
+                    }
+                }
+
             } else {
                 set_session('error', 'Registrasi Gagal Disimpan');
             }

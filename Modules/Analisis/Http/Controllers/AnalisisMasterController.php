@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,15 +29,18 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
-use App\Enums\AnalisisRefSubjekEnum;
+use App\Enums\StatusEnum;
 use App\Models\KelompokMaster;
 use App\Traits\Upload;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
+use Modules\Analisis\Enums\AnalisisRefSubjekEnum;
 use Modules\Analisis\Libraries\Gform;
 use Modules\Analisis\Libraries\Import;
 use Modules\Analisis\Models\AnalisisIndikator;
@@ -68,14 +71,33 @@ class AnalisisMasterController extends AdminModulController
         isCan('b');
     }
 
+    protected static function validate(array $request = []): array
+    {
+        return [
+            'nama'         => judul($request['nama']),
+            'subjek_tipe'  => $request['subjek_tipe'],
+            'id_kelompok'  => $request['id_kelompok'] ?: null,
+            'lock'         => $request['lock'] ?? StatusEnum::TIDAK,
+            'format_impor' => $request['format_impor'] ?: null,
+            'pembagi'      => bilangan_titik($request['pembagi']),
+            'id_child'     => $request['id_child'] ?: null,
+            'deskripsi'    => htmlentities($request['deskripsi']),
+        ];
+    }
+
     public function index()
     {
-        return view('analisis::master.index');
+        $data['data_import']     = $this->session->data_import ?: ['pertanyaan' => []];
+        $data['list_error']      = $this->session->list_error ?? [];
+        $data['session_success'] = $this->session->success;
+        $data['form_action']     = ci_route('analisis_master.save_import_gform');
+
+        return view('analisis::master.index', $data);
     }
 
     public function datatables()
     {
-        if ($this->input->is_ajax_request()) {
+        if (request()->ajax()) {
             $canUpdate = can('u');
 
             return datatables()->of(AnalisisMaster::query())
@@ -89,13 +111,18 @@ class AnalisisMasterController extends AdminModulController
                     $aksi = '<a href="' . ci_route('analisis_master.menu', $row->id) . '" class="btn bg-purple btn-sm" title="Rincian Analisis"><i class="fa fa-list-ol"></i></a> ';
                     if ($canUpdate) {
                         $aksi .= ' <a href="' . ci_route('analisis_master.form', $row->id) . '" class="btn bg-orange btn-sm" title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                        if ($row->gform_id) {
-                            $aksi .= ' <a href="' . ci_route('analisis_master.update_gform', $row->id) . '" class="btn bg-navy btn-sm" title="Update Data Google Form"><i class="fa fa-refresh"></i></a> ';
-                        }
-                        $aksi .= ' <a href="' . ci_route('analisis_master.lock', $row->id) . '" class="btn bg-navy btn-sm"  title="Aktifkan"><i class="fa ' . ($row->isLock() ? 'fa-lock' : 'fa-unlock') . '">&nbsp;</i></a> ';
+
+                        $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                            'url'    => ci_route('analisis_master.lock', $row->id),
+                            'active' => $row->lock == '1' ? '0' : '1',
+                        ])->render();
 
                         if ($row->jenis != 1 ) {
                             $aksi .= ' <a href="#" data-href="' . ci_route('analisis_master.delete', $row->id) . '" class="btn bg-maroon btn-sm" title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
+                        }
+
+                        if (! empty($row->gform_id)) {
+                            $aksi .= '<a href="' . ci_route('analisis_master.update_gform', $row->id) . '" class="btn bg-purple btn-sm" title="Update Data Google Form"><i class="fa fa-refresh"></i></a> ';
                         }
                     }
                     $aksi .= '<a href="' . ci_route('analisis_master.ekspor', $row->id) . '" class="btn bg-navy btn-sm" title="Ekspor Analisis"><i class="fa fa-download"></i></a> ';
@@ -116,7 +143,7 @@ class AnalisisMasterController extends AdminModulController
         isCan('u');
         $data['list_format_impor'] = ['1' => 'BDT 2015'];
         $data['list_subjek']       = AnalisisRefSubjekEnum::all();
-        $data['list_kelompok']     = KelompokMaster::get()->toArray();
+        $data['list_kelompok']     = KelompokMaster::tipe('kelompok')->get()->toArray();
         $data['list_analisis']     = AnalisisMaster::subjekPenduduk()->get()->toArray();
         if ($id) {
             $data['action']          = 'Ubah';
@@ -166,7 +193,7 @@ class AnalisisMasterController extends AdminModulController
         redirect_with('error', 'Gagal Hapus Data');
     }
 
-    public function import_analisis()
+    public function importAnalisis()
     {
         isCan('u');
 
@@ -180,16 +207,38 @@ class AnalisisMasterController extends AdminModulController
     public function import(): void
     {
         isCan('u');
-        $config['upload_path']   = sys_get_temp_dir();
-        $config['allowed_types'] = 'xlsx';
-
-        $namaFile = $config['upload_path'] . DIRECTORY_SEPARATOR . $this->upload('userfile', $config);
 
         try {
-            (new Import($namaFile))->analisis();
-            redirect_with('success', 'Berhasil import analisis');
+            $config['upload_path']   = sys_get_temp_dir();
+            $config['allowed_types'] = 'xlsx';
+            $config['max_size']      = 5120; // 5MB
+
+            // Upload file
+            $namaFile = $this->upload('userfile', $config);
+            $filePath = $config['upload_path'] . DIRECTORY_SEPARATOR . $namaFile;
+
+            // Import dengan error collection
+            $importer = new Import($filePath);
+            $result   = $importer->analisis();
+
+            // Handle result
+            if ($result['success']) {
+                redirect_with('success', 'Berhasil impor analisis');
+            } else {
+                $errors = $result['errors'] ?? [];
+                if (! empty($errors)) {
+                    $errorMessage = 'Gagal impor analisis. Terdapat ' . count($errors) . ' error:<br>';
+                    $errorMessage .= collect($errors)
+                        ->map(static fn ($error) => '• ' . htmlspecialchars($error))
+                        ->join('<br>');
+
+                    redirect_with('error', $errorMessage, 'analisis_master', true);
+                } else {
+                    redirect_with('error', 'Gagal impor analisis');
+                }
+            }
         } catch (Exception $e) {
-            redirect_with('error', 'Gagal import analisis ' . $e->getMessage());
+            redirect_with('error', 'Gagal impor analisis: ' . $e->getMessage());
         }
     }
 
@@ -203,17 +252,137 @@ class AnalisisMasterController extends AdminModulController
         $fileName = 'analisis_' . urlencode((string) $master['nama']) . '_' . $tgl . '.xlsx';
         $writer->openToBrowser($fileName); // stream data directly to the browser
 
-        $this->ekspor_master($writer, $master);
-        $this->ekspor_pertanyaan($writer, $master);
-        $this->ekspor_jawaban($writer, $master);
-        $this->ekspor_klasifikasi($writer, $master);
+        $this->eksporMaster($writer, $master);
+        $this->eksporPertanyaan($writer, $master);
+        $this->eksporJawaban($writer, $master);
+        $this->eksporKlasifikasi($writer, $master);
 
         $writer->close();
 
         redirect('analisis_master');
     }
 
-    private function style_judul(): Style
+    public function importGform()
+    {
+        isCan('u');
+        $data['form_action'] = ci_route('analisis_master.exec_import_gform');
+
+        return view('analisis::master.import_gform', $data);
+    }
+
+    public function execImportGform(): void
+    {
+        isCan('u');
+        $this->session->google_form_id = $this->request['input-form-id'];
+
+        $REDIRECT_URI = $this->getRedirectUri();
+        if (empty($REDIRECT_URI)) {
+            redirect_with('error', 'Api Gform Credential, Api Gform Id Script, Api Gform Redirect Uri tidak sesuai');
+        }
+
+        $self_link = $REDIRECT_URI;
+
+        $url = "{$REDIRECT_URI}?redirectLink={$self_link}";
+        header("Location: {$url}");
+    }
+
+    public function saveImportGform(): void
+    {
+        isCan('u');
+
+        try {
+            DB::transaction(function () {
+                $result = (new Gform(request()))->save();
+                $this->session->set_flashdata('list_error', $result['error']);
+            });
+        } catch (Exception $e) {
+            logger()->error($e);
+            redirect_with('error', $e->getMessage());
+        }
+
+        redirect_with('success', 'Berhasil impor analisis dari Google Form', 'analisis_master');
+    }
+
+    public function updateGform($id = 0): void
+    {
+        isCan('u');
+
+        $analisisMaster = AnalisisMaster::find($id);
+        if (! $analisisMaster || empty($analisisMaster->gform_id)) {
+            redirect_with('error', 'Data analisis atau Google Form ID tidak ditemukan');
+        }
+
+        // Set google_form_id dari data yang sudah ada
+        $this->session->google_form_id     = $analisisMaster->gform_id;
+        $this->session->analisis_update_id = $id;
+        // Flag untuk detection di AnalisisImport
+        $this->session->gform_is_update = true;
+
+        $REDIRECT_URI = $this->getRedirectUri();
+        if (empty($REDIRECT_URI)) {
+            redirect_with('error', 'Api Gform Credential, Api Gform Id Script, Api Gform Redirect Uri tidak sesuai');
+        }
+
+        $self_link = $REDIRECT_URI;
+        $url       = "{$REDIRECT_URI}?redirectLink={$self_link}";
+        header("Location: {$url}");
+    }
+
+    public function handleUpdateGform(): void
+    {
+        isCan('u');
+
+        try {
+            $id = $this->session->analisis_update_id ?? 0;
+            if (empty($id)) {
+                redirect_with('error', 'ID Analisis tidak ditemukan', 'analisis_master');
+            }
+
+            $result = $this->session->gform_update_data ?? null;
+            if (! $result) {
+                redirect_with('error', 'Data update tidak ditemukan', 'analisis_master');
+            }
+
+            DB::transaction(function () use ($id, $result) {
+                $gform        = new Gform(request());
+                $gform_result = $gform->update($id, $result);
+                $this->session->set_flashdata('list_error', $gform_result['error'] ?? []);
+            });
+
+            // Cleanup session
+            $this->session->unset_userdata('analisis_update_id');
+            $this->session->unset_userdata('gform_update_data');
+
+            redirect_with('success', 'Berhasil sinkronisasi data dari Google Form', 'analisis_master');
+        } catch (Exception $e) {
+            logger()->error($e);
+            $this->session->unset_userdata('analisis_update_id');
+            $this->session->unset_userdata('gform_update_data');
+
+            redirect_with('error', 'Gagal sinkronisasi: ' . $e->getMessage());
+        }
+    }
+
+    public function lock($id): void
+    {
+        isCan('u');
+        if (AnalisisMaster::gantiStatus($id, 'lock')) {
+            redirect_with('success', 'Berhasil ubah status analisis');
+        }
+
+        redirect_with('error', 'Gagal status analisis');
+    }
+
+    public function menu($master)
+    {
+        $data = [
+            'analisis_master' => AnalisisMaster::findOrFail($master),
+        ];
+
+        return view('analisis::master.menu_default', $data);
+    }
+
+    private function styleJudul(): Style
     {
         $border = new Border(
             new BorderPart(Border::TOP, Color::GREEN, Border::WIDTH_THIN, Border::STYLE_SOLID),
@@ -228,7 +397,7 @@ class AnalisisMasterController extends AdminModulController
             ->setBorder($border);
     }
 
-    private function style_baris(): Style
+    private function styleBaris(): Style
     {
         $border = new Border(
             new BorderPart(Border::TOP, Color::GREEN, Border::WIDTH_THIN, Border::STYLE_SOLID),
@@ -241,7 +410,7 @@ class AnalisisMasterController extends AdminModulController
             ->setBorder($border);
     }
 
-    private function ekspor_master(Writer $writer, array $master): void
+    private function eksporMaster(Writer $writer, array $master): void
     {
         $sheet = $writer->getCurrentSheet();
         $sheet->setName('master');
@@ -267,7 +436,7 @@ class AnalisisMasterController extends AdminModulController
         }
     }
 
-    private function ekspor_pertanyaan(Writer $writer, array $master): void
+    private function eksporPertanyaan(Writer $writer, array $master): void
     {
         $sheet = $writer->addNewSheetAndMakeItCurrent();
         $sheet->setName('pertanyaan');
@@ -281,19 +450,19 @@ class AnalisisMasterController extends AdminModulController
             ['AKSI ANALISIS', 'act_analisis'],
         ];
         $judul  = array_column($daftar_kolom, 0);
-        $header = Row::fromValues($judul, $this->style_judul());
+        $header = Row::fromValues($judul, $this->styleJudul());
         $writer->addRow($header);
         // Tulis data
         $indikator = AnalisisIndikator::with(['kategori'])->where(['id_master' => $master['id']])->get()->toArray();
 
         foreach ($indikator as $p) {
             $baris_data = [$p['nomor'], $p['pertanyaan'], $p['kategori']['kategori'] ?? '', $p['id_tipe'], $p['bobot'], $p['act_analisis']];
-            $baris      = Row::fromValues($baris_data, $this->style_baris());
+            $baris      = Row::fromValues($baris_data, $this->styleBaris());
             $writer->addRow($baris);
         }
     }
 
-    private function ekspor_jawaban(Writer $writer, array $master): void
+    private function eksporJawaban(Writer $writer, array $master): void
     {
         $jawaban = $writer->addNewSheetAndMakeItCurrent();
         $jawaban->setName('jawaban');
@@ -305,19 +474,19 @@ class AnalisisMasterController extends AdminModulController
             ['NILAI', 'nilai'],
         ];
         $judul  = array_column($daftar_kolom, 0);
-        $header = Row::fromValues($judul, $this->style_judul());
+        $header = Row::fromValues($judul, $this->styleJudul());
         $writer->addRow($header);
         // Tulis data
         $parameter = AnalisisIndikator::with(['parameter'])->where(['id_master' => $master['id']])->get();
 
         foreach ($parameter as $p) {
             $baris_data = [$p['nomor'], $p['parameter']['kode_jawaban'] ?? '', $p['parameter']['jawaban'] ?? '', $p['parameter']['nilai'] ?? ''];
-            $baris      = Row::fromValues($baris_data, $this->style_baris());
+            $baris      = Row::fromValues($baris_data, $this->styleBaris());
             $writer->addRow($baris);
         }
     }
 
-    private function ekspor_klasifikasi(Writer $writer, array $master): void
+    private function eksporKlasifikasi(Writer $writer, array $master): void
     {
         $klasifikasi = $writer->addNewSheetAndMakeItCurrent();
         $klasifikasi->setName('klasifikasi');
@@ -328,24 +497,16 @@ class AnalisisMasterController extends AdminModulController
             ['NILAI MAKSIMAL', 'maxval'],
         ];
         $judul  = array_column($daftar_kolom, 0);
-        $header = Row::fromValues($judul, $this->style_judul());
+        $header = Row::fromValues($judul, $this->styleJudul());
         $writer->addRow($header);
         // Tulis data
         $klasifikasi = AnalisisKlasifikasi::where(['id_master' => $master['id']])->get();
 
         foreach ($klasifikasi as $k) {
             $baris_data = [$k['nama'], $k['minval'], $k['maxval']];
-            $baris      = Row::fromValues($baris_data, $this->style_baris());
+            $baris      = Row::fromValues($baris_data, $this->styleBaris());
             $writer->addRow($baris);
         }
-    }
-
-    public function import_gform()
-    {
-        isCan('u');
-        $data['form_action'] = ci_route('analisis_master.exec_import_gform');
-
-        return view('analisis::master.import_gform', $data);
     }
 
     /**
@@ -357,7 +518,7 @@ class AnalisisMasterController extends AdminModulController
      * - Jika 1 dan 2 kosong. 3 diisi. Import gform langsung menuju redirect field 3
      * - Jika semua tidak terisi (asumsi opensid ini yang jalan di server OpenDesa) ambil credential setting di file config
      */
-    private function get_redirect_uri()
+    private function getRedirectUri()
     {
         $api_gform_credential = setting('api_gform_credential') ?? config_item('api_gform_credential');
         if ($api_gform_credential) {
@@ -365,109 +526,9 @@ class AnalisisMasterController extends AdminModulController
             $redirect_uri    = $credential_data['web']['redirect_uris'][0];
         }
         if (empty($redirect_uri)) {
-            return setting('api_gform_redirect_uri');
+            return null;
         }
 
         return $redirect_uri;
-    }
-
-    public function exec_import_gform(): void
-    {
-        isCan('u');
-        $this->session->google_form_id = $this->request->get('input-form-id');
-
-        $REDIRECT_URI = $this->get_redirect_uri();
-        $protocol     = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? 'https://' : 'http://';
-        $self_link    = $protocol . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'];
-
-        if ($this->request->get('outsideRetry') == 'true') {
-            $url = $REDIRECT_URI . '?formId=' . $this->request->get('formId') . '&redirectLink=' . $self_link . '&outsideRetry=true&code=' . $this->input->get('code');
-
-            $client     = new Google\Client();
-            $httpClient = $client->authorize();
-            $response   = $httpClient->get($url);
-
-            $variabel = json_decode((string) $response->getBody(), true);
-            set_session('data_import', $variabel);
-            set_session('gform_id', $this->request->get('formId'));
-            set_session('success', 5);
-
-            redirect('analisis_master');
-        } else {
-            $url = $REDIRECT_URI . '?formId=' . $this->request->get('input-form-id') . '&redirectLink=' . $self_link;
-            header('Location: ' . $url);
-        }
-    }
-
-    public function save_import_gform(): void
-    {
-        isCan('u');
-
-        try {
-            (new Gform($this->request))->save();
-        } catch (Exception $e) {
-            redirect_with('error', $e->getMessage());
-        }
-
-        redirect('analisis_master');
-    }
-
-    public function update_gform($id = 0): void
-    {
-        isCan('u');
-        $form_id = AnalisisMaster::find($id)?->gform_id;
-
-        $REDIRECT_URI = $this->get_redirect_uri();
-        $protocol     = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? 'https://' : 'http://';
-        $self_link    = $protocol . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'];
-
-        if ($this->input->get('outsideRetry') == 'true') {
-            $url = $REDIRECT_URI . '?formId=' . $this->input->get('formId') . '&redirectLink=' . $self_link . '&outsideRetry=true&code=' . $this->input->get('code');
-
-            $client     = new Google\Client();
-            $httpClient = $client->authorize();
-            $response   = $httpClient->get($url);
-
-            $variabel = json_decode((string) $response->getBody(), true);
-            (new Gform($this->request))->update($id, $variabel);
-
-            redirect('analisis_master');
-        } else {
-            $url = $REDIRECT_URI . '?formId=' . $this->session->google_form_id . '&redirectLink=' . $self_link;
-            header('Location: ' . $url);
-        }
-    }
-
-    public function lock($id): void
-    {
-        isCan('u');
-        if (AnalisisMaster::gantiStatus($id, 'lock')) {
-            redirect_with('success', 'Berhasil ubah status analisis');
-        }
-
-        redirect_with('error', 'Gagal status analisis');
-    }
-
-    public function menu($master)
-    {
-        $data = [
-            'analisis_master' => AnalisisMaster::findOrFail($master),
-        ];
-
-        return view('analisis::master.menu_default', $data);
-    }
-
-    protected static function validate(array $request = []): array
-    {
-        return [
-            'nama'         => judul($request['nama']),
-            'subjek_tipe'  => $request['subjek_tipe'],
-            'id_kelompok'  => $request['id_kelompok'] ?: null,
-            'lock'         => $request['lock'] ?: null,
-            'format_impor' => $request['format_impor'] ?: null,
-            'pembagi'      => bilangan_titik($request['pembagi']),
-            'id_child'     => $request['id_child'] ?: null,
-            'deskripsi'    => htmlentities($request['deskripsi']),
-        ];
     }
 }

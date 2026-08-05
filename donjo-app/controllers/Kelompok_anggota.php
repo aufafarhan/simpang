@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,12 +39,17 @@ use App\Enums\JabatanKelompokEnum;
 use App\Enums\JenisKelaminEnum;
 use App\Models\Kelompok;
 use App\Models\KelompokAnggota as KelompokAnggotaModel;
+use App\Models\Pamong;
 use App\Models\Penduduk;
+use App\Traits\Upload;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Kelompok_anggota extends Admin_Controller
 {
+    use Upload;
+
     public $modul_ini       = 'kependudukan';
     public $sub_modul_ini   = 'kelompok';
     public $tipe            = 'kelompok';
@@ -54,7 +59,6 @@ class Kelompok_anggota extends Admin_Controller
     {
         parent::__construct();
         isCan('b');
-        $this->load->model(['kelompok_model', 'pamong_model']);
     }
 
     public function index(): void
@@ -97,11 +101,17 @@ class Kelompok_anggota extends Admin_Controller
                     $aksi = '';
 
                     if (can('u')) {
-                        $aksi .= '<a href="' . route("{$controller}.form", ['id_kelompok' => $row->id_kelompok, 'id' => $row->id_penduduk]) . '" class="btn bg-orange btn-sm" title="Ubah Anggota"><i class="fa fa-edit"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                            'url' => "{$controller}/form/" . $row->id_kelompok . '/' . $row->id_penduduk,
+                        ])->render();
                     }
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . route("{$controller}.delete", ['id_kelompok' => $row->id_kelompok, 'id' => $row->id_penduduk]) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
+                    if (can('h') && $row->jml_anggota <= 0) {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => route("{$controller}.delete", ['id_kelompok' => $row->id_kelompok, 'id' => $row->id_penduduk]),
+                            'confirmDelete' => true,
+                        ])->render();
+
                     }
 
                     return $aksi;
@@ -147,7 +157,7 @@ class Kelompok_anggota extends Admin_Controller
         $data['kelompok']      = $id;
         $data['tipe']          = ucwords((string) $this->tipe);
         $data['list_jabatan1'] = JabatanKelompokEnum::all();
-        $data['list_jabatan2'] = $this->kelompok_model->list_jabatan($id);
+        $data['list_jabatan2'] = KelompokAnggotaModel::listJabatan($id, $this->tipe);
 
         if ($id_a == 0) {
             $data['pend']        = null;
@@ -193,7 +203,7 @@ class Kelompok_anggota extends Admin_Controller
             if ($validasi_anggota1->no_anggota == $data['no_anggota']) {
                 redirect_with(
                     'error',
-                    "<br/>Nomor anggota ini {$data['no_anggota']} tidak bisa digunakan. Silahkan gunakan nomor anggota yang lain!",
+                    "<br/>Nomor anggota ini {$data['no_anggota']} tidak bisa digunakan. Silakan gunakan nomor anggota yang lain!",
                     "{$this->controller}/form/{$id}"
                 );
             }
@@ -203,11 +213,7 @@ class Kelompok_anggota extends Admin_Controller
             $result     = KelompokAnggotaModel::create($data);
             $id_anggota = $result->id;
 
-            // Upload foto dilakukan setelah ada id, karena nama foto berisi nik
-            if ($foto = upload_foto_penduduk(
-                nama_file: time() . '-' . $id_anggota . '-' . random_int(10000, 999999),
-                lokasi: $this->tipe == 'kelompok' ? LOKASI_FOTO_KELOMPOK : LOKASI_FOTO_LEMBAGA
-            )) {
+            if ($foto = $this->uploadGambar('foto', ($this->tipe == 'kelompok' ? LOKASI_FOTO_KELOMPOK : LOKASI_FOTO_LEMBAGA), null)) {
                 KelompokAnggotaModel::where('id', $id_anggota)->update(['foto' => $foto]);
             }
 
@@ -239,14 +245,11 @@ class Kelompok_anggota extends Admin_Controller
         }
         $anggota = KelompokAnggotaModel::whereIdKelompok($data['id_kelompok'])->whereIdPenduduk($id_a)->first();
         if ($anggota->no_anggota != $data['no_anggota'] && $validasi_anggota1->no_anggota == $data['no_anggota']) {
-            redirect_with('error', "Nomor anggota ini {$data['no_anggota']} tidak bisa digunakan. Silahkan gunakan nomor anggota yang lain!", route($this->controller . '.form', ['id_kelompok' => $id, 'id' => $id_a]));
+            redirect_with('error', "Nomor anggota ini {$data['no_anggota']} tidak bisa digunakan. Silakan gunakan nomor anggota yang lain!", route($this->controller . '.form', ['id_kelompok' => $id, 'id' => $id_a]));
         }
 
         try {
-            if ($foto = upload_foto_penduduk(
-                nama_file: time() . '-' . $id_a . '-' . random_int(10000, 999999),
-                lokasi: $this->tipe == 'kelompok' ? LOKASI_FOTO_KELOMPOK : LOKASI_FOTO_LEMBAGA
-            )) {
+            if ($foto = $this->uploadGambar('foto', ($this->tipe == 'kelompok' ? LOKASI_FOTO_KELOMPOK : LOKASI_FOTO_LEMBAGA), null)) {
                 $data['foto'] = $foto;
             }
 
@@ -263,40 +266,18 @@ class Kelompok_anggota extends Admin_Controller
         }
     }
 
-    private function validasi_anggota(array $post)
-    {
-        if ($post['id_penduduk']) {
-            $data['id_penduduk'] = bilangan($post['id_penduduk']);
-        }
-
-        $data['no_anggota']    = bilangan($post['no_anggota']);
-        $data['jabatan']       = alfanumerik_spasi($post['jabatan']);
-        $data['no_sk_jabatan'] = nomor_surat_keputusan($post['no_sk_jabatan']);
-        $data['keterangan']    = htmlentities((string) $post['keterangan']);
-        $data['tipe']          = $this->tipe;
-
-        if ($this->tipe == 'lembaga') {
-            $data['nmr_sk_pengangkatan']  = nomor_surat_keputusan($post['nmr_sk_pengangkatan']);
-            $data['tgl_sk_pengangkatan']  = empty($post['tgl_sk_pengangkatan']) ? null : tgl_indo_in($post['tgl_sk_pengangkatan']);
-            $data['nmr_sk_pemberhentian'] = nomor_surat_keputusan($post['nmr_sk_pemberhentian']);
-            $data['tgl_sk_pemberhentian'] = empty($post['tgl_sk_pemberhentian']) ? null : tgl_indo_in($post['tgl_sk_pemberhentian']);
-            $data['periode']              = htmlentities((string) $post['periode']);
-        }
-
-        return $data;
-    }
-
     public function delete($id = 0, $a = 0): void
     {
         isCan('h');
+        $kelompok = Kelompok::find($id);
 
         try {
             $anggota = KelompokAnggotaModel::whereIdPenduduk($a)->first();
             KelompokAnggotaModel::destroy($anggota->id);
-            redirect_with('success', 'Anggota ' . ucfirst($this->lembaga) . ' berhasil dihapus', route($this->controller . '.detail', $id));
+            redirect_with('success', 'Anggota ' . ucfirst($kelompok->nama) . ' berhasil dihapus', route($this->controller . '.detail', $id));
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Anggota ' . ucfirst($this->lembaga) . ' gagal dihapus', route($this->controller . '.detail', $id));
+            redirect_with('error', 'Anggota ' . ucfirst($kelompok->nama) . ' gagal dihapus', route($this->controller . '.detail', $id));
         }
     }
 
@@ -335,11 +316,11 @@ class Kelompok_anggota extends Admin_Controller
                         'nik'          => $item->anggota->nik,
                         'tempatlahir'  => $item->anggota->tempatlahir,
                         'tanggallahir' => $item->anggota->tanggallahir,
-                        'id_sex'       => $item->anggota->jeniskelamin->id,
-                        'sex'          => $item->anggota->jeniskelamin->nama,
+                        'id_sex'       => $item->anggota->jenis_kelamin_id,
+                        'sex'          => $item->anggota->jenis_kelamin,
                         'foto'         => $item->anggota->foto,
-                        'pendidikan'   => $item->anggota->pendidikankk->nama,
-                        'agama'        => $item->anggota->agama->nama,
+                        'pendidikan'   => $item->anggota->pendidikan_kk,
+                        'agama'        => $item->anggota->agama,
                         'umur'         => $item->anggota->umur,
                         'jabatan'      => $item->nama_jabatan,
                         'dusun'        => $item->anggota->wilayah->dusun,
@@ -353,9 +334,8 @@ class Kelompok_anggota extends Admin_Controller
             ->toArray();
         $data['aksi']           = $aksi;
         $data['tipe']           = ucwords((string) $this->tipe);
-        $data['config']         = $this->header['desa'];
-        $data['pamong_ttd']     = $this->pamong_model->get_data($post['pamong_ttd']);
-        $data['pamong_ketahui'] = $this->pamong_model->get_data($post['pamong_ketahui']);
+        $data['pamong_ttd']     = Pamong::selectData()->where(['pamong_id' => $post['pamong_ttd']])->first()->toArray();
+        $data['pamong_ketahui'] = Pamong::selectData()->where(['pamong_id' => $post['pamong_ketahui']])->first()->toArray();
         $data['main']           = $list_anggota;
         $kelompok               = Kelompok::find($id);
         $data['kelompok']       = collect($kelompok)->merge([
@@ -363,11 +343,10 @@ class Kelompok_anggota extends Admin_Controller
             'nama_ketua' => $kelompok->ketua()->first()->nama,
         ])->toArray();
         $data['file']      = 'Laporan Data ' . $data['tipe'] . ' ' . $data['kelompok']['nama']; // nama file
-        $data['isi']       = 'admin.kelompok.anggota.cetak';
         $data['label']     = $data['tipe'];
         $data['letak_ttd'] = ['2', '3', '2'];
 
-        view('admin.layouts.components.format_cetak', $data);
+        view('admin.kelompok.anggota.cetak', $data);
     }
 
     public function anggota()
@@ -399,5 +378,28 @@ class Kelompok_anggota extends Admin_Controller
         return $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode($sumber, JSON_THROW_ON_ERROR));
+    }
+
+    private function validasi_anggota(array $post)
+    {
+        if ($post['id_penduduk']) {
+            $data['id_penduduk'] = bilangan($post['id_penduduk']);
+        }
+
+        $data['no_anggota']    = bilangan($post['no_anggota']);
+        $data['jabatan']       = alfanumerik_spasi($post['jabatan']);
+        $data['no_sk_jabatan'] = nomor_surat_keputusan($post['no_sk_jabatan']);
+        $data['keterangan']    = htmlentities((string) $post['keterangan']);
+        $data['tipe']          = $this->tipe;
+
+        if ($this->tipe == 'lembaga') {
+            $data['nmr_sk_pengangkatan']  = nomor_surat_keputusan($post['nmr_sk_pengangkatan']);
+            $data['tgl_sk_pengangkatan']  = empty($post['tgl_sk_pengangkatan']) ? null : tgl_indo_in($post['tgl_sk_pengangkatan']);
+            $data['nmr_sk_pemberhentian'] = nomor_surat_keputusan($post['nmr_sk_pemberhentian']);
+            $data['tgl_sk_pemberhentian'] = empty($post['tgl_sk_pemberhentian']) ? null : tgl_indo_in($post['tgl_sk_pemberhentian']);
+            $data['periode']              = htmlentities((string) $post['periode']);
+        }
+
+        return $data;
     }
 }

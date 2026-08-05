@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\AgamaEnum;
+use App\Enums\AktifEnum;
 use App\Enums\AsuransiEnum;
 use App\Enums\BahasaEnum;
 use App\Enums\CacatEnum;
@@ -46,6 +47,7 @@ use App\Enums\JenisKelaminEnum;
 use App\Enums\PekerjaanEnum;
 use App\Enums\PendidikanKKEnum;
 use App\Enums\PendidikanSedangEnum;
+use App\Enums\PeristiwaPendudukEnum;
 use App\Enums\PindahEnum;
 use App\Enums\SakitMenahunEnum;
 use App\Enums\SasaranEnum;
@@ -56,23 +58,28 @@ use App\Enums\StatusKawinEnum;
 use App\Enums\StatusKawinSpesifikEnum;
 use App\Enums\StatusKTPEnum;
 use App\Enums\StatusPendudukEnum;
+use App\Enums\StatusRekamEnum;
 use App\Enums\SukuEnum;
 use App\Enums\WargaNegaraEnum;
+use App\Libraries\Import;
 use App\Models\Bantuan;
 use App\Models\Dokumen;
 use App\Models\DokumenHidup;
 use App\Models\LogKeluarga;
 use App\Models\LogPenduduk;
+use App\Models\Modul;
 use App\Models\Penduduk as PendudukModel;
 use App\Models\PendudukMap;
 use App\Models\PendudukSaja;
 use App\Models\RentangUmur;
 use App\Models\StatusKtp;
 use App\Models\SyaratSurat;
+use App\Models\User;
 use App\Models\UserGrup;
 use App\Models\Wilayah;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
 
@@ -92,27 +99,29 @@ class Penduduk extends Admin_Controller
     {
         parent::__construct();
         isCan('b');
-        $this->load->model(['impor_model']);
     }
 
     public function index(): void
     {
-        if ($this->input->get('status_dasar')) {
-            $this->filterColumn['status_dasar'] = $this->input->get('status_dasar');
+        // Secara dinamis menerapkan filter dari statistik
+        if ($statistikFilter = $this->input->get('statistikfilter')) {
+            foreach ($statistikFilter as $key => $value) {
+                $this->filterColumn[$key] = $value;
+            }
         }
-        if ($this->input->get('dusun')) {
-            $this->filterColumn['dusun'] = $this->input->get('dusun');
+
+        $manualFilters = ['status_dasar', 'dusun', 'rw', 'rt', 'sex', 'status_penduduk'];
+
+        foreach ($manualFilters as $filter) {
+            if ($this->input->get($filter)) {
+                $this->filterColumn[$filter] = $this->input->get($filter);
+            }
         }
-        if ($this->input->get('rw')) {
-            $this->filterColumn['rw'] = $this->input->get('rw');
+
+        if ($this->input->get('advancesearch')) {
+            $this->advanceSearch = $this->input->get('advancesearch');
         }
-        if ($this->input->get('rt')) {
-            $this->filterColumn['rt'] = $this->input->get('rt');
-        }
-        if ($this->input->get('sex')) {
-            $this->filterColumn['sex'] = $this->input->get('sex');
-        }
-        $data['disableFilter']        = in_array($this->uri->segment(2), ['statistik', 'lap_statistik']);
+        $data['disableFilter']        = false;
         $data['wilayah']              = Wilayah::treeAccess();
         $data['list_status_dasar']    = StatusDasarEnum::all();
         $data['list_status_penduduk'] = StatusPendudukEnum::all();
@@ -121,7 +130,7 @@ class Penduduk extends Admin_Controller
         $data['defaultStatusDasar']   = $this->filterColumn['status_dasar'] ?? StatusDasarEnum::HIDUP;
         $data['advanceSearch']        = $this->advanceSearch;
         $data['statistikFilter']      = $this->statistikFilter;
-        $data['judul_statistik']      = $this->judulStatistik;
+        $data['judul_statistik']      = $this->input->get('judul_statistik') ?? $this->judulStatistik;
         $data['pesan_hapus']          = 'Hanya lakukan hapus penduduk hanya jika ada kesalahan saat pengisian data atau penduduk tersebut tidak akan ditambahkan kembali. Apakah Anda yakin ingin menghapus data ini?';
         $data['akses']                = UserGrup::getGrupId(UserGrup::ADMINISTRATOR);
 
@@ -131,8 +140,8 @@ class Penduduk extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
-            $canDelete = can('h');
             $canUpdate = can('u');
+            $canDelete = can('h');
 
             return datatables()->of($this->sumberData())
                 ->addColumn('ceklist', static function ($row) use ($canDelete) {
@@ -151,53 +160,110 @@ class Penduduk extends Admin_Controller
                 })
                 ->addColumn('foto', static fn ($row) => '<img class="penduduk_kecil" src="' . AmbilFoto($row->foto, '', $row->sex) . '" alt="Foto Penduduk" />')->addIndexColumn()
                 ->addColumn('aksi', static function ($row) use ($canUpdate, $canDelete): string {
-                    $aksi = '<div class="btn-group">
-                        <button type="button" class="btn btn-social btn-info btn-sm" data-toggle="dropdown"><i class="fa fa-arrow-circle-down"></i> Pilih Aksi</button>
-                        <ul class="dropdown-menu" role="menu">
-                            <li>
-                                <a href="' . ci_route('penduduk.detail', $row->id) . '" class="btn btn-social btn-block btn-sm"><i class="fa fa-list-ol"></i> Lihat Detail Biodata Penduduk</a>
-                            </li>';
-                    if ($row->status_dasar == StatusDasarEnum::TIDAK_VALID && $canUpdate) {
-                        $aksi .= '<li>
-                                    <a href="#" data-href="' . ci_route('penduduk.kembalikan_status', $row->id) . '" class="btn btn-social btn-block btn-sm" data-remote="false" data-toggle="modal" data-target="#confirm-status" data-body="Apakah Anda yakin ingin mengembalikan status data penduduk ini?<br> Perubahan ini akan mempengaruhi laporan penduduk bulanan."><i class="fa fa-undo"></i> Kembalikan ke Status HIDUP</a>
-                                </li>';
-                    }
-                    if ($row->status_dasar == StatusDasarEnum::HIDUP) {
-                        if ($canUpdate) {
-                            $aksi .= '<li>
-                                        <a href="' . ci_route('penduduk.form', $row->id) . '" class="btn btn-social btn-block btn-sm"><i class="fa fa-edit"></i> Ubah Biodata Penduduk</a>
-                                    </li>
-                                    <li>
-                                        <a href="' . ci_route('penduduk.ajax_penduduk_maps.' . $row->id, 0) . '" class="btn btn-social btn-block btn-sm"><i class="fa fa-map-marker"></i> Lihat Lokasi Tempat Tinggal</a>
-                                    </li>';
-                            if (data_lengkap()) {
-                                $aksi .= '<li>
-                                            <a href="' . ci_route('penduduk.edit_status_dasar', $row->id) . '" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Status Dasar" class="btn btn-social btn-block btn-sm"><i class="fa fa-sign-out"></i> Ubah Status Dasar</a>
-                                        </li>';
-                            }
-                        }
-                        $aksi .= '<li>
-                                            <a href="' . ci_route('penduduk.dokumen', $row->id) . '" class="btn btn-social btn-block btn-sm"><i class="fa fa-upload"></i> Upload Dokumen Penduduk</a>
-                                        </li>
-                                        <li>
-                                            <a href="' . ci_route('penduduk.cetak_biodata', $row->id) . '" target="_blank" class="btn btn-social btn-block btn-sm"><i class="fa fa-print"></i> Cetak Biodata Penduduk</a>
-                                        </li>';
-                        if ($canDelete && ! data_lengkap()) {
-                            $aksi .= '<li>
-                                        <a href="#" data-href="' . ci_route('penduduk.delete', $row->id) . '" class="btn btn-social btn-block btn-sm" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i> Hapus</a>
-                                    </li>';
-                        }
-                    }
-                    $aksi .= '
-                        </ul>
-                    </div>';
+                    $list = [
+                        // Detail selalu ditampilkan
+                        [
+                            'url'    => "penduduk/detail/{$row->id}",
+                            'icon'   => 'fa fa-list-ol',
+                            'judul'  => 'Lihat Detail Biodata Penduduk',
+                            'target' => false,
+                            'modal'  => false,
+                        ],
+                        // Kembalikan status untuk TIDAK_VALID
+                        [
+                            'url'    => '#',
+                            'icon'   => 'fa fa-undo',
+                            'judul'  => 'Kembalikan ke Status HIDUP',
+                            'target' => false,
+                            'modal'  => true,
+                            'can'    => $row->status_dasar == StatusDasarEnum::TIDAK_VALID && $canUpdate,
+                            'data'   => [
+                                'data-href'   => "penduduk/kembalikan_status/{$row->id}",
+                                'data-remote' => 'false',
+                                'data-toggle' => 'modal',
+                                'data-target' => '#confirm-status',
+                                'data-body'   => 'Apakah Anda yakin ingin mengembalikan status data penduduk ini?<br> Perubahan ini akan mempengaruhi laporan penduduk bulanan.',
+                            ],
+                        ],
+                        // Edit biodata untuk HIDUP
+                        [
+                            'url'    => "penduduk/form/{$row->id}",
+                            'icon'   => 'fa fa-edit',
+                            'judul'  => 'Ubah Biodata Penduduk',
+                            'target' => false,
+                            'modal'  => false,
+                            'can'    => $row->status_dasar == StatusDasarEnum::HIDUP && $canUpdate,
+                        ],
+                        // Lihat lokasi untuk HIDUP
+                        [
+                            'url'    => "penduduk/ajax_penduduk_maps/{$row->id}/0",
+                            'icon'   => 'fa fa-map-marker',
+                            'judul'  => 'Lihat Lokasi Tempat Tinggal',
+                            'target' => false,
+                            'modal'  => false,
+                            'can'    => $row->status_dasar == StatusDasarEnum::HIDUP && $canUpdate,
+                        ],
+                        // Ubah status dasar untuk HIDUP
+                        [
+                            'url'    => "penduduk/edit_status_dasar/{$row->id}",
+                            'icon'   => 'fa fa-sign-out',
+                            'judul'  => 'Ubah Status Dasar',
+                            'target' => false,
+                            'modal'  => true,
+                            'can'    => $row->status_dasar == StatusDasarEnum::HIDUP && $canUpdate,
+                            'data'   => [
+                                'data-remote' => 'false',
+                                'data-toggle' => 'modal',
+                                'data-target' => '#modalBox',
+                                'data-title'  => 'Ubah Status Dasar',
+                            ],
+                        ],
+                        // Upload dokumen untuk HIDUP
+                        [
+                            'url'    => "penduduk/dokumen/{$row->id}",
+                            'icon'   => 'fa fa-upload',
+                            'judul'  => 'Upload Dokumen Penduduk',
+                            'target' => false,
+                            'modal'  => false,
+                            'can'    => $row->status_dasar == StatusDasarEnum::HIDUP,
+                        ],
+                        // Cetak biodata untuk HIDUP
+                        [
+                            'url'    => "penduduk/cetak_biodata/{$row->id}",
+                            'icon'   => 'fa fa-print',
+                            'judul'  => 'Cetak Biodata Penduduk',
+                            'target' => true,
+                            'modal'  => false,
+                            'can'    => $row->status_dasar == StatusDasarEnum::HIDUP,
+                        ],
+                        // Hapus untuk HIDUP
+                        [
+                            'url'    => '#',
+                            'icon'   => 'fa fa-trash-o',
+                            'judul'  => 'Hapus',
+                            'target' => false,
+                            'modal'  => true,
+                            'can'    => $row->status_dasar == StatusDasarEnum::HIDUP && $canDelete,
+                            'data'   => [
+                                'data-href'   => "penduduk/delete/{$row->id}",
+                                'data-toggle' => 'modal',
+                                'data-target' => '#confirm-delete',
+                            ],
+                        ],
+                    ];
 
-                    return $aksi;
+                    return View::make('admin.layouts.components.buttons.split', [
+                        'type'  => 'btn-info',
+                        'icon'  => 'fa fa-arrow-circle-down',
+                        'judul' => 'Pilih Aksi',
+                        'list'  => $list,
+                    ])->render();
                 })->editColumn('tgl_peristiwa', static fn ($q) => $q->log_latest ? tgl_indo($q->log_latest->tgl_peristiwa) : tgl_indo($q->created_at))
                 ->editColumn('created_at', static fn ($q) => tgl_indo($q->created_at))
                 ->editColumn('nama', static fn ($q) => strtoupper($q->nama))
                 ->addColumn('umur', static fn ($q) => $q->umur)
-                ->addColumn('status_perkawinan', static fn ($q) => $q->statusPerkawinan)
+                ->addColumn('status_perkawinan', static fn ($q) => $q->status_perkawinan)
+                ->addColumn('pendidikan_kk', static fn ($q) => $q->pendidikan_kk)
                 ->rawColumns(['aksi', 'ceklist', 'foto'])
                 ->make();
         }
@@ -205,295 +271,11 @@ class Penduduk extends Admin_Controller
         return show_404();
     }
 
-    private function sumberData()
-    {
-        $statusDasar     = $this->input->get('status_dasar') ?? null;
-        $statusPenduduk  = $this->input->get('status_penduduk') ?? null;
-        $sex             = $this->input->get('jenis_kelamin') ?? null;
-        $dusun           = $this->input->get('dusun') ?? null;
-        $rw              = $this->input->get('rw') ?? null;
-        $rt              = $this->input->get('rt') ?? null;
-        $nikSementara    = $this->input->get('nik_sementara') ?? null;
-        $kumpulanNIK     = $this->input->get('kumpulan_nik') ?? null;
-        $bantuan         = $this->input->get('bantuan') ?? null;
-        $statistikFilter = $this->input->get('statistikfilter') ?? null;
-        $advanceSearch   = $this->input->get('advancesearch') ?? null;
-
-        $idCluster = $rt ? [$rt] : [];
-        if (! empty($kumpulanNIK)) {
-            $bantuan = $nikSementara = $rw = $dusun = $rt = $idCluster = $statusDasar = $statusPenduduk = $sex = $kelasSosial = null;
-        }
-
-        if ($bantuan) {
-            $kumpulanNIK = $nikSementara = $rw = $dusun = $rt = $idCluster = $statusDasar = $statusPenduduk = $sex = $kelasSosial = null;
-        }
-
-        if ($nikSementara) {
-            $bantuan = $kumpulanNIK = $rw = $dusun = $rt = $idCluster = $statusDasar = $statusPenduduk = $sex = $kelasSosial = null;
-        }
-
-        if ($statistikFilter) {
-            $advanceSearch = $bantuan = $kumpulanNIK = $rw = $dusun = $rt = $idCluster = $statusDasar = $statusPenduduk = $sex = $kelasSosial = null;
-            if (isset($statistikFilter['bantuan_penduduk'])) {
-                $bantuan = $statistikFilter['bantuan_penduduk'];
-                $sex     = $statistikFilter['sex'];
-                unset($statistikFilter);
-            }
-
-            $dusun     = $statistikFilter['dusun'] ?? null;
-            $rw        = $statistikFilter['rw'] ?? null;
-            $rt        = $statistikFilter['rt'] ?? null;
-            $clusterId = $statistikFilter['idCluster'] ?? null;
-
-            if ($rt) {
-                [$namaDusun, $namaRw] = explode('__', $rw);
-                $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->whereRt($rt)->select(['id'])->get()->pluck('id')->toArray();
-            }
-        }
-
-        if (empty($idCluster) && ! empty($rw)) {
-            [$namaDusun, $namaRw] = explode('__', $rw);
-            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        if (empty($idCluster) && ! empty($dusun)) {
-            $idCluster = Wilayah::whereDusun($dusun)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        if ($clusterId) $idCluster = $clusterId;
-
-        return PendudukModel::with(['log_latest'])
-            ->select('tweb_penduduk.*')
-            ->when($idCluster, static fn ($q) => $q->whereIn('tweb_penduduk.id_cluster', $idCluster))
-            ->when($statusDasar, static fn ($q) => $q->whereStatusDasar($statusDasar))
-            ->when($statusPenduduk, static fn ($q) => $q->whereStatus($statusPenduduk))
-            ->when($nikSementara, static fn ($q) => $q->where('nik', 'like', '0%'))
-            ->when($sex, static fn ($q) => $q->whereSex($sex))
-            ->when($kumpulanNIK, static fn ($q) => $q->whereIn('nik', $kumpulanNIK))
-            ->when($statistikFilter, static function ($q) use ($statistikFilter) {
-                if (isset($statistikFilter['umurx'])) {
-                    if ($statistikFilter['umurx'] == BELUM_MENGISI) {
-                        $statistikFilter['umur_min'] = -1;
-                        $statistikFilter['umur_max'] = -1;
-                    } else {
-                        $rentangUmur                 = RentangUmur::find($statistikFilter['umurx']);
-                        $statistikFilter['umur_min'] = $rentangUmur->dari;
-                        $statistikFilter['umur_max'] = $rentangUmur->sampai;
-                    }
-                }
-
-                $umurMin           = $statistikFilter['umur_min'];
-                $umurMax           = $statistikFilter['umur_max'];
-                $umurObj['satuan'] = 'tahun';
-                if (null !== $umurMin) {
-                    $umurObj['min'] = $umurMin;
-                }
-                if (null !== $umurMax) {
-                    $umurObj['max'] = $umurMax;
-                }
-
-                $map = [
-                    'pekerjaan_id'         => 'pekerjaan_id',
-                    'status_kawin'         => 'status_kawin',
-                    'agama'                => 'agama_id',
-                    'pendidikan_sedang_id' => 'pendidikan_sedang_id',
-                    'pendidikan_kk_id'     => 'pendidikan_kk_id',
-                    'status_penduduk'      => 'status',
-                    'sex'                  => 'sex',
-                    'status_dasar'         => 'status_dasar',
-                    'cara_kb_id'           => 'cara_kb_id',
-                    'status_ktp'           => 'ktp_el',
-                    'id_asuransi'          => 'id_asuransi',
-                    'warganegara'          => 'warganegara_id',
-                    'golongan_darah'       => 'golongan_darah_id',
-                    'menahun'              => 'sakit_menahun_id',
-                    'cacat'                => 'cacat_id',
-                    'suku'                 => 'suku',
-                    'hubungan'             => 'kk_level',
-                    'akta_kelahiran'       => 'akta_lahir',
-                    'bpjs_ketenagakerjaan' => 'bpjs_ketenagakerjaan',
-                    'hamil'                => 'hamil',
-                    'buku-nikah'           => 'akta_perkawinan',
-                    'kia'                  => 'kia',
-                    'id_cluster'           => 'id_cluster',
-                ];
-
-                foreach ($statistikFilter as $key => $val) {
-                    if ($val != '') {
-                        if (isset($map[$key])) {
-                            if ($map[$key] == 'ktp_el') {
-                                $q->wajibKtp();
-                                if ($val == BELUM_MENGISI) {
-                                    $q->where(static fn ($r) => $r->whereNull('ktp_el')->orWhere('ktp_el', 0)->orWhere('status_rekam', 0)->orWhereNull('status_rekam'));
-                                } else {
-                                    if ($val == JUMLAH) {
-                                        $q->where(static fn ($r) => $r->whereNotNull('ktp_el')->whereNotIn('ktp_el', [0, 3]));
-                                    } else {
-                                        if ($val != TOTAL) {
-                                            $statusKTP = StatusKtp::find($val);
-                                            $q->where('ktp_el', '!=', 3)->where('status_rekam', $statusKTP->status_rekam);
-                                        }
-                                    }
-                                }
-                            } elseif ($map[$key] == 'kia') {
-                                $umurObj['min'] = 0;
-                                $umurObj['max'] = 17;
-                                if ($val == BELUM_MENGISI) {
-                                    $q->where(static fn ($r) => $r->whereNull('ktp_el')->orWhere('ktp_el', 0)->orWhere('status_rekam', 0)->orWhereNull('status_rekam'));
-                                } else {
-                                    if ($val == JUMLAH) {
-                                        $q->where('ktp_el', 3);
-                                    } else {
-                                        if ($val != TOTAL) {
-                                            $statusKTP = StatusKtp::find($val);
-                                            $q->where('ktp_el', 3)->where('status_rekam', $statusKTP->status_rekam);
-                                        }
-                                    }
-                                }
-                            } elseif ($map[$key] == 'akta_perkawinan') {
-                                $q->where('status_kawin', '!=', StatusKawinEnum::BELUMKAWIN);
-                                if ($val == BELUM_MENGISI) {
-                                    $q->where(static fn ($r) => $r->where('akta_perkawinan', '=', '')->orWhereNull('akta_perkawinan'));
-                                } elseif ($val == JUMLAH || $val == 2) {
-                                    $q->where(static fn ($r) => $r->where('akta_perkawinan', '!=', '')->whereNotNull('akta_perkawinan'));
-                                }
-                            } elseif ($map[$key] == 'cacat_id') {
-                                if ($val == CacatEnum::TIDAK_CACAT) {
-                                    $q->where(static fn ($r) => $r->where('cacat_id', '=', CacatEnum::TIDAK_CACAT)->orWhereNull('cacat_id'));
-                                } else {
-                                    if ($val == JUMLAH) {
-                                        $q->where(static fn ($r) => $r->where('cacat_id', '!=', CacatEnum::TIDAK_CACAT)->whereNotNull('cacat_id'));
-                                    } else {
-                                        $q->where($map[$key], $val);
-                                    }
-                                }
-                            } elseif ($map[$key] == 'sakit_menahun_id') {
-                                if (is_array($val)) {
-                                    $q->whereIn($map[$key], $val);
-                                } else {
-                                    $q->where($map[$key], $val);
-                                }
-                            } else {
-                                if ($val == BELUM_MENGISI) {
-                                    $q->where(static fn ($r) => $r->whereNull($map[$key])->orWhere($map[$key], ''));
-                                } else {
-                                    if ($val == JUMLAH) {
-                                        $q->whereNotNull($map[$key])->where($map[$key], '!=', '');
-                                    } else {
-                                        $q->where($map[$key], $val);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return $q->batasiUmur(date('d-m-Y'), $umurObj);
-            })
-            ->when($advanceSearch, static function ($q) use ($advanceSearch) {
-                $umurMin           = $advanceSearch['umur_min'];
-                $umurMax           = $advanceSearch['umur_max'];
-                $umurObj['satuan'] = $advanceSearch['umur'];
-                if ($umurMin !== null) {
-                    $umurObj['min'] = $umurMin;
-                }
-                if ($umurMax !== null) {
-                    $umurObj['max'] = $umurMax;
-                }
-
-                // maping field yang memiliki relasi dengan tabel lain
-                $map = [
-                    'pekerjaan_id'         => 'pekerjaan_id',
-                    'status'               => 'status',
-                    'agama'                => 'agama_id',
-                    'pendidikan_sedang_id' => 'pendidikan_sedang_id',
-                    'pendidikan_kk_id'     => 'pendidikan_kk_id',
-                    'status_penduduk'      => 'status',
-                    'sex'                  => 'sex',
-                    'status_dasar'         => 'status_dasar',
-                    'cara_kb_id'           => 'cara_kb_id',
-                    'status_ktp'           => 'status_rekam',
-                    'id_asuransi'          => 'id_asuransi',
-                    'warganegara'          => 'warganegara_id',
-                    'golongan_darah'       => 'golongan_darah_id',
-                    'menahun'              => 'sakit_menahun_id',
-                    'cacat'                => 'cacat_id',
-                ];
-                $resultMap = [];
-
-                foreach ($advanceSearch as $key => $val) {
-                    if ($val != '') {
-                        if (isset($map[$key])) {
-                            $resultMap[$map[$key]] = $val;
-                        }
-                    }
-                }
-
-                $statusKawin = $advanceSearch['status_kawin'];
-                if (in_array($statusKawin, StatusKawinSpesifikEnum::keys())) {
-                    if ($statusKawin == StatusKawinSpesifikEnum::KAWIN_TERCATAT) {
-                        $q->where('status_kawin', StatusKawinEnum::KAWIN)
-                            ->where('akta_perkawinan', '!=', '')
-                            ->whereNotNull('tanggalperkawinan');
-                    } elseif ($statusKawin == StatusKawinSpesifikEnum::KAWIN_BELUM_TERCATAT) {
-                        $q->where('status_kawin', StatusKawinEnum::KAWIN)
-                            ->where('akta_perkawinan', '')
-                            ->whereNull('tanggalperkawinan');
-                    } elseif ($statusKawin == StatusKawinSpesifikEnum::CERAIHIDUP_TERCATAT) {
-                        $q->where('status_kawin', StatusKawinEnum::CERAIHIDUP)
-                            ->where('akta_perceraian', '!=', '')
-                            ->whereNotNull('tanggalperceraian');
-                    } elseif ($statusKawin == StatusKawinSpesifikEnum::CERAIHIDUP_BELUM_TERCATAT) {
-                        $q->where('status_kawin', StatusKawinEnum::CERAIHIDUP)
-                            ->where('akta_perceraian', '')
-                            ->whereNull('tanggalperceraian');
-                    } else {
-                        $q->where('status_kawin', $statusKawin);
-                    }
-                }
-
-                if (in_array($advanceSearch['tag_id_card'], StatusEnum::keys())) {
-                    if ($advanceSearch['tag_id_card']) {
-                        $q->whereNotNull('tag_id_card');
-                    } else {
-                        $q->whereNull('tag_id_card');
-                    }
-                }
-
-                if (in_array($advanceSearch['id_kk'], StatusEnum::keys())) {
-                    if ($advanceSearch['id_kk']) {
-                        $q->whereNotNull('id_kk');
-                    } else {
-                        $q->whereNull('id_kk');
-                    }
-                }
-
-                return $q->batasiUmur(date('d-m-Y'), $umurObj)->where($resultMap);
-            })
-            ->when($bantuan, static function ($q) use ($bantuan) {
-                switch ($bantuan) {
-                    case BELUM_MENGISI:
-                        return $q->whereDoesntHave('bantuan');
-
-                    case JUMLAH:
-                        return $q->whereHas('bantuan');
-
-                    default:
-                        return $q->whereHas('bantuan', static fn ($r) => $r->where('program.id', $bantuan));
-                }
-            })
-            ->orderBy(DB::raw("CASE
-                WHEN CHAR_LENGTH(nik) < 16 THEN 1
-                WHEN nik LIKE '0%' AND CHAR_LENGTH(nik) = 16 THEN 2
-                ELSE 3
-            END"));
-    }
     /*
         Ajax url query data:
         q -- kata pencarian
         page -- nomor paginasi
     */
-
     public function list_nik_ajax()
     {
         if ($this->input->is_ajax_request()) {
@@ -537,14 +319,15 @@ class Penduduk extends Admin_Controller
         $this->form(null, $peristiwa);
     }
 
-    public function form($id = null, $peristiwa = null): void
+    public function form($id = null, $peristiwa = null)
     {
         isCan('u');
         $penduduk = new PendudukModel();
+        // cek_nik
         if ($id) {
             $data['id'] = $id;
             // Validasi dilakukan di penduduk_model sewaktu insert dan update
-            $penduduk                         = PendudukModel::with('log_latest')->findOrFail($id);
+            $penduduk                         = PendudukModel::with('log_latest')->find($id) ?? show_404();
             $data['penduduk']                 = $penduduk->toArray();
             $data['penduduk']['no_kk']        = $penduduk->keluarga->no_kk;
             $data['penduduk']['alamat']       = $penduduk->keluarga->alamat ?? $penduduk->alamat;
@@ -556,7 +339,7 @@ class Penduduk extends Admin_Controller
             $wilayah                          = $penduduk->wilayah;
             $data['penduduk']['wilayah']      = ['dusun' => $wilayah->dusun, 'rw' => $wilayah->rw, 'rt' => $wilayah->rt];
             $data['form_action']              = ci_route('penduduk.update', $id);
-            if ($penduduk->log_latest->kode_peristiwa == LogPenduduk::BARU_PINDAH_MASUK) {
+            if ($penduduk->log_latest->kode_peristiwa == PeristiwaPendudukEnum::BARU_PINDAH_MASUK->value) {
                 $data['penduduk']['maksud_tujuan_kedatangan'] = $penduduk->log_latest->maksud_tujuan_kedatangan;
             } else {
                 $data['penduduk']['maksud_tujuan_kedatangan'] = null;
@@ -580,15 +363,13 @@ class Penduduk extends Admin_Controller
         $data['cacat']              = CacatEnum::all();
         $data['sakit_menahun']      = SakitMenahunEnum::all();
         $data['cara_kb']            = CaraKBEnum::all();
-        $data['ktp_el']             = array_flip(unserialize(KTP_EL));
+        $data['ktp_el']             = StatusRekamEnum::all();
         $data['status_rekam']       = StatusKTPEnum::all();
         $data['tempat_dilahirkan']  = array_flip(unserialize(TEMPAT_DILAHIRKAN));
         $data['jenis_kelahiran']    = array_flip(unserialize(JENIS_KELAHIRAN));
         $data['penolong_kelahiran'] = array_flip(unserialize(PENOLONG_KELAHIRAN));
         $data['pilihan_asuransi']   = AsuransiEnum::all();
         $data['kehamilan']          = HamilEnum::all();
-        $data['suku']               = SukuEnum::all();
-        $data['suku_penduduk']      = PendudukModel::distinct()->select('suku')->whereNotNull('suku')->whereRaw('LENGTH(suku) > 0')->pluck('suku', 'suku');
         $data['nik_sementara']      = PendudukModel::nikSementara();
         $data['status_penduduk']    = StatusPendudukEnum::all();
         $data['keluarga']           = $penduduk->keluarga;
@@ -606,11 +387,25 @@ class Penduduk extends Admin_Controller
             $data['penduduk']['id_sex']    = $originalInput['sex'];
             $data['penduduk']['id_status'] = $originalInput['status'];
         }
-        $data['pesan_hapus']  = 'Apakah Anda yakin ingin mengembalikan foto menggunakan foto bawaan?';
-        $data['tombol_hapus'] = 'Kembalikan';
-        $data['icon_hapus']   = 'fa fa-undo';
+        $data['pesan_hapus']    = 'Apakah Anda yakin ingin mengembalikan foto menggunakan foto bawaan?';
+        $data['tombol_hapus']   = 'Kembalikan';
+        $data['icon_hapus']     = 'fa fa-undo';
+        $data['marga_penduduk'] = PendudukModel::distinct()->select('marga')->whereNotNull('marga')->whereRaw('LENGTH(marga) > 0')->pluck('marga', 'marga');
+        $data['suku_penduduk']  = PendudukModel::distinct()->select('suku')->whereNotNull('suku')->whereRaw('LENGTH(suku) > 0')->pluck('suku', 'suku');
+        $data['adat_penduduk']  = PendudukModel::distinct()->select('adat')->whereNotNull('adat')->whereRaw('LENGTH(adat) > 0')->pluck('adat', 'adat');
 
-        view('admin.penduduk.form', $data);
+        $data['status_pantau'] = checkWebsiteAccessibility(config_item('server_pantau')) ? 1 : 0;
+        if (! $data['status_pantau']) {
+            $data['suku']                    = SukuEnum::all();
+            $data['marga']                   = ['Lainnya' => 'Lainnya'];
+            $data['pekerja_migran_penduduk'] = PendudukModel::distinct()->select('pekerja_migran')->whereNotNull('pekerja_migran')->whereRaw('LENGTH(pekerja_migran) > 0')->where('pekerja_migran', '!=', 'BUKAN PEKERJA MIGRAN')->pluck('pekerja_migran', 'pekerja_migran');
+        }
+
+        if ($this->input->is_ajax_request()) {
+            return view('admin.penduduk.form_ajax', $data);
+        }
+
+        return view('admin.penduduk.form', $data);
     }
 
     public function detail($id): void
@@ -645,15 +440,26 @@ class Penduduk extends Admin_Controller
                     $aksi = '';
 
                     if (! $row->hidden) {
-                        if (can('u')) {
-                            $aksi .= '<a href="' . ci_route('penduduk.dokumen_form', "{$idPend}/{$row->id}") . '" class="btn bg-orange btn-sm" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Data" title="Ubah Data" title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                        }
-                        if (can('u')) {
-                            $aksi .= '<a href="#" data-href="' . ci_route('penduduk.delete_dokumen', "{$idPend}/{$row->id}") . '" class="btn bg-maroon btn-sm" title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
-                        }
+                        $aksi = View::make('admin.layouts.components.buttons.edit', [
+                            'url'   => "penduduk/dokumen_form/{$idPend}/{$row->id}",
+                            'modal' => true,
+                        ])->render();
+
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => site_url("penduduk/delete_dokumen/{$idPend}/{$row->id}"),
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
-                    return $aksi . ('<a href="' . ci_route('penduduk.unduh_berkas', $row->id) . '" class="btn bg-purple btn-sm" title="Unduh Dokumen"><i class="fa fa-download"></i></a>');
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'        => ci_route('penduduk.unduh_berkas', $row->id),
+                        'judul'      => 'Unduh',
+                        'icon'       => 'fa fa-download',
+                        'type'       => 'bg-purple',
+                        'buttonOnly' => true,
+                    ])->render();
+
+                    return $aksi;
                 })
                 ->editColumn('jenis_dokumen', static fn ($row) => $row->jenisDokumen->ref_syarat_nama ?? '')
                 ->editColumn('tgl_upload', static fn ($row) => tgl_indo2($row->tgl_upload))
@@ -795,27 +601,8 @@ class Penduduk extends Admin_Controller
         }
     }
 
-    private function upload_dokumen()
-    {
-        $config['upload_path']   = LOKASI_DOKUMEN;
-        $config['allowed_types'] = 'jpg|jpeg|png|pdf';
-        $config['file_name']     = namafile($this->input->post('nama', true));
-
-        $this->load->library('MY_Upload', null, 'upload');
-        $this->upload->initialize($config);
-
-        if (! $this->upload->do_upload('satuan')) {
-            session_error($this->upload->display_errors(null, null));
-
-            return false;
-        }
-
-        return $this->upload->data()['file_name'];
-    }
-
     public function cetak_biodata($id = ''): void
     {
-        $data['desa']     = $this->header['desa'];
         $data['penduduk'] = PendudukModel::findOrFail($id);
         view('admin.penduduk.cetak_biodata', $data);
     }
@@ -849,7 +636,7 @@ class Penduduk extends Admin_Controller
         }
     }
 
-    public function update($id = ''): void
+    public function update($id = '')
     {
         isCan('u');
         $data                  = $this->input->post();
@@ -860,11 +647,36 @@ class Penduduk extends Admin_Controller
         $penduduk              = PendudukModel::findOrFail($id);
         if ($penduduk->status_dasar != StatusDasarEnum::HIDUP) {
             set_session('old_input', $originalInput);
-            redirect_with('error', 'Data penduduk dengan status dasar MATI/HILANG/PINDAH tidak dapat diubah!', ci_route('penduduk.form_peristiwa', $id));
+            $message = 'Data penduduk dengan status dasar MATI/HILANG/PINDAH tidak dapat diubah!';
+
+            if ($this->input->is_ajax_request()) {
+                return json([
+                    'message' => $message,
+                    'errors'  => [
+                        'status'  => false,
+                        'message' => $message,
+                    ],
+                ], 400);
+            }
+
+            redirect_with('error', $message, ci_route('penduduk.form_peristiwa', $id));
         }
         if (! $validasiPenduduk['status']) {
             set_session('old_input', $originalInput);
+
+            if ($this->input->is_ajax_request()) {
+                return json([
+                    'message' => $validasiPenduduk['messages'],
+                    'errors'  => $validasiPenduduk,
+                ], 400);
+            }
+
             redirect_with('error', $validasiPenduduk['messages'], ci_route('penduduk.form', $id));
+        }
+
+        // Validasi: Jangan biarkan ubah kk_level jika Kepala Keluarga atau id_kk null
+        if ($penduduk->id_kk && $penduduk->kk_level == SHDKEnum::KEPALA_KELUARGA) {
+            unset($data['kk_level']);
         }
 
         unset($data['file_foto'], $data['old_foto'], $data['nik_lama'], $data['dusun'], $data['rw']);
@@ -876,52 +688,62 @@ class Penduduk extends Admin_Controller
             DB::commit();
             redirect_with('success', 'Penduduk berhasil diubah', ci_route('penduduk.detail', $penduduk->id));
         } catch (Exception $e) {
-            log_message('error', $e->getMessage());
+            logger()->error($e);
             DB::rollBack();
             set_session('old_input', $originalInput);
-            redirect_with('error', 'Penduduk baru gagal diubah', ci_route('penduduk.form.', $penduduk->id));
+            redirect_with('error', 'Penduduk baru gagal diubah', ci_route('penduduk.form.', $id));
         }
     }
 
-    public function delete($id = ''): void
+    public function delete($id = '', $semua = false): void
     {
         isCan('h');
-        if (data_lengkap()) {
-            redirect_with('error', 'Data tidak dapat proses karena sudah dinyatakan lengkap');
+        if (data_lengkap() || ! is_group_administrator()) {
+            redirect_with('information', __('panduan.data_lengkap'));
         }
         akun_demo($id);
         $penduduk = PendudukModel::findOrFail($id);
 
-        if ($bantuan = $penduduk->pesertaBantuan()->get()) {
-            $links = $bantuan->map(static fn ($item) => '<li><a href="' . ci_route("peserta_bantuan.detail.{$item->program_id}") . '" target="_blank">' . $item->bantuan->nama . '</a></li>')->implode('');
+        if ($penduduk->pamongUser()->exists()) {
+            redirect_with('information', 'Tidak dapat menghapus penduduk karena telah terdaftar sebagai pengguna.');
+        }
+
+        $bantuan = $penduduk->pesertaBantuan()->get();
+
+        if ($bantuan->isNotEmpty()) {
+            $links = $bantuan->map(
+                static fn ($item) => '<li><a href="' . ci_route("peserta_bantuan.detail.{$item->program_id}") .
+                '" target="_blank">' . $item->bantuan->nama . '</a></li>'
+            )->implode('');
 
             $links = "<ul>{$links}</ul>";
 
-            redirect_with('error', "Tidak dapat menghapus penduduk karena sudah terdaftar sebagai peserta bantuan: {$links}", '', true);
+            redirect_with('information', "Tidak dapat menghapus penduduk karena telah terdaftar sebagai peserta bantuan: {$links}", '', true);
         }
 
         if ($penduduk->logSurat()->exists()) {
-            redirect_with('error', 'Tidak dapat menghapus penduduk karena sudah terdaftar di Arsip Layanan Surat.');
+            redirect_with('information', 'Tidak dapat menghapus penduduk karena telah terdaftar di Arsip Layanan Surat.');
         }
 
+        // Hapus semua relasi log_penduduk sebelum hapus data utama
+        $penduduk->log()->delete();
+
+        // Hapus data penduduk
         $penduduk->delete();
 
-        redirect_with('success', 'Penduduk berhasil dihapus', ci_route('penduduk'));
+        if (! $semua) {
+            redirect_with('success', 'Penduduk berhasil dihapus', ci_route('penduduk'));
+        }
     }
 
     public function delete_all(): void
     {
         isCan('h');
 
-        if (data_lengkap()) {
-            redirect_with('error', 'Data tidak dapat proses karena sudah dinyatakan lengkap');
+        foreach ($this->request['id_cb'] as $id) {
+            $this->delete($id, true);
         }
-        $ids = $this->request['id_cb'];
-        akun_demo($ids[0]);
 
-        foreach (PendudukModel::whereIn('id', $ids)->get() as $penduduk) {
-            $penduduk->delete();
-        }
         redirect_with('success', 'Penduduk berhasil dihapus', ci_route('penduduk'));
     }
 
@@ -951,6 +773,10 @@ class Penduduk extends Admin_Controller
         $data['list_sakit_menahun']   = SakitMenahunEnum::all();
         $data['list_tag_id_card']     = StatusEnum::all();
         $data['list_id_kk']           = StatusEnum::all();
+        $data['kepemilikan_bpjs']     = StatusEnum::all();
+        $data['list_adat']            = PendudukModel::distinct()->select('adat')->whereNotNull('adat')->whereRaw('LENGTH(adat) > 0')->pluck('adat', 'adat');
+        $data['list_suku']            = PendudukModel::distinct()->select('suku')->whereNotNull('suku')->whereRaw('LENGTH(suku) > 0')->pluck('suku', 'suku');
+        $data['list_marga']           = PendudukModel::distinct()->select('marga')->whereNotNull('marga')->whereRaw('LENGTH(marga) > 0')->pluck('marga', 'marga');
         $data['form_action']          = ci_route('penduduk.adv_search_proses');
 
         view('admin.penduduk.ajax_adv_search_form', $data);
@@ -960,34 +786,6 @@ class Penduduk extends Admin_Controller
     {
         $this->advanceSearch = $this->validasi_pencarian($this->input->post());
         $this->index();
-    }
-
-    private function validasi_pencarian($post)
-    {
-        $data['umur']                 = $post['umur'];
-        $data['umur_min']             = bilangan($post['umur_min']);
-        $data['umur_max']             = bilangan($post['umur_max']);
-        $data['pekerjaan_id']         = $post['pekerjaan_id'];
-        $data['status']               = $post['status'];
-        $data['status_kawin']         = $post['status_kawin'];
-        $data['agama']                = $post['agama'];
-        $data['pendidikan_sedang_id'] = $post['pendidikan_sedang_id'];
-        $data['pendidikan_kk_id']     = $post['pendidikan_kk_id'];
-        $data['status_penduduk']      = $post['status_penduduk'];
-        $data['filter']               = $post['status_penduduk'];
-        $data['sex']                  = $post['sex'];
-        $data['status_dasar']         = $post['status_dasar'];
-        $data['cara_kb_id']           = $post['cara_kb_id'];
-        $data['status_ktp']           = $post['status_ktp'];
-        $data['id_asuransi']          = $post['id_asuransi'];
-        $data['warganegara']          = $post['warganegara'];
-        $data['golongan_darah']       = $post['golongan_darah'];
-        $data['menahun']              = $post['menahun'];
-        $data['cacat']                = $post['cacat'];
-        $data['tag_id_card']          = $post['tag_id_card'];
-        $data['id_kk']                = $post['id_kk'];
-
-        return $data;
     }
 
     public function ajax_penduduk_maps($id = null, $edit = '1'): void
@@ -1007,7 +805,6 @@ class Penduduk extends Admin_Controller
         } elseif ($penduduk->map) {
             $data['penduduk'] = array_merge($penduduk->map->toArray(), $data['penduduk']);
         }
-        $data['desa']        = $this->header['desa'];
         $data['wil_atas']    = $this->header['desa'];
         $data['dusun_gis']   = Wilayah::dusun()->get()->toArray();
         $data['rw_gis']      = Wilayah::rw()->get()->toArray();
@@ -1055,17 +852,12 @@ class Penduduk extends Admin_Controller
         }
     }
 
-    public function edit_status_dasar($id = 0): void
+    public function edit_status_dasar($id = 0, $url = '', $parrent = ''): void
     {
         isCan('u');
-        if (! data_lengkap()) {
-            session_error('Data tidak dapat proses karena sudah dinyatakan lengkap');
-
-            redirect(ci_route('penduduk'));
-        }
 
         $data['nik']             = PendudukModel::with('keluarga.anggota')->findOrFail($id);
-        $data['form_action']     = ci_route('penduduk.update_status_dasar', $id);
+        $data['form_action']     = ci_route('penduduk.update_status_dasar', [$id, $url, $parrent]);
         $data['list_ref_pindah'] = PindahEnum::all();
         $data['sebab']           = unserialize(SEBAB);
         $data['penolong_mati']   = unserialize(PENOLONG_MATI);
@@ -1073,31 +865,31 @@ class Penduduk extends Admin_Controller
         // pengecualian kk level kepala keluarga
         $excludeStatusMati = $data['nik']['kk_level'] == SHDKEnum::KEPALA_KELUARGA
             && $data['nik']?->keluarga?->anggota?->count() > 1
-                ? StatusDasarEnum::MATI
-                : null;
+            ? StatusDasarEnum::MATI
+            : null;
 
         // pengecualian status dasar: Penduduk Tetap => ('TIDAK VALID', 'HIDUP', 'PERGI') , Penduduk Tidak Tetap => ('TIDAK VALID', 'HIDUP')
         $excludeStatus = $data['nik']['status'] == StatusPendudukEnum::TETAP
             ? [StatusDasarEnum::TIDAK_VALID, StatusDasarEnum::HIDUP, StatusDasarEnum::PERGI, $excludeStatusMati]
             : [StatusDasarEnum::TIDAK_VALID, StatusDasarEnum::HIDUP, $excludeStatusMati];
 
-        $data['list_status_dasar'] = collect(StatusDasarEnum::all())->filter(static fn ($key, $item) => ! in_array($item, $excludeStatus ))->all();
-
+        $data['list_status_dasar'] = collect(StatusDasarEnum::all())->filter(static fn ($key, $item) => ! in_array($item, $excludeStatus))->all();
         view('admin.penduduk.ajax_edit_status_dasar', $data);
     }
 
-    public function update_status_dasar($id = ''): void
+    public function update_status_dasar($id = '', $url = '', $parrent = ''): void
     {
         isCan('u');
         if (! data_lengkap()) {
-            redirect_with('error', 'Data tidak dapat proses karena sudah dinyatakan lengkap', ci_route('penduduk'));
+            redirect_with('information', __('panduan.data_lengkap'));
         }
         akun_demo($id);
 
-        $data['kelahiran_anak_ke'] = (int) $this->input->post('anak_ke');
-        $data['status_dasar']      = $this->input->post('status_dasar');
-        $penduduk                  = PendudukModel::findOrFail($id);
-        $penduduk->status_dasar    = $data['status_dasar'];
+        $data['kelahiran_anak_ke']   = (int) $this->input->post('anak_ke');
+        $data['status_dasar']        = $this->input->post('status_dasar');
+        $penduduk                    = PendudukModel::findOrFail($id);
+        $penduduk->kelahiran_anak_ke = $data['kelahiran_anak_ke'];
+        $penduduk->status_dasar      = $data['status_dasar'];
         $penduduk->save();
         // Tulis log_penduduk
         $log = [
@@ -1142,30 +934,18 @@ class Penduduk extends Admin_Controller
             LogKeluarga::create($log_keluarga);
         }
 
-        redirect("{$this->controller}");
-    }
+        $namaModul = Modul::where('slug', 'peristiwa')->value('modul') ?? 'Riwayat Mutasi Penduduk';
+        $pesan     = 'Status dasar penduduk berhasil diubah. Jika terjadi kesalahan, status dapat dikembalikan melalui menu <a href="' . ci_route('penduduk_log') . '">' . $namaModul . '</a>.';
 
-    private function upload_akta_mati($id)
-    {
-        $this->load->library('My_upload', null, 'upload');
-
-        $config = [
-            'upload_path'   => LOKASI_DOKUMEN,
-            'allowed_types' => 'jpg|jpeg|png|pdf',
-            'max_size'      => 1024 * 10,
-            'file_name'     => 'akta_mati_' . $id . '_' . time(),
-        ];
-
-        $this->upload->initialize($config);
-
-        if (! $this->upload->do_upload('nama_file')) {
-            session_error($this->upload->display_errors());
-            redirect($this->controller);
+        if (! empty($url)) {
+            if ($url == 'keluarga.anggota') {
+                $url = ci_route($url, $parrent);
+            }
+            redirect_with('success', $pesan, $url, true);
+        } else {
+            redirect_with('success', $pesan, ci_route($this->controller), true);
         }
 
-        $uploadData = $this->upload->data();
-
-        return $uploadData['file_name'];
     }
 
     public function kembalikan_status($id = ''): void
@@ -1178,7 +958,7 @@ class Penduduk extends Admin_Controller
         // Jika peristiwa lahir akan mengambil data dari field tanggal lahir
         $x = [
             'tgl_peristiwa'  => Carbon::now(),
-            'kode_peristiwa' => LogPenduduk::BARU_PINDAH_MASUK,
+            'kode_peristiwa' => PeristiwaPendudukEnum::BARU_PINDAH_MASUK->value,
             'tgl_lapor'      => Carbon::now(),
             'created_by'     => ci_auth()->id,
         ];
@@ -1191,8 +971,8 @@ class Penduduk extends Admin_Controller
     {
         $query = datatables($this->sumberData())
             ->filter(function ($query) {
-                $query->when($this->input->post('id_cb'), static function ($query, $id) {
-                    $query->whereIn('id', $id);
+                $query->when($this->input->post('id_cb'), static function ($query, $ids) {
+                    $query->whereIn('id', json_decode($ids));
                 });
             });
 
@@ -1201,15 +981,14 @@ class Penduduk extends Admin_Controller
             'start' => app('datatables.request')->start(),
             'judul' => $this->input->post('judul'),
         ];
+
         if ($privasi_nik == 1) {
             $data['privasi_nik'] = true;
         }
-        if ($aksi == 'unduh') {
-            header('Content-type: application/octet-stream');
-            header('Content-Disposition: attachment; filename=Penduduk_' . date('Ymd') . '.xls');
-            header('Pragma: no-cache');
-            header('Expires: 0');
-        }
+
+        $data['aksi'] = $aksi;
+        $data['file'] = 'Penduduk_' . date('Ymd');
+
         view('admin.penduduk.cetak', $data);
     }
 
@@ -1219,7 +998,6 @@ class Penduduk extends Admin_Controller
         $dusun                                 = $this->input->get('dusun') ?? null;
         $rw                                    = $this->input->get('rw') ?? null;
         $rt                                    = $this->input->get('rt') ?? null;
-        $idCluster                             = $this->input->get('idCluster') ?? null;
 
         if (! empty($dusun)) {
             $this->statistikFilter['dusun'] = $dusun;
@@ -1233,6 +1011,24 @@ class Penduduk extends Admin_Controller
         if (! empty($sex)) {
             $this->statistikFilter['sex'] = $sex;
         }
+
+        $bantuan = Bantuan::whereSlug($tipe)->first();
+
+        if (! $bantuan) {
+            if ((int) $nomor == 0) {
+                $bantuan = Bantuan::whereSlug($nomor)->first();
+            }
+        } else {
+            $this->statistikFilter['program_bantuan'] = $tipe;
+        }
+
+        $nama = $bantuan->nama ?? '-';
+        if (! in_array($nomor, [BELUM_MENGISI, TOTAL, JUMLAH]) && $bantuan) {
+            $nomor = $bantuan->id;
+        }
+
+        $kategori = $nama . ' : ';
+        $session  = 'bantuan_penduduk';
 
         switch ($tipe) {
             case '0':
@@ -1277,7 +1073,7 @@ class Penduduk extends Admin_Controller
 
             case 9:
                 $session  = 'cacat';
-                $kategori = 'CACAT : ';
+                $kategori = 'PENYANDANG DISABILITAS : ';
                 break;
 
             case 10:
@@ -1310,16 +1106,39 @@ class Penduduk extends Admin_Controller
                 $kategori = 'AKTA KELAHIRAN : UMUR ';
                 break;
 
+            case 18:
+                if ($sex == null) {
+                    $this->statistikFilter['status_ktp'] = 0;
+                    $this->statistikFilter['sex']        = ($nomor == 0) ? null : $nomor;
+                    $sex                                 = $this->statistikFilter['sex'];
+                    unset($nomor);
+                } else {
+                    $this->statistikFilter['status_ktp'] = $nomor;
+                }
+
+                $session  = 'status_ktp';
+                $kategori = 'KEPEMILIKAN WAJIB KTP : ';
+                break;
+
             case 19:
                 $session  = 'id_asuransi';
                 $kategori = 'ASURANSI KESEHATAN : ';
                 break;
 
             case 'bpjs-tenagakerja':
-                // $session  = ($nomor == BELUM_MENGISI || $nomor == JUMLAH) ? 'bpjs_ketenagakerjaan' : 'pekerjaan_id';
-                $session  = 'bpjs_ketenagakerjaan';
+                // Cek apakah nomor adalah ID pekerjaan (bukan special value)
+                if (! in_array($nomor, [BELUM_MENGISI, JUMLAH, TOTAL])) { // 777, 666, 888
+                    $session                                           = 'pekerjaan_id';  // Filter berdasarkan pekerjaan
+                    $this->statistikFilter['has_bpjs_ketenagakerjaan'] = 1; // Flag: harus punya BPJS
+                } else {
+                    $session = 'bpjs_ketenagakerjaan';
+                }
                 $kategori = 'BPJS Ketenagakerjaan : ';
-                // $this->session->bpjs_ketenagakerjaan = $nomor != TOTAL;
+                break;
+
+            case 'status-asuransi-kesehatan':
+                $session  = 'status_asuransi_kesehatan';
+                $kategori = 'Status Kepersertaan Asuransi Kesehatan : ';
                 break;
 
             case 'hubungan_kk':
@@ -1340,22 +1159,24 @@ class Penduduk extends Admin_Controller
                 $kategori = 'PENERIMA BANTUAN PENDUDUK : ';
                 break;
 
-            case 18:
-                if ($sex == null) {
-                    $this->statistikFilter['status_ktp'] = 0;
-                    $this->statistikFilter['sex']        = ($nomor == 0) ? null : $nomor;
-                    $sex                                 = $this->statistikFilter['sex'];
-                    unset($nomor);
-                } else {
-                    $this->statistikFilter['status_ktp'] = $nomor;
-                }
-
-                $kategori = 'KEPEMILIKAN WAJIB KTP : ';
-                break;
-
             case 'suku':
                 $session  = 'suku';
                 $kategori = 'Suku : ';
+                break;
+
+            case 'marga':
+                $session  = 'marga';
+                $kategori = 'Marga : ';
+                break;
+
+            case 'adat':
+                $session  = 'adat';
+                $kategori = 'Adat : ';
+                break;
+
+            case 'pekerja_migran':
+                $session  = 'pekerja_migran';
+                $kategori = 'Pekerja Migran : ';
                 break;
 
             case 'hamil':
@@ -1373,19 +1194,8 @@ class Penduduk extends Admin_Controller
                 $kategori = 'KEPEMILIKAN KIA : ';
                 break;
 
-            case $tipe > 50:
-                $program_id = preg_replace('/^50/', '', $tipe);
-
-                $this->statistikFilter['program_bantuan'] = $program_id;
-
-                // TODO: Sederhanakan query ini, pindahkan ke model
-                $nama = Bantuan::find($program_id)->nama ?? '-';
-                if (! in_array($nomor, [BELUM_MENGISI, TOTAL])) {
-                    $nomor = $program_id;
-                }
-                $kategori = $nama . ' : ';
-                $session  = 'bantuan_penduduk';
-                $tipe     = 'bantuan_penduduk';
+            default:
+                $kategori = 'PENERIMA BANTUAN (PENDUDUK) : ';
                 break;
         }
 
@@ -1393,17 +1203,24 @@ class Penduduk extends Admin_Controller
         if ($tipe != 18 && $nomor != TOTAL) {
             $this->statistikFilter[$session] = rawurldecode($nomor);
         }
-        // pengecualian untuk kia dan 18
-        if (in_array($tipe, ['18', 'kia', 'buku-nikah'])) {
+        // Pengecualian untuk kia dan 18
+        if (in_array($tipe, ['18', 'hamil', 'kia', 'buku-nikah'])) {
             $this->statistikFilter[$session] = rawurldecode($nomor);
         }
 
         $judul = $this->get_judul_statistik($tipe, $nomor, $sex);
+
         // Laporan wajib KTP berbeda - menampilkan sebagian dari penduduk, jadi selalu perlu judul
         if ($judul['nama'] || $tipe = 18) {
-            $this->judulStatistik = $kategori . $judul['nama'];
+            $judulStatistik       = str_replace(' : ', '', $kategori) == $judul['nama'] ? $judul['nama'] : $kategori . $judul['nama'];
+            $this->judulStatistik = $judulStatistik;
         }
 
+        // Jangan timpa seluruh filterColumn karena kita ingin mempertahankan
+        // filter lain seperti 'dusun' yang mungkin dikirim lewat query string.
+        if (isset($this->statistikFilter['sex'])) {
+            $this->filterColumn['sex'] = $this->statistikFilter['sex'];
+        }
         $this->index();
     }
 
@@ -1509,6 +1326,7 @@ class Penduduk extends Admin_Controller
 
     public function ajax_cetak(string $aksi = 'cetak'): void
     {
+        $data           = $this->modal_penandatangan();
         $data['aksi']   = $aksi;
         $data['action'] = ci_route('penduduk.cetak', $aksi);
 
@@ -1539,16 +1357,19 @@ class Penduduk extends Admin_Controller
 
     public function impor()
     {
-        if (config_item('demo_mode') || data_lengkap()) {
-            $msg = 'Tidak dapat melakukan impor pada mode demo atau data sudah dinyatakan lengkap';
-            redirect_with('error', $msg);
+        if (config_item('demo_mode')) {
+            redirect_with('information', __('notification.mode_demo'));
+        }
+
+        if (data_lengkap() || ! is_group_administrator()) {
+            redirect_with('information', __('panduan.data_lengkap'));
         }
 
         isCan('u');
 
         $data = [
             'form_action'          => ci_route('penduduk.proses_impor'),
-            'boleh_hapus_penduduk' => $this->impor_model->boleh_hapus_penduduk(),
+            'boleh_hapus_penduduk' => PendudukSaja::bolehHapusPenduduk(),
             'formatImpor'          => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
         ];
 
@@ -1557,20 +1378,33 @@ class Penduduk extends Admin_Controller
 
     public function proses_impor(): void
     {
-        if (config_item('demo_mode') || data_lengkap()) {
-            redirect($this->controller);
+        if (config_item('demo_mode')) {
+            redirect_with('information', __('notification.mode_demo'));
+        }
+
+        if (data_lengkap() || ! is_group_administrator()) {
+            redirect_with('information', __('panduan.data_lengkap'));
         }
 
         isCan('u');
         $hapus = isset($_POST['hapus_data']);
-        $this->impor_model->impor_excel($hapus);
+        (new Import())->imporExcel($hapus);
         shortcut_cache();
         redirect('penduduk/impor');
     }
 
     public function impor_bip()
     {
-        if (config_item('demo_mode') || setting('multi_desa') || data_lengkap()) {
+        if (config_item('demo_mode')) {
+            redirect_with('information', __('notification.mode_demo'));
+        }
+
+        if (data_lengkap() || ! is_group_administrator()) {
+            redirect_with('information', __('panduan.data_lengkap'));
+
+        }
+
+        if (setting('multi_desa') || data_lengkap()) {
             redirect($this->controller);
         }
 
@@ -1578,7 +1412,7 @@ class Penduduk extends Admin_Controller
 
         $data = [
             'form_action'          => ci_route('penduduk.proses_impor_bip'),
-            'boleh_hapus_penduduk' => $this->impor_model->boleh_hapus_penduduk(),
+            'boleh_hapus_penduduk' => PendudukSaja::bolehHapusPenduduk(),
             'formatBip2012'        => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-bip-2012.xls')),
             'formatBip2016'        => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-bip-2016.xls')),
             'formatBipEktp'        => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-bip-ektp.xls')),
@@ -1591,18 +1425,20 @@ class Penduduk extends Admin_Controller
 
     public function proses_impor_bip(): void
     {
-        if (config_item('demo_mode') || setting('multi_desa') || data_lengkap()) {
-            redirect($this->controller);
+        if (config_item('demo_mode')) {
+            redirect_with('information', __('notification.mode_demo'));
         }
 
-        isCan('u');
+        if (data_lengkap() || ! is_group_administrator()) {
+            redirect_with('information', __('panduan.data_lengkap'));
 
+        }
         // TODO: Sederhanakan query ini, pindahkan ke model
-        if (PendudukModel::count() > 0) {
+        if (data_lengkap() || ! is_group_administrator()) {
             redirect_with('error', 'Tidak dapat mengimpor BIP ketika data penduduk telah ada', 'penduduk/impor_bip');
         }
 
-        $this->impor_model->impor_bip($this->input->post('hapus_data'));
+        (new Import())->imporBip($this->input->post('hapus_data'));
         shortcut_cache();
         redirect('penduduk/impor_bip');
     }
@@ -1610,12 +1446,12 @@ class Penduduk extends Admin_Controller
     public function ekspor($huruf = null): void
     {
         try {
-            $daftar_kolom = $this->impor_model->daftar_kolom;
+            $daftarKolom = Import::DAFTAR_KOLOM;
 
             $writer = new Writer();
             $writer->openToBrowser(namafile('penduduk') . '.xlsx');
             $writer->getCurrentSheet()->setName('Data Penduduk');
-            $writer->addRow(Row::fromValues($daftar_kolom));
+            $writer->addRow(Row::fromValues($daftarKolom));
             //Isi Tabel
             $paramDatatable = json_decode($this->input->get('params'), 1);
             $_GET           = $paramDatatable;
@@ -1629,29 +1465,27 @@ class Penduduk extends Admin_Controller
                 $row->rw                   = $row->wilayah->rw ?? '-';
                 $row->rt                   = $row->wilayah->rt ?? '-';
                 $row->no_kk                = $row->keluarga->no_kk;
-                $row->sex                  = $huruf ? JenisKelaminEnum::valueOf($row->sex) : $row->sex;
+                $row->sex                  = $huruf ? $row->jenis_kelamin : $row->sex;
                 $row->tanggallahir_str     = $row->tanggallahir?->format('Y-m-d');
-                $row->agama_id             = $huruf ? $row->agama->nama : $row->agama_id;
-                $row->pendidikan_kk_id     = $huruf ? $row->pendidikanKK->nama : $row->pendidikan_kk_id;
-                $row->pendidikan_sedang_id = $huruf ? $row->pendidikan : $row->pendidikan_sedang_id;
-                $row->pekerjaan_id         = $huruf ? $row->pekerjaan->nama : $row->pekerjaan_id;
+                $row->agama_id             = $huruf ? $row->agama : $row->agama_id;
+                $row->pendidikan_kk_id     = $huruf ? $row->pendidikan_kk : $row->pendidikan_kk_id;
+                $row->pendidikan_sedang_id = $huruf ? $row->pendidikan_sedang : $row->pendidikan_sedang_id;
+                $row->pekerjaan_id         = $huruf ? $row->pekerjaan : $row->pekerjaan_id;
                 $row->status_kawin         = $huruf ? $row->status_perkawinan : $row->status_kawin;
-                $row->kk_level             = $huruf ? SHDKEnum::valueOf($row->kk_level) : $row->kk_level;
-                $row->warganegara_id       = $huruf ? $row->warganegara->nama : $row->warganegara_id;
-                $row->golongan_darah_id    = $huruf ? $row->golonganDarah->nama : $row->golongan_darah_id;
+                $row->kk_level             = $huruf ? $row->penduduk_hubungan : $row->kk_level;
+                $row->warganegara_id       = $huruf ? $row->warganegara : $row->warganegara_id;
                 $row->tanggal_akhir_paspor = $row->tanggal_akhir_paspor ? date_format(date_create($row->tanggal_akhir_paspor), 'Y-m-d') : '';
                 $row->tanggalperkawinan    = $row->tanggalperkawinan ? date_format(date_create($row->tanggalperkawinan), 'Y-m-d') : '';
                 $row->tanggalperceraian    = $row->tanggalperceraian ? date_format(date_create($row->tanggalperceraian), 'Y-m-d') : '';
-                $row->cacat_id             = $huruf ? $row->cacat->nama : $row->cacat_id;
-                $row->cara_kb_id           = $huruf ? CaraKBEnum::valueOf($row->cara_kb_id) : $row->cara_kb_id;
+                $row->cacat_id             = $huruf ? $row->cacat : $row->cacat_id;
+                $row->cara_kb_id           = $huruf ? $row->cara_kb : $row->cara_kb_id;
                 $row->hamil                = $huruf ? HamilEnum::valueOf($row->hamil) : $row->hamil;
                 $row->status_rekam         = $huruf ? StatusKTPEnum::valueOf($row->status_rekam) : $row->status_rekam;
                 $row->status_dasar         = $huruf ? StatusDasarEnum::valueOf($row->status_dasar) : $row->status_dasar;
                 $row->lat                  = $row->map->lat;
                 $row->lng                  = $row->map->lng;
 
-                foreach ($daftar_kolom as $kolom) {
-                    // $this->bersihkanData($row, $kolom);
+                foreach ($daftarKolom as $kolom) {
                     if ($kolom == 'tanggallahir') {
                         $kolom = 'tanggallahir_str';
                     }
@@ -1668,25 +1502,6 @@ class Penduduk extends Admin_Controller
 
             redirect('penduduk');
         }
-    }
-
-    private function bersihkanData($str, $key): string
-    {
-        if (null === $str) $str = '';
-
-        if (strstr($str, '"')) {
-            return '"' . str_replace('"', '""', $str) . '"';
-        }
-        // Kode yang tersimpan sebagai '0' harus '' untuk dibaca oleh Import Excel
-        $kecuali = ['nik', 'no_kk'];
-        if ($str != '0') {
-            return $str;
-        }
-        if (in_array($key, $kecuali)) {
-            return $str;
-        }
-
-        return '';
     }
 
     public function foto_bawaan($id)
@@ -1720,7 +1535,7 @@ class Penduduk extends Admin_Controller
         } else {
             switch ($tipe) {
                 case '0':
-                    $table = 'tweb_penduduk_pendidikan_kk';
+                    $table = PendidikanKKEnum::all();
                     break;
 
                 case 1:
@@ -1728,45 +1543,51 @@ class Penduduk extends Admin_Controller
                     $table = 'tweb_penduduk_pekerjaan';
                     break;
 
+                case 'status-asuransi-kesehatan':
+                    $table               = 'tweb_penduduk';
+                    $filter['config_id'] = identitas('id');
+                    break;
+
                 case 2:
                 case 'buku-nikah':
-                    $table = 'tweb_penduduk_kawin';
+                    $table = StatusKawinEnum::all();
                     break;
 
                 case 3:
-                    $table = 'tweb_penduduk_agama';
+                    $table = AgamaEnum::all();
                     break;
 
                 case 4:
-                    $table = 'tweb_penduduk_sex';
+                    $table = JenisKelaminEnum::all();
                     break;
 
                 case 5:
-                    $table = 'tweb_penduduk_warganegara';
+                    $table = WargaNegaraEnum::all();
                     break;
 
                 case 6:
-                    $table = 'tweb_penduduk_status';
+                    $table = StatusPendudukEnum::all();
                     break;
 
                 case 7:
-                    $table = 'tweb_golongan_darah';
+                    $table = GolonganDarahEnum::all();
                     break;
 
                 case 9:
-                    $table = 'tweb_cacat';
+                    $table = CacatEnum::all();
                     break;
 
                 case 10:
-                    $table = 'tweb_sakit_menahun';
+                    $table = SakitMenahunEnum::all();
+
                     break;
 
                 case 14:
-                    $table = 'tweb_penduduk_pendidikan';
+                    $table = PendidikanSedangEnum::all();
                     break;
 
                 case 16:
-                    $table = 'tweb_cara_kb';
+                    $table = CaraKBEnum::all();
                     break;
 
                 case 13: // = 17
@@ -1783,7 +1604,7 @@ class Penduduk extends Admin_Controller
                     break;
 
                 case 19:
-                    $table = 'tweb_penduduk_asuransi';
+                    $table = AsuransiEnum::all();
                     break;
 
                 case 'covid':
@@ -1804,8 +1625,17 @@ class Penduduk extends Admin_Controller
                     $filter['config_id'] = identitas('id');
                     break;
 
+                case 'pekerja_migran':
+                    $table               = 'tweb_penduduk';
+                    $filter['config_id'] = identitas('id');
+                    break;
+
                 case 'hamil':
-                    $table = 'ref_penduduk_hamil';
+                    $table = HamilEnum::all();
+                    break;
+
+                default:
+                    $table = 'program';
                     break;
             }
 
@@ -1816,19 +1646,480 @@ class Penduduk extends Admin_Controller
                 $filter['status'] = 0;
             }
 
-            $judul = (array) DB::table($table)->where($filter)->get()->first();
+            if (is_array($table)) {
+                $judul = [
+                    'id'   => $filter['id'],
+                    'nama' => $table[$filter['id']],
+                ];
+            } else {
+                $judul = (array) DB::table($table)->where($filter)->get()->first();
+            }
 
             if ($tipe == 'suku') {
                 $judul['nama'] = rawurldecode($nomor);
             }
+
+            if ($tipe == 'marga') {
+                $judul['nama'] = rawurldecode($nomor);
+            }
+
+            if ($tipe == 'adat') {
+                $judul['nama'] = rawurldecode($nomor);
+            }
+
+            if ($tipe == 'pekerja_migran') {
+                $judul['nama'] = rawurldecode($nomor);
+            }
         }
 
-        if ($sex == 1) {
-            $judul['nama'] .= ' - LAKI-LAKI';
-        } elseif ($sex == 2) {
-            $judul['nama'] .= ' - PEREMPUAN';
+        if ($sex) {
+            $judul['nama'] .= ' - ' . JenisKelaminEnum::valueToUpper($sex) ?? 'TIDAK DIKETAHUI';
         }
 
         return $judul;
+    }
+
+    private function sumberData()
+    {
+        $statusDasar     = $this->input->get('status_dasar') ?? null;
+        $statusPenduduk  = $this->input->get('status_penduduk') ?? null;
+        $sex             = $this->input->get('jenis_kelamin') ?? null;
+        $dusun           = $this->input->get('dusun') ?? null;
+        $rw              = $this->input->get('rw') ?? null;
+        $rt              = $this->input->get('rt') ?? null;
+        $nikSementara    = $this->input->get('nik_sementara') ?? null;
+        $kumpulanNIK     = $this->input->get('kumpulan_nik') ?? null;
+        $bantuan         = $this->input->get('bantuan') ?? null;
+        $statistikFilter = $this->input->get('statistikfilter') ?? null;
+        $advanceSearch   = $this->input->get('advancesearch') ?? null;
+
+        $idCluster = $rt ? [$rt] : [];
+
+        if ($statistikFilter) {
+            $advanceSearch = $bantuan = $kumpulanNIK = $rw = $dusun = $rt = $idCluster = $statusPenduduk = $sex = $kelasSosial = null;
+            if (isset($statistikFilter['bantuan_penduduk'])) {
+                $bantuan = $statistikFilter['bantuan_penduduk'];
+                $sex     = $statistikFilter['sex'];
+                unset($statistikFilter);
+            }
+
+            $dusun     = $statistikFilter['dusun'] ?? null;
+            $rw        = $statistikFilter['rw'] ?? null;
+            $rt        = $statistikFilter['rt'] ?? null;
+            $clusterId = $statistikFilter['idCluster'] ?? null;
+
+            if ($rt) {
+                [$namaDusun, $namaRw] = explode('__', $rw);
+                $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->whereRt($rt)->select(['id'])->get()->pluck('id')->toArray();
+            }
+        }
+
+        if (empty($idCluster) && ! empty($rw)) {
+            [$namaDusun, $namaRw] = explode('__', $rw);
+            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
+        }
+
+        if (empty($idCluster) && ! empty($dusun)) {
+            $idCluster = Wilayah::whereDusun($dusun)->select(['id'])->get()->pluck('id')->toArray();
+        }
+
+        if ($clusterId) {
+            $idCluster = $clusterId;
+        }
+
+        return PendudukModel::with(['log_latest'])
+            ->select('tweb_penduduk.*')
+            ->when($idCluster, static fn ($q) => $q->whereIn('tweb_penduduk.id_cluster', $idCluster))
+            ->when($statusDasar, static fn ($q) => $q->whereStatusDasar($statusDasar))
+            ->when($statusPenduduk, static fn ($q) => $q->whereStatus($statusPenduduk))
+            ->when($nikSementara, static fn ($q) => $q->where('nik', 'like', '0%'))
+            ->when($sex, static fn ($q) => $q->whereSex($sex))
+            ->when($kumpulanNIK, static fn ($q) => $q->whereIn('nik', $kumpulanNIK))
+            ->when($statistikFilter, static function ($q) use ($statistikFilter) {
+                // Handler khusus untuk BPJS Ketenagakerjaan dengan filter pekerjaan
+                if (isset($statistikFilter['has_bpjs_ketenagakerjaan'])) {
+                    // Filter: hanya yang PUNYA nomor BPJS Ketenagakerjaan
+                    $q->whereNotNull('bpjs_ketenagakerjaan')
+                        ->where('bpjs_ketenagakerjaan', '!=', '');
+
+                    // Hapus dari statistikFilter agar tidak diproses lagi
+                    unset($statistikFilter['has_bpjs_ketenagakerjaan']);
+                }
+                if (isset($statistikFilter['umurx'])) {
+                    if ($statistikFilter['umurx'] == BELUM_MENGISI) {
+                        $statistikFilter['umur_min'] = -1;
+                        $statistikFilter['umur_max'] = -1;
+                    } else {
+                        $rentangUmur                 = RentangUmur::find($statistikFilter['umurx']);
+                        $statistikFilter['umur_min'] = $rentangUmur->dari;
+                        $statistikFilter['umur_max'] = $rentangUmur->sampai;
+                    }
+                }
+
+                $umurMin           = $statistikFilter['umur_min'];
+                $umurMax           = $statistikFilter['umur_max'];
+                $umurObj['satuan'] = 'tahun';
+                if (null !== $umurMin) {
+                    $umurObj['min'] = $umurMin;
+                }
+                if (null !== $umurMax) {
+                    $umurObj['max'] = $umurMax;
+                }
+
+                $map = [
+                    'pekerjaan_id'              => 'pekerjaan_id',
+                    'status_kawin'              => 'status_kawin',
+                    'agama'                     => 'agama_id',
+                    'pendidikan_sedang_id'      => 'pendidikan_sedang_id',
+                    'pendidikan_kk_id'          => 'pendidikan_kk_id',
+                    'status_penduduk'           => 'status',
+                    'sex'                       => 'sex',
+                    'status_dasar'              => 'status_dasar',
+                    'cara_kb_id'                => 'cara_kb_id',
+                    'status_ktp'                => 'ktp_el',
+                    'id_asuransi'               => 'id_asuransi',
+                    'warganegara'               => 'warganegara_id',
+                    'golongan_darah'            => 'golongan_darah_id',
+                    'menahun'                   => 'sakit_menahun_id',
+                    'cacat'                     => 'cacat_id',
+                    'adat'                      => 'adat',
+                    'suku'                      => 'suku',
+                    'marga'                     => 'marga',
+                    'adat'                      => 'adat',
+                    'pekerja_migran'            => 'pekerja_migran',
+                    'hubungan'                  => 'kk_level',
+                    'akta_kelahiran'            => 'akta_lahir',
+                    'bpjs_ketenagakerjaan'      => 'bpjs_ketenagakerjaan',
+                    'status_asuransi_kesehatan' => 'status_asuransi',
+                    'hamil'                     => 'hamil',
+                    'buku-nikah'                => 'akta_perkawinan',
+                    'kia'                       => 'kia',
+                    'id_cluster'                => 'id_cluster',
+                ];
+
+                foreach ($statistikFilter as $key => $val) {
+                    if ($val != '') {
+                        if (isset($map[$key])) {
+                            if ($map[$key] == 'ktp_el') {
+                                $q->wajibKtp();
+                                if ($val == BELUM_MENGISI) {
+                                    $q->where(static function ($q) {
+                                        $q->whereNull('status_rekam')->orWhere('status_rekam', 0);
+                                    })->where(static function ($q) {
+                                        $q->whereNull('ktp_el')->orWhere('ktp_el', 0)->orWhere('ktp_el', '!=', StatusRekamEnum::KIA);
+                                    });
+                                } elseif ($val == JUMLAH) {
+                                    $q->whereNotNull('status_rekam')->where('status_rekam', '!=', 0)
+                                        ->where('ktp_el', '!=', StatusRekamEnum::KIA)->whereNotNull('ktp_el')->where('ktp_el', '!=', 0);
+                                } elseif ($val != TOTAL) {
+                                    $statusKTP = StatusKtp::find($val);
+                                    if ($statusKTP) {
+                                        $q->where('status_rekam', $statusKTP->status_rekam)
+                                            ->where('ktp_el', '!=', StatusRekamEnum::KIA);
+                                    }
+                                }
+                            } elseif ($map[$key] == 'kia') {
+                                $umurObj['min'] = 0;
+                                $umurObj['max'] = 17;
+                                if ($val == BELUM_MENGISI) {
+                                    $q->whereNull('status_rekam')
+                                        ->where(static fn ($q) => $q->whereNull('ktp_el')->orWhere('ktp_el', '!=', StatusRekamEnum::KTP_EL));
+                                } else {
+                                    if ($val == JUMLAH) {
+                                        $q->whereNotNull('status_rekam')
+                                            ->where('ktp_el', StatusRekamEnum::KIA);
+                                    } else {
+                                        if ($val != TOTAL) {
+                                            $statusKTP = StatusKtp::find($val);
+                                            $q->where('ktp_el', StatusRekamEnum::KIA)->where('status_rekam', $statusKTP->status_rekam);
+                                        }
+                                    }
+                                }
+                            } elseif ($map[$key] == 'akta_perkawinan') {
+                                $q->where('status_kawin', '!=', StatusKawinEnum::BELUMKAWIN);
+                                if ($val == BELUM_MENGISI) {
+                                    $q->where(static fn ($r) => $r->where('akta_perkawinan', '=', '')->orWhereNull('akta_perkawinan'));
+                                } elseif ($val == JUMLAH || $val == 2) {
+                                    $q->where(static fn ($r) => $r->where('akta_perkawinan', '!=', '')->whereNotNull('akta_perkawinan'));
+                                }
+                            } elseif ($map[$key] == 'akta_lahir') {
+                                $rentangUmur = RentangUmur::where('id', $val)->first();
+                                if ($rentangUmur) {
+                                    $where = "(DATE_FORMAT(FROM_DAYS(TO_DAYS( NOW()) - TO_DAYS(tanggallahir)) , '%Y')+0) >= {$rentangUmur->dari} AND (DATE_FORMAT(FROM_DAYS( TO_DAYS(NOW()) - TO_DAYS(tanggallahir)) , '%Y')+0) <= {$rentangUmur->sampai} AND akta_lahir <> '' ";
+                                    $q->whereRaw($where);
+                                }
+                            } elseif ($map[$key] == 'cacat_id') {
+                                if ($val == CacatEnum::TIDAK_CACAT) {
+                                    $q->where(static fn ($r) => $r->where('cacat_id', '=', CacatEnum::TIDAK_CACAT)->orWhereNull('cacat_id'));
+                                } elseif ($val == BELUM_MENGISI) {
+                                    $q->where(static fn ($r) => $r->where('cacat_id', '=', CacatEnum::TIDAK_CACAT)->orWhereNull('cacat_id'));
+                                } else {
+                                    if ($val == JUMLAH) {
+                                        $q->where(static fn ($r) => $r->where('cacat_id', '!=', CacatEnum::TIDAK_CACAT)->whereNotNull('cacat_id'));
+                                    } else {
+                                        $q->where($map[$key], $val);
+                                    }
+                                }
+                            } elseif ($map[$key] == 'status_asuransi') {
+                                if ($val == BELUM_MENGISI) {
+                                    $q->where(static fn ($r) => $r->whereNull('status_asuransi'));
+                                } elseif ($val == JUMLAH) {
+                                    $q->where(static fn ($r) => $r->whereIn('status_asuransi', AktifEnum::keys()));
+                                } else {
+                                    $q->where('status_asuransi', $val);
+                                }
+                            } elseif ($map[$key] == 'bpjs_ketenagakerjaan') {
+                                if ($val == BELUM_MENGISI) { // 777
+                                    $q->where(static fn ($r) => $r->whereNull('bpjs_ketenagakerjaan')
+                                        ->orWhere('bpjs_ketenagakerjaan', ''));
+                                } elseif ($val == JUMLAH) { // 666
+                                    $q->whereNotNull('bpjs_ketenagakerjaan')
+                                        ->where('bpjs_ketenagakerjaan', '!=', '');
+                                }
+                                // Untuk TOTAL (888), tidak ada filter tambahan
+                            } else {
+                                // Filter khusus 'hamil'
+                                if ($map[$key] == 'hamil') {
+                                    $q->where('sex', JenisKelaminEnum::PEREMPUAN);
+                                }
+
+                                $q->when($val == BELUM_MENGISI, static fn ($q) => $q->where(static fn ($r) => $r->whereNull($map[$key])->orWhere($map[$key], '')))
+                                    ->when($val == JUMLAH, static fn ($q) => $q->whereNotNull($map[$key])->where($map[$key], '!=', ''))
+                                    ->when(! in_array($val, [BELUM_MENGISI, JUMLAH, TOTAL]), static fn ($q) => $q->where($map[$key], $val));
+                            }
+                        }
+                    }
+                }
+
+                return $q->batasiUmur(date('d-m-Y'), $umurObj);
+            })
+            ->when($advanceSearch, static function ($q) use ($advanceSearch) {
+                $umurMin           = $advanceSearch['umur_min'];
+                $umurMax           = $advanceSearch['umur_max'];
+                $umurObj['satuan'] = $advanceSearch['umur'];
+                if ($umurMin !== null) {
+                    $umurObj['min'] = $umurMin;
+                }
+                if ($umurMax !== null) {
+                    $umurObj['max'] = $umurMax;
+                }
+
+                // maping field yang memiliki relasi dengan tabel lain
+                $map = [
+                    'pekerjaan_id'         => 'pekerjaan_id',
+                    'status'               => 'status',
+                    'agama'                => 'agama_id',
+                    'pendidikan_sedang_id' => 'pendidikan_sedang_id',
+                    'pendidikan_kk_id'     => 'pendidikan_kk_id',
+                    'status_penduduk'      => 'status',
+                    'sex'                  => 'sex',
+                    'status_dasar'         => 'status_dasar',
+                    'cara_kb_id'           => 'cara_kb_id',
+                    'status_ktp'           => 'status_rekam',
+                    'id_asuransi'          => 'id_asuransi',
+                    'warganegara'          => 'warganegara_id',
+                    'golongan_darah'       => 'golongan_darah_id',
+                    'menahun'              => 'sakit_menahun_id',
+                    'cacat'                => 'cacat_id',
+                    'adat'                 => 'adat',
+                    'suku'                 => 'suku',
+                    'marga'                => 'marga',
+                ];
+                $resultMap = [];
+
+                foreach ($advanceSearch as $key => $val) {
+                    if ($val != '') {
+                        if (isset($map[$key])) {
+                            $resultMap[$map[$key]] = $val;
+                        }
+                    }
+                }
+
+                $statusKawin = $advanceSearch['status_kawin'];
+                if (in_array($statusKawin, StatusKawinSpesifikEnum::keys())) {
+                    if ($statusKawin == StatusKawinSpesifikEnum::KAWIN_TERCATAT) {
+                        $q->where('status_kawin', StatusKawinEnum::KAWIN)
+                            ->where('akta_perkawinan', '!=', '')
+                            ->whereNotNull('tanggalperkawinan');
+                    } elseif ($statusKawin == StatusKawinSpesifikEnum::KAWIN_BELUM_TERCATAT) {
+                        $q->where('status_kawin', StatusKawinEnum::KAWIN)
+                            ->where('akta_perkawinan', '')
+                            ->whereNull('tanggalperkawinan');
+                    } elseif ($statusKawin == StatusKawinSpesifikEnum::CERAIHIDUP_TERCATAT) {
+                        $q->where('status_kawin', StatusKawinEnum::CERAIHIDUP)
+                            ->where('akta_perceraian', '!=', '')
+                            ->whereNotNull('tanggalperceraian');
+                    } elseif ($statusKawin == StatusKawinSpesifikEnum::CERAIHIDUP_BELUM_TERCATAT) {
+                        $q->where('status_kawin', StatusKawinEnum::CERAIHIDUP)
+                            ->where('akta_perceraian', '')
+                            ->whereNull('tanggalperceraian');
+                    } else {
+                        $q->where('status_kawin', $statusKawin);
+                    }
+                }
+
+                if (in_array($advanceSearch['tag_id_card'], StatusEnum::keys())) {
+                    if ($advanceSearch['tag_id_card']) {
+                        $q->whereNotNull('tag_id_card');
+                    } else {
+                        $q->whereNull('tag_id_card');
+                    }
+                }
+
+                if (in_array($advanceSearch['id_kk'], StatusEnum::keys()) && is_numeric($advanceSearch['id_kk'])) {
+                    if ($advanceSearch['id_kk']) {
+                        $q->whereNotNull('id_kk');
+                    } else {
+                        $q->whereNull('id_kk');
+                    }
+                }
+
+                if (in_array($advanceSearch['kepemilikan_bpjs'], StatusEnum::keys()) && is_numeric($advanceSearch['kepemilikan_bpjs'])) {
+                    if ($advanceSearch['kepemilikan_bpjs']) {
+                        $q->where(static function ($query) {
+                            $query->whereNotNull('bpjs_ketenagakerjaan')
+                                ->where('bpjs_ketenagakerjaan', '!=', '');
+                        });
+                    } else {
+                        $q->where(static function ($query) {
+                            $query->whereNull('bpjs_ketenagakerjaan')
+                                ->orWhere('bpjs_ketenagakerjaan', '=', '');
+                        });
+                    }
+                }
+
+                $birthDay   = $advanceSearch['birth_day'] ?? null;
+                $birthMonth = $advanceSearch['birth_month'] ?? null;
+                $birthYear  = $advanceSearch['birth_year'] ?? null;
+
+                if ($birthDay && $birthMonth) {
+                    $q->whereRaw('DAY(tanggallahir) = ? AND MONTH(tanggallahir) = ?', [$birthDay, $birthMonth]);
+
+                    if ($birthYear) {
+                        $q->whereYear('tanggallahir', $birthYear);
+                    }
+                }
+
+                return $q->batasiUmur(date('d-m-Y'), $umurObj)
+                    ->where($resultMap);
+            })
+            ->when($bantuan, static function ($q) use ($bantuan) {
+                switch ($bantuan) {
+                    case BELUM_MENGISI:
+                        return $q->whereDoesntHave('bantuan');
+
+                    case JUMLAH:
+                        return $q->whereHas('bantuan');
+
+                    default:
+                        return $q->whereHas('bantuan', static fn ($r) => $r->where('program.id', $bantuan));
+                }
+            })
+            ->orderBy(DB::raw("CASE
+                WHEN CHAR_LENGTH(nik) < 16 THEN 1
+                WHEN nik LIKE '0%' AND CHAR_LENGTH(nik) = 16 THEN 2
+                ELSE 3
+            END"));
+    }
+
+    private function upload_dokumen()
+    {
+        $config['upload_path']   = LOKASI_DOKUMEN;
+        $config['allowed_types'] = 'jpg|jpeg|png|pdf';
+        $config['file_name']     = namafile($this->input->post('nama', true));
+
+        $this->load->library('upload');
+        $this->upload->initialize($config);
+
+        if (! $this->upload->do_upload('satuan')) {
+            session_error($this->upload->display_errors(null, null));
+
+            return false;
+        }
+
+        return $this->upload->data()['file_name'];
+    }
+
+    private function validasi_pencarian($post)
+    {
+        $data['umur']                 = $post['umur'];
+        $data['umur_min']             = bilangan($post['umur_min']);
+        $data['umur_max']             = bilangan($post['umur_max']);
+        $data['pekerjaan_id']         = $post['pekerjaan_id'];
+        $data['status']               = $post['status'];
+        $data['status_kawin']         = $post['status_kawin'];
+        $data['agama']                = $post['agama'];
+        $data['pendidikan_sedang_id'] = $post['pendidikan_sedang_id'];
+        $data['pendidikan_kk_id']     = $post['pendidikan_kk_id'];
+        $data['status_penduduk']      = $post['status_penduduk'];
+        $data['filter']               = $post['status_penduduk'];
+        $data['sex']                  = $post['sex'];
+        $data['status_dasar']         = $post['status_dasar'];
+        $data['cara_kb_id']           = $post['cara_kb_id'];
+        $data['status_ktp']           = $post['status_ktp'];
+        $data['id_asuransi']          = $post['id_asuransi'];
+        $data['warganegara']          = $post['warganegara'];
+        $data['golongan_darah']       = $post['golongan_darah'];
+        $data['menahun']              = $post['menahun'];
+        $data['cacat']                = $post['cacat'];
+        $data['tag_id_card']          = $post['tag_id_card'];
+        $data['id_kk']                = $post['id_kk'];
+        $data['adat']                 = $post['adat'];
+        $data['suku']                 = $post['suku'];
+        $data['marga']                = $post['marga'];
+        $data['kepemilikan_bpjs']     = $post['kepemilikan_bpjs'];
+
+        // Pencarian berdasarkan tanggal lahir: hari, bulan, tahun (tahun opsional)
+        $data['birth_day']   = isset($post['birth_day']) ? bilangan($post['birth_day']) : null;
+        $data['birth_month'] = isset($post['birth_month']) ? bilangan($post['birth_month']) : null;
+        $data['birth_year']  = null;
+        if (! empty($post['include_birth_year']) && ! empty($post['birth_year'])) {
+            $data['birth_year'] = bilangan($post['birth_year']);
+        }
+
+        return $data;
+    }
+
+    private function upload_akta_mati($id)
+    {
+        $this->load->library('upload');
+
+        $config = [
+            'upload_path'   => LOKASI_DOKUMEN,
+            'allowed_types' => 'jpg|jpeg|png|pdf',
+            'max_size'      => 1024 * 10,
+            'file_name'     => 'akta_mati_' . $id . '_' . time(),
+        ];
+
+        $this->upload->initialize($config);
+
+        if (! $this->upload->do_upload('nama_file')) {
+            session_error($this->upload->display_errors());
+            redirect($this->controller);
+        }
+
+        $uploadData = $this->upload->data();
+
+        return $uploadData['file_name'];
+    }
+
+    private function bersihkanData($str, $key): string
+    {
+        if (null === $str)
+            $str = '';
+
+        if (strstr($str, '"')) {
+            return '"' . str_replace('"', '""', $str) . '"';
+        }
+        // Kode yang tersimpan sebagai '0' harus '' untuk dibaca oleh impor Excel
+        $kecuali = ['nik', 'no_kk'];
+        if ($str != '0') {
+            return $str;
+        }
+        if (in_array($key, $kecuali)) {
+            return $str;
+        }
+
+        return '';
     }
 }

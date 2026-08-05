@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,18 +29,21 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\JenisKelaminEnum;
+use App\Enums\PeristiwaPendudukEnum;
 use App\Enums\SHDKEnum;
+use App\Models\DokumenHidup;
 use App\Models\FormatSurat;
 use App\Models\Keluarga;
 use App\Models\LogPenduduk;
 use App\Models\Penduduk;
+use Illuminate\Support\Facades\Gate;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -51,7 +54,11 @@ class DataSuratPenduduk extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(['penduduk_model']);
+
+        if (! (auth('admin')->check() && Gate::allows('layanan-surat:baca'))) {
+            show_404();
+        }
+
         $this->logpenduduk = new LogPenduduk();
     }
 
@@ -69,7 +76,7 @@ class DataSuratPenduduk extends CI_Controller
 
         if ($kategori === 'individu') {
             $statusDasar = is_array($surat->form_isian->{$kategori}->status_dasar) ? $surat->form_isian->{$kategori}->status_dasar : [$surat->form_isian->{$kategori}->status_dasar];
-            if (array_intersect($statusDasar, $this->logpenduduk::PERISTIWA)) {
+            if (array_intersect($statusDasar, PeristiwaPendudukEnum::peristiwa())) {
                 $data['logpenduduk'] = $this->logpenduduk;
                 $data['peristiwa']   = $this->logpenduduk::with('penduduk')->where('id_pend', $id)->latest()->first();
             }
@@ -98,8 +105,8 @@ class DataSuratPenduduk extends CI_Controller
                         ->first();
                 }
 
-                $data['list_dokumen_ayah'] = empty($data['ayah']) ? null : $this->penduduk_model->list_dokumen($data['ayah']->id);
-                $data['list_dokumen_ibu']  = empty($data['ibu']) ? null : $this->penduduk_model->list_dokumen($data['ibu']->id);
+                $data['list_dokumen_ayah'] = empty($data['ayah']) ? null : DokumenHidup::listDokumen($data['ayah']->id);
+                $data['list_dokumen_ibu']  = empty($data['ibu']) ? null : DokumenHidup::listDokumen($data['ibu']->id);
             }
 
             if ($surat->form_isian->individu->data_pasangan && in_array($data['individu']->kk_level, [1, 2, 3])) {
@@ -122,7 +129,7 @@ class DataSuratPenduduk extends CI_Controller
                 }
             }
 
-            $data['list_dokumen_pasangan'] = empty($data['pasangan']) ? null : $this->penduduk_model->list_dokumen($data['pasangan']->id);
+            $data['list_dokumen_pasangan'] = empty($data['pasangan']) ? null : DokumenHidup::listDokumen($data['pasangan']->id);
 
             $template = $surat->template_desa ?: $surat->template;
             if (preg_match('/\[pengikut_surat\]/i', $template)) {
@@ -143,6 +150,12 @@ class DataSuratPenduduk extends CI_Controller
                 $pengikut = $this->pengikutPindah($data);
                 if ($pengikut) {
                     $data['pengikut_pindah'] = $pengikut;
+                }
+            }
+            if (str_contains($surat->lampiran ?? '', 'F-1.06')) {
+                $pengikut = $this->pengikutSuratPI($data);
+                if ($pengikut) {
+                    $data['pengikut_pi'] = $pengikut;
                 }
             }
         }
@@ -225,12 +238,17 @@ class DataSuratPenduduk extends CI_Controller
 
     private function pengikutSuratKIS(array $data)
     {
-        return Penduduk::where(['id_kk' => $data['individu']['id_kk']])->orderKeluarga()->get();
+        return Keluarga::with('anggota')->find($data['individu']['id_kk'])->anggota;
+    }
+
+    private function pengikutSuratPI(array $data)
+    {
+        return Keluarga::with('anggota')->find($data['individu']['id_kk'])->anggota;
     }
 
     private function pengikutPindah(array $data)
     {
-        return Penduduk::status()->where(['id_kk' => $data['individu']['id_kk']])->orderKeluarga()->get();
+        return Keluarga::with('anggota')->find($data['individu']['id_kk'])->anggota;
     }
 
     private function kategoriYangDikaitkan($id, $hubunganForm): array

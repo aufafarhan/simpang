@@ -21,9 +21,8 @@
 
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('buku_tamu') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                <i class="fa fa-arrow-circle-left "></i>Kembali ke Data Tamu
-            </a>
+            @include('admin.layouts.components.tombol_kembali', ['url' => request()->server('HTTP_REFERER') ?? ci_route('buku_tamu'), 'label' => 'Data Tamu'])
+
         </div>
 
         {!! form_open($form_action, 'id="validasi"') !!}
@@ -63,7 +62,7 @@
                         <label>Jenis Kelamin</label>
                         <select class="form-control select2" name="jenis_kelamin">
                             @foreach (\App\Enums\JenisKelaminEnum::all() as $key => $value)
-                                <option value="{{ $key }}" @selected($key == $buku_tamu->jenis_kelamin)>{{ $value }}
+                                <option value="{{ $key }}" @selected($key == $buku_tamu->jenis_kelamin_id)>{{ $value }}
                                 </option>
                             @endforeach
                         </select>
@@ -81,7 +80,7 @@
                         <label>Bertemu</label>
                         <select class="form-control select2 required" name="id_bidang">
                             @foreach ($bertemu as $key => $value)
-                                <option value="{{ $key }}" @selected($key == $buku_tamu->bidang)>{{ $value }}
+                                <option value="{{ $key }}" @selected($value == $buku_tamu->bidang)>{{ $value }}
                                 </option>
                             @endforeach
                         </select>
@@ -101,3 +100,14 @@
         </form>
     </div>
 @endsection
+@if(! $form_action)
+@push('scripts')
+<script>
+    $(document).ready(function () {
+        $('input, textarea, select').attr('disabled', true);
+        $('.box-footer').remove();
+        $('form').removeAttr('action').removeAttr('method');
+    });
+</script>
+@endpush
+@endif

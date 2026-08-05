@@ -38,7 +38,8 @@
                                 Pebaharui Data
                                 {{ $analisis_master['subjek_nama'] }}</a>
                         @endif
-                        <a href="{{ ci_route('analisis_respon', $analisis_master['id']) }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left "></i> Kembali Ke Data Sensus</a>
+                        @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('analisis_respon', $analisis_master['id']), 'label' => 'Data Sensus'])
+
                     </div>
                     <div class="box-body">
                         <div class="dataTables_wrapper form-inline dt-bootstrap no-footer">
@@ -237,6 +238,15 @@
         </div>
     </div>
 @endsection
+@if ($fullscreen)
+    @push('css')
+        <style>
+            .table-responsive {
+                max-height: 400px;
+            }
+        </style>
+    @endpush
+@endif
 @push('scripts')
     <script>
         $(document).ready(function() {
@@ -244,6 +254,9 @@
 
             if (fullscreen) {
                 $('#box-full-screen').addClass("panel-fullscreen");
+                $('.select2').select2({
+                    dropdownParent: $('#box-full-screen')
+                });
             } else {
                 $('#box-full-screen').removeClass("panel-fullscreen");
             }

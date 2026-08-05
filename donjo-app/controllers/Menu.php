@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -45,6 +45,7 @@ use App\Models\Kategori;
 use App\Models\Kelompok;
 use App\Models\Menu as MenuModel;
 use App\Models\Suplemen;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -64,7 +65,14 @@ class Menu extends Admin_Controller
     {
         $parent = $this->input->get('parent') ?? 0;
         $status = $this->input->get('status') ?? 1;
-        $data   = [
+
+        $menuParent = $parent > 0 ? MenuModel::find($parent) : null;
+
+        if ($parent > 0 && ! $menuParent) {
+            redirect_with('error', 'Menu utama tidak ditemukan', ci_route('menu.index'));
+        }
+
+        $data = [
             'listStatus' => [MenuModel::UNLOCK => 'Aktif', MenuModel::LOCK => 'Tidak Aktif'],
             'subtitle'   => $parent > 0 ? '<a href="' . ci_route('menu.index') . '?parent=0">MENU UTAMA </a> / ' . MenuModel::find($parent)->getSelfParents()->reverse()->map(static fn ($item) => $parent == $item['id'] ? strtoupper($item['nama']) : '<a href="' . ci_route('menu.index') . '?parent=' . $item['id'] . '">' . strtoupper($item['nama']) . '</a>')->join(' / ') : '',
             'parent'     => $parent,
@@ -90,29 +98,35 @@ class Menu extends Admin_Controller
                     }
                 })
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row) use ($parent, $canUpdate, $canDelete): string {
+                ->addColumn('aksi', static function ($row) use ($parent): string {
                     $aksi  = '';
                     $judul = $parent > 0 ? 'Submenu' : 'Menu';
-                    if ($canUpdate) {
+                        $aksi .= View::make('admin.layouts.components.tombol_detail', [
+                            'url'   => ci_route('menu.index') . '?parent=' . $row->id,
+                            'judul' => 'Submenu',
+                        ])->render();
 
-                        $aksi .= '<a href="' . ci_route('menu.index') . '?parent=' . $row->id . '" class="btn bg-purple btn-sm"><i class="fa fa-bars"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                            'url'   => 'menu/ajax_menu/' . implode('/', [$row->parent->id ?? $parent, $row->id]),
+                            'modal' => true,
+                            'judul' => "Ubah {$judul}",
+                        ])->render();
 
-                        $aksi .= '<a href="' . ci_route('menu.ajax_menu', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-orange btn-sm" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah ' . $judul . '" title="Ubah ' . $judul . '"><i class="fa fa-edit"></i></a> ';
-                        if ($row->isActive()) {
-                            $aksi .= '<a href="' . ci_route('menu.lock', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-navy btn-sm" title="Non Aktifkan"><i class="fa fa-unlock">&nbsp;</i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('menu.lock', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        }
-                    }
+                         $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                             'url'    => ci_route('menu.lock', implode('/', [$row->parent->id ?? $parent, $row->id])),
+                             'active' => $row->isActive(),
+                         ])->render();
 
-                    if ($canDelete) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('menu.delete', implode('/', [$row->parent->id ?? $parent, $row->id])) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => ci_route('menu.delete', implode('/', [$row->parent->id ?? $parent, $row->id])),
+                            'confirmDelete' => true,
+                        ])->render();
 
                     return $aksi;
                 })->editColumn('link', static fn ($row) => '<a href="' . $row->linkUrl . '" target="_blank">' . $row->linkUrl . '</a>' )
+                ->editColumn('enabled', static fn ($row): string => ($row->enabled == 1) ? '<span class="label label-success">Aktif</span>' : '<span class="label label-danger">Tidak Aktif</span>')
                 ->editColumn('nama', static fn ($row) => html_entity_decode($row->nama))
-                ->rawColumns(['drag-handle', 'aksi', 'ceklist', 'link'])
+                ->rawColumns(['drag-handle', 'aksi', 'ceklist', 'link', 'enabled'])
                 ->make();
         }
 
@@ -129,7 +143,7 @@ class Menu extends Admin_Controller
         $data['statistik_penduduk']         = StatistikPendudukEnum::allKeyLabel();
         $data['statistik_keluarga']         = StatistikKeluargaEnum::allKeyLabel();
         $data['statistik_kategori_bantuan'] = StatistikJenisBantuanEnum::allKeyLabel();
-        $data['statistik_program_bantuan']  = Bantuan::select(['id', 'nama', 'slug'])->get()->toArray();
+        $data['statistik_program_bantuan']  = Bantuan::select(['id', 'nama', 'slug'])->status()->get()->toArray();
         $data['kelompok']                   = Kelompok::tipe('kelompok')->get()->toArray();
         $data['lembaga']                    = Kelompok::tipe('lembaga')->get()->toArray();
         $data['suplemen']                   = Suplemen::select(['id', 'nama', 'slug'])->get()->toArray();

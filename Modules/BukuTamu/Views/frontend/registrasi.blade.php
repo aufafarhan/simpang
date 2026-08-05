@@ -74,7 +74,7 @@
                         <div class="col-input">
                             <div class="form-group">
                                 <label>Bertemu</label>
-                                <select class="form-control required" name="id_bidang" placeholder="Bertemu" required>
+                                <select class="form-control form-select required" name="id_bidang" placeholder="Bertemu" required>
                                     <option label="Pilih" value="">Pilih</option>
                                     @foreach ($bertemu as $key => $value)
                                         <option value="{{ $key }}">{{ $value }}</option>
@@ -202,14 +202,14 @@
                 image_format: 'jpg',
                 jpeg_quality: 100,
 
-                noInterfaceFoundText: 'Kamera tidak terditeksi / tidak didukung mohon periksa kembali dan pastikan website anda menggunakan ssl/https.',
+                noInterfaceFoundText: 'Kamera tidak terditeksi / tidak didukung mohon periksa kembali dan pastikan website Anda menggunakan ssl/https.',
             });
             Webcam.attach('.capture-box');
 
             Webcam.on('error', function(err) {
                 if (err == 'NotAllowedError: Permission denied') {
                     err =
-                        'Anda tidak memberikan izin untuk menggunakan kamera, mohon periksa kembali dan pastikan website anda menggunakan ssl/https.';
+                        'Anda tidak memberikan izin untuk menggunakan kamera, mohon periksa kembali dan pastikan website Anda menggunakan ssl/https.';
                 }
                 Swal.fire({
                     icon: 'error',

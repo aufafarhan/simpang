@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,6 +39,7 @@ namespace App\Console\Commands;
 
 use App\Traits\Migrator;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 
 class ModuleCommand extends Command
 {
@@ -56,7 +57,7 @@ class ModuleCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Memasang modul baru ke OpenSID';
+    protected $description = 'Memasang module baru ke OpenSID';
 
     /**
      * Create a new command instance.
@@ -73,10 +74,12 @@ class ModuleCommand extends Command
      */
     public function handle(): void
     {
-        $this->info('Modul:');
-        $modules = array_map('basename', glob(base_path('Modules/*'), GLOB_ONLYDIR));
-        $modules = array_diff($modules, MODUL_BAWAAN);
-        $modules = array_combine(range(1, count($modules)), $modules);
+        $this->info('Module:');
+        $modules = collect(File::directories(base_path('Modules')))
+            ->map(static fn ($path): string => basename((string) $path))
+            ->diff(MODUL_BAWAAN)
+            ->values()
+            ->mapWithKeys(static fn ($module, $index) => [$index + 1 => $module]);
 
         foreach ($modules as $key => $module) {
             $this->info(" [{$key}] {$module}");

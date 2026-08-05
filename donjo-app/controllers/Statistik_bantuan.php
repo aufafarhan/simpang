@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,12 +29,13 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\AktifEnum;
 use App\Enums\SasaranEnum;
 use App\Enums\Statistik\StatistikJenisBantuanEnum;
 use App\Libraries\Statistik;
@@ -42,6 +43,7 @@ use App\Models\Bantuan;
 use App\Models\BantuanPeserta;
 use App\Models\Wilayah;
 use App\Services\LaporanPenduduk;
+use Carbon\Carbon;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 class Statistik_bantuan extends Admin_Controller
@@ -64,39 +66,17 @@ class Statistik_bantuan extends Admin_Controller
         return view($view, $data);
     }
 
-    private function dataMenu($id)
-    {
-        $sasaran      = ($id == 'bantuan_penduduk') ? SasaranEnum::PENDUDUK : SasaranEnum::KELUARGA;
-        $tahunPertama = Bantuan::selectRaw('YEAR(sdate) as sdate')->when($sasaran, static fn ($q) => $q->whereSasaran($sasaran))->whereNotNull('sdate')->orderByRaw('YEAR(sdate)')->first()?->sdate;
-        $tahunPertama ??= date('Y');
-        $config    = $this->header['desa'];
-        $heading   = LaporanPenduduk::judulStatistik($id);
-        $idProgram = $this->generateIdProgram($id);
-        $statistik = getStatistikLabel($idProgram, $heading, $config['nama_desa']);
-
-        return [
-            'lap'                   => $id,
-            'heading'               => $heading,
-            'allKategori'           => LaporanPenduduk::menuLabel(),
-            'tahun_bantuan_pertama' => $tahunPertama,
-            'judul_kelompok'        => 'Jenis Kelompok',
-            'kategori'              => 'Program Bantuan',
-            'wilayah'               => Wilayah::treeAccess(),
-            'label'                 => $statistik['label'],
-        ];
-    }
-
     public function datatables($id)
     {
         [$filter, $filterGlobal] = $this->getFilters();
         $filterGlobal            = http_build_query($filterGlobal ?? []);
         $sasaran                 = SasaranEnum::PENDUDUK;
-        $idProgram               = $this->generateIdProgram($id);
+        $idProgram               = $id;
         if ($id == 'bantuan_keluarga') {
             $sasaran = SasaranEnum::KELUARGA;
         }
         if (! in_array($id, array_keys(StatistikJenisBantuanEnum::allKeyLabel()))) {
-            $sasaran = Bantuan::find($id)?->sasaran;
+            $sasaran = Bantuan::whereSlug($id)->first()?->sasaran;
         }
 
         switch($sasaran) {
@@ -121,46 +101,14 @@ class Statistik_bantuan extends Admin_Controller
             return datatables()->of($this->sumberData($id, $filter))
                 ->addIndexColumn()
                 ->editColumn('nama', static fn ($row) => strtoupper($row['nama']))
-                ->editColumn('jumlah', static fn ($row) => '<a href="' . $tautan_data . '/' . $row['id'] . '/0?' . $filterGlobal . '" target="_blank">' . $row['jumlah'] . '</a>')
-                ->editColumn('laki', static fn ($row) => '<a href="' . $tautan_data . '/' . $row['id'] . '/1?' . $filterGlobal . '" target="_blank">' . $row['laki'] . '</a>')
-                ->editColumn('perempuan', static fn ($row) => '<a href="' . $tautan_data . '/' . $row['id'] . '/2?' . $filterGlobal . '" target="_blank">' . $row['perempuan'] . '</a>')
+                ->editColumn('jumlah', static fn ($row) => '<a href="' . $tautan_data . '/' . $row['slug'] . '/0?' . $filterGlobal . '" target="_blank">' . $row['jumlah'] . '</a>')
+                ->editColumn('laki', static fn ($row) => '<a href="' . $tautan_data . '/' . $row['slug'] . '/1?' . $filterGlobal . '" target="_blank">' . $row['laki'] . '</a>')
+                ->editColumn('perempuan', static fn ($row) => '<a href="' . $tautan_data . '/' . $row['slug'] . '/2?' . $filterGlobal . '" target="_blank">' . $row['perempuan'] . '</a>')
                 ->rawColumns(['jumlah', 'laki', 'perempuan', 'nama'])
                 ->make();
         }
 
         return show_404();
-    }
-
-    private function getFilters()
-    {
-        $status    = $this->input->get('status') ?? null;
-        $tahun     = $this->input->get('tahun') ?? null;
-        $namaDusun = $this->input->get('dusun') ?? null;
-        $rw        = $this->input->get('rw') ?? null;
-        $rt        = $this->input->get('rt') ?? null;
-
-        $idCluster = $rt ? [$rt] : [];
-
-        if (empty($idCluster) && ! empty($rw)) {
-            [$namaDusun, $namaRw] = explode('__', $rw);
-            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        if (empty($idCluster) && ! empty($namaDusun)) {
-            $idCluster = Wilayah::whereDusun($namaDusun)->select(['id'])->get()->pluck('id')->toArray();
-        }
-
-        $filterGlobal = $filter = [
-            'tahun'  => $tahun,
-            'status' => $status,
-            'dusun'  => $namaDusun,
-            'rw'     => $namaRw,
-            'rt'     => $rt,
-        ];
-        $filter['cluster']  = $idCluster;
-        $filterGlobal['rt'] = $rt ? Wilayah::find($rt)->rt : null;
-
-        return [$filter, $filterGlobal];
     }
 
     public function sumberData($lap, $filter = [])
@@ -172,11 +120,27 @@ class Statistik_bantuan extends Admin_Controller
     {
         if ($this->input->is_ajax_request()) {
             [$filter, $filterGlobal] = $this->getFilters();
-            $sasaran                 = SasaranEnum::PENDUDUK;
-            $query                   = BantuanPeserta::join('program', 'program.id', '=', 'program_peserta.program_id')
-                ->when($filter['tahun'], static fn ($q) => $q->whereRaw("YEAR(sdate) <= {$filter['tahun']}")->whereRaw("YEAR(edate) >= {$filter['tahun']}"))
-                ->when($filter['status'], static fn ($q) => $q->whereStatus($filter['status']));
+
+            $sasaran = SasaranEnum::PENDUDUK;
             $cluster = $filter['cluster'];
+
+            $currentDate = Carbon::now()->toDateString(); // Hasil: 'YYYY-MM-DD'
+
+            $query = BantuanPeserta::join('program', 'program.id', '=', 'program_peserta.program_id')
+                ->where('program_peserta.config_id', identitas('id'))
+                ->when($filter['tahun'], static fn ($q) => $q->whereYear('sdate', '<=', $filter['tahun'])->whereYear('edate', '>=', $filter['tahun']))
+                ->when($filter['status'] == AktifEnum::AKTIF, static function ($query) use ($currentDate) {
+                    $query->where(static function ($query) use ($currentDate) {
+                        $query->whereDate('sdate', '<=', $currentDate)
+                            ->whereDate('edate', '>=', $currentDate);
+                    });
+                })
+                ->when($filter['status'] == AktifEnum::TIDAK_AKTIF, static function ($query) use ($currentDate) {
+                    $query->where(static function ($query) use ($currentDate) {
+                        $query->whereDate('sdate', '>', $currentDate)
+                            ->orWhereDate('edate', '<', $currentDate);
+                    });
+                });
 
             switch($id) {
                 case 'bantuan_penduduk':
@@ -188,8 +152,8 @@ class Statistik_bantuan extends Admin_Controller
                     break;
 
                 default:
-                    $query->where('program.id', $id);
-                    $sasaran = Bantuan::find($id)->sasaran;
+                    $query->where('program.slug', $id);
+                    $sasaran = Bantuan::whereSlug($id)->first()?->sasaran;
             }
             $query->whereSasaran($sasaran);
 
@@ -247,7 +211,6 @@ class Statistik_bantuan extends Admin_Controller
         $data['main']       = $query;
         $data['stat']       = LaporanPenduduk::judulStatistik($id);
         $data['aksi']       = $aksi;
-        $data['config']     = $this->header['desa'];
         $data['file']       = 'Statistik penduduk';
         $data['isi']        = 'admin.statistik.cetak';
         $data['letak_ttd']  = ['2', '2', '9'];
@@ -255,13 +218,57 @@ class Statistik_bantuan extends Admin_Controller
         return view('admin.layouts.components.format_cetak', $data);
     }
 
-    private function generateIdProgram($id)
+    private function dataMenu($id)
     {
+        $sasaran      = ($id == 'bantuan_penduduk') ? SasaranEnum::PENDUDUK : SasaranEnum::KELUARGA;
+        $tahunPertama = Bantuan::selectRaw('YEAR(sdate) as sdate')->when($sasaran, static fn ($q) => $q->whereSasaran($sasaran))->whereNotNull('sdate')->orderByRaw('YEAR(sdate)')->first()?->sdate;
+        $tahunPertama ??= date('Y');
+        $config    = $this->header['desa'];
+        $heading   = LaporanPenduduk::judulStatistik($id);
         $idProgram = $id;
-        if (! in_array($id, array_keys(StatistikJenisBantuanEnum::allKeyLabel()))) {
-            $idProgram = '50' . $id;
+        $statistik = getStatistikLabel($idProgram, $heading, $config['nama_desa']);
+
+        return [
+            'lap'                   => $id,
+            'heading'               => $heading,
+            'allKategori'           => LaporanPenduduk::menuLabel(),
+            'tahun_bantuan_pertama' => $tahunPertama,
+            'judul_kelompok'        => 'Jenis Kelompok',
+            'kategori'              => 'Program Bantuan',
+            'wilayah'               => Wilayah::treeAccess(),
+            'label'                 => $statistik['label'],
+        ];
+    }
+
+    private function getFilters()
+    {
+        $status    = $this->input->get('status') ?? 1;
+        $tahun     = $this->input->get('tahun') ?? null;
+        $namaDusun = $this->input->get('dusun') ?? null;
+        $rw        = $this->input->get('rw') ?? null;
+        $rt        = $this->input->get('rt') ?? null;
+
+        $idCluster = $rt ? [$rt] : [];
+
+        if (empty($idCluster) && ! empty($rw)) {
+            [$namaDusun, $namaRw] = explode('__', $rw);
+            $idCluster            = Wilayah::whereDusun($namaDusun)->whereRw($namaRw)->select(['id'])->get()->pluck('id')->toArray();
         }
 
-        return $idProgram;
+        if (empty($idCluster) && ! empty($namaDusun)) {
+            $idCluster = Wilayah::whereDusun($namaDusun)->select(['id'])->get()->pluck('id')->toArray();
+        }
+
+        $filterGlobal = $filter = [
+            'tahun'  => $tahun,
+            'status' => $status,
+            'dusun'  => $namaDusun,
+            'rw'     => $namaRw,
+            'rt'     => $rt,
+        ];
+        $filter['cluster']  = $idCluster;
+        $filterGlobal['rt'] = $rt ? Wilayah::find($rt)->rt : null;
+
+        return [$filter, $filterGlobal];
     }
 }

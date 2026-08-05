@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,48 +29,18 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\SasaranEnum;
+use App\Enums\StatusEnum;
+use App\Models\Bantuan;
+use App\Models\PendudukSaja;
+use App\Repositories\StatistikRepository;
 use App\Services\LaporanPenduduk;
-
-/*
- *
- * File ini bagian dari:
- *
- * OpenSID
- *
- * Sistem informasi desa sumber terbuka untuk memajukan desa
- *
- * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
- *
- * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
- *
- * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
- * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
- * tanpa batasan, termasuk hak untuk menggunakan, menyalin, mengubah dan/atau mendistribusikan,
- * asal tunduk pada syarat berikut:
- *
- * Pemberitahuan hak cipta di atas dan pemberitahuan izin ini harus disertakan dalam
- * setiap salinan atau bagian penting Aplikasi Ini. Barang siapa yang menghapus atau menghilangkan
- * pemberitahuan ini melanggar ketentuan lisensi Aplikasi Ini.
- *
- * PERANGKAT LUNAK INI DISEDIAKAN "SEBAGAIMANA ADANYA", TANPA JAMINAN APA PUN, BAIK TERSURAT MAUPUN
- * TERSIRAT. PENULIS ATAU PEMEGANG HAK CIPTA SAMA SEKALI TIDAK BERTANGGUNG JAWAB ATAS KLAIM, KERUSAKAN ATAU
- * KEWAJIBAN APAPUN ATAS PENGGUNAAN ATAU LAINNYA TERKAIT APLIKASI INI.
- *
- * @package   OpenSID
- * @author    Tim Pengembang OpenDesa
- * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
- * @license   http://www.gnu.org/licenses/gpl.html GPL V3
- * @link      https://github.com/OpenSID/OpenSID
- *
- */
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -79,28 +49,6 @@ class Statistik_web extends Web_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('laporan_penduduk_model');
-        $this->load->model('pamong_model');
-        $this->load->model('program_bantuan_model');
-    }
-
-    private function get_data_stat(array &$data, $lap): void
-    {
-        $data['stat']         = LaporanPenduduk::judulStatistik($lap);
-        $data['list_bantuan'] = $this->program_bantuan_model->list_program(0);
-        if ((int) $lap > 50) {
-            // Untuk program bantuan, $lap berbentuk '50<program_id>'
-            $program_id             = preg_replace('/^50/', '', $lap);
-            $data['program']        = $this->program_bantuan_model->get_sasaran($program_id);
-            $data['judul_kelompok'] = $data['program']['judul_sasaran'];
-            $data['kategori']       = 'bantuan';
-        } elseif (in_array($lap, ['bantuan_penduduk', 'bantuan_keluarga'])) {
-            $data['kategori'] = 'bantuan';
-        } elseif ((int) $lap > 20 || "{$lap}" === 'kelas_sosial') {
-            $data['kategori'] = 'keluarga';
-        } else {
-            $data['kategori'] = 'penduduk';
-        }
     }
 
     public function dusun($tipe = 0, $lap = 0): void
@@ -146,12 +94,19 @@ class Statistik_web extends Web_Controller
     {
         $this->cek_akses($lap);
 
-        $data['main'] = $this->laporan_penduduk_model->list_data($lap);
+        $request = request();
+
+        $data['main'] = (new StatistikRepository())->sumberData($lap, [
+            'tahun'   => $request->get('tahun'),
+            'status'  => $request->get('status', StatusEnum::YA),
+            'cluster' => $request->get('cluster', null),
+        ]);
 
         $data['lap']       = $lap;
         $data['untuk_web'] = true;
         $this->get_data_stat($data, $lap);
-        $this->load->view('gis/penduduk_gis', $data);
+
+        view('web.gis.penduduk_gis', $data);
     }
 
     public function chart_gis_desa($lap = 0, $desa = null): void
@@ -192,6 +147,7 @@ class Statistik_web extends Web_Controller
         redirect("statistik_web/load_chart_gis/{$lap}");
     }
 
+    // sepertinya tidak ada fungsi yang memanggil method ini
     public function chart_gis_kadus($id_kepala = ''): void
     {
         $this->cek_akses($lap);
@@ -203,12 +159,33 @@ class Statistik_web extends Web_Controller
         redirect("statistik_web/load_kadus/{$id_kepala}");
     }
 
+    // sepertinya tidak ada fungsi yang memanggil method ini
     public function load_kadus($id_kepala = ''): void
     {
-        $data['individu'] = $this->wilayah_model->get_penduduk($dusun['id_kepala']);
+        $data['individu'] = PendudukSaja::find($id_kepala);
 
-        $this->_get_common_data($data);
         $this->load->view('gis/kadus/', $data);
+    }
+
+    private function get_data_stat(array &$data, $lap): void
+    {
+        $data['stat']         = LaporanPenduduk::judulStatistik($lap);
+        $data['list_bantuan'] = Bantuan::selectRaw('id, nama, sasaran, ndesc, sdate, edate, CONCAT(50,id) as lap')->get()->toArray();
+        if ((int) $lap > 50) {
+            // Untuk program bantuan, $lap berbentuk '50<program_id>'
+            $program_id             = preg_replace('/^50/', '', $lap);
+            $program                = Bantuan::find($program_id);
+            $program->judul_sasaran = SasaranEnum::valueOf($program->sasaran);
+            $data['program']        = $program->toArray();
+            $data['judul_kelompok'] = $data['program']['judul_sasaran'];
+            $data['kategori']       = 'bantuan';
+        } elseif (in_array($lap, ['bantuan_penduduk', 'bantuan_keluarga'])) {
+            $data['kategori'] = 'bantuan';
+        } elseif ((int) $lap > 20 || "{$lap}" === 'kelas_sosial') {
+            $data['kategori'] = 'keluarga';
+        } else {
+            $data['kategori'] = 'penduduk';
+        }
     }
 
     private function cek_akses($lap): ?bool

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,9 +37,9 @@
 
 namespace Modules\Analisis\Models;
 
-use App\Enums\AnalisisRefSubjekEnum;
 use App\Models\BaseModel;
 use App\Traits\ConfigId;
+use Modules\Analisis\Enums\AnalisisRefSubjekEnum;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -50,13 +50,14 @@ class AnalisisMaster extends BaseModel
     public const UNLOCK = 0;
     public const LOCK   = 1;
 
+    public $timestamps = false;
+
     /**
      * {@inheritDoc}
      */
     protected $table = 'analisis_master';
 
     protected $guarded = [];
-    public $timestamps = false;
 
     public function isLock(): bool
     {
@@ -68,8 +69,13 @@ class AnalisisMaster extends BaseModel
         return $this->attributes['jenis'] == 1;
     }
 
-    protected function scopeSubjekPenduduk($query)
+    public function scopeSubjekPenduduk($query)
     {
-        return $query->where('subjek_tipe', AnalisisRefSubjekEnum::PENDUDUK);
+        return $this->subjek(AnalisisRefSubjekEnum::PENDUDUK);
+    }
+
+    public function scopeSubjek($query, $subjek)
+    {
+        return $query->where('subjek_tipe', $subjek);
     }
 }

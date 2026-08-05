@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -46,20 +46,23 @@ use App\Enums\JenisKelaminEnum;
 use App\Enums\PekerjaanEnum;
 use App\Enums\PendidikanKKEnum;
 use App\Enums\PendidikanSedangEnum;
+use App\Enums\PeristiwaKeluargaEnum;
 use App\Enums\SakitMenahunEnum;
 use App\Enums\SasaranEnum;
 use App\Enums\SHDKEnum;
+use App\Enums\StatusDasarEnum;
 use App\Enums\StatusKawinEnum;
 use App\Enums\StatusKTPEnum;
 use App\Enums\StatusPendudukEnum;
+use App\Enums\StatusRekamEnum;
 use App\Enums\SukuEnum;
 use App\Enums\WargaNegaraEnum;
 use App\Models\BantuanPeserta;
 use App\Models\Keluarga as KeluargaModel;
 use App\Models\Penduduk;
 use App\Models\PendudukHidup;
-use App\Models\PendudukHubungan;
 use App\Models\Wilayah;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -80,10 +83,18 @@ class AnggotaKeluarga extends Admin_Controller
     {
         $data['kk'] = $id;
 
-        $kk            = KeluargaModel::with(['anggota', 'kepalaKeluarga'])->find($id) ?? show_404();
+        $kk = KeluargaModel::with([
+            'anggota'        => static fn ($q) => $q->with('wilayah')->without(['keluarga', 'rtm']),
+            'kepalaKeluarga' => static fn ($q) => $q->with([
+                'wilayah',
+                'keluarga' => static fn ($r) => $r->with('wilayah'),  // ← Load nested wilayah dari keluarga
+            ])->without(['rtm']),
+        ])->find($id) ?? show_404();
+
         $data['no_kk'] = $kk->no_kk;
         $data['main']  = $kk->anggota->map(static function ($item) use ($kk) {
-            $item->bisaPecahKK = false;
+            $item->bisaPecahKK  = false;
+            $item->bisaGabungKK = true;
             if ($item->kk_level != SHDKEnum::KEPALA_KELUARGA) {
                 $item->bisaPecahKK = true;
             } else {
@@ -98,6 +109,7 @@ class AnggotaKeluarga extends Admin_Controller
 
             return $item;
         })->toArray();
+
         $data['kepala_kk'] = $kk->kepalaKeluarga;
         $data['program']   = ['programkerja' => BantuanPeserta::with(['bantuan'])->whereHas('bantuan', static fn ($q) => $q->whereSasaran(SasaranEnum::KELUARGA))->wherePeserta($kk->no_kk)->get()->toArray()];
 
@@ -110,7 +122,7 @@ class AnggotaKeluarga extends Admin_Controller
         $keluarga            = KeluargaModel::with(['anggota'])->findOrFail($id);
         $kk                  = $keluarga->anggota->where('kk_level', SHDKEnum::KEPALA_KELUARGA)->first();
         $data['kepala_kk']   = $kk ?: null;
-        $data['hubungan']    = PendudukHubungan::kawin($kk->status_kawin_id, $kk->sex_id)->get();
+        $data['hubungan']    = SHDKEnum::filterByKawin($kk->status_kawin_id, $kk->sex_id);
         $data['main']        = $keluarga->anggota;
         $data['penduduk']    = PendudukHidup::lepas(true)->get();
         $data['form_action'] = ci_route("keluarga.add_anggota.{$id}");
@@ -124,8 +136,9 @@ class AnggotaKeluarga extends Admin_Controller
     {
         isCan('u');
         $keluarga         = KeluargaModel::with(['anggota'])->findOrFail($id_kk);
-        $data['hubungan'] = SHDKEnum::all();
-        $data['main']     = $keluarga->anggota->where('id', $id)->first();
+        $data['hubungan'] = Arr::except(SHDKEnum::all(), [SHDKEnum::KEPALA_KELUARGA]);
+
+        $data['main'] = $keluarga->anggota->where('id', $id)->first();
 
         $kk                  = $keluarga->kepalaKeluarga;
         $data['kepala_kk']   = $kk ?: null;
@@ -150,7 +163,7 @@ class AnggotaKeluarga extends Admin_Controller
         }
         Penduduk::where(['id' => $data['nik']])->update(['kk_level' => $data['kk_level'], 'id_kk' => $id]);
 
-        redirect(ci_route("keluarga.anggota.{$id}"));
+        redirect_with('success', 'Berhasil menambahkan anggota keluarga', ci_route("keluarga.anggota.{$id}"));
     }
 
     public function update_anggota($id_kk = 0, $id = 0): void
@@ -162,13 +175,152 @@ class AnggotaKeluarga extends Admin_Controller
         }
 
         $data = $this->input->post();
-        if ($data['kk_level'] == SHDKEnum::KEPALA_KELUARGA) {
-            Penduduk::where(['id_kk' => $id_kk, 'kk_level' => SHDKEnum::KEPALA_KELUARGA])->update(['kk_level' => SHDKEnum::LAINNYA]);
-            $keluarga->update(['nik_kepala' => $id, 'updated_at' => date('Y-m-d H:i:s'), 'updated_by' => ci_auth()->id]);
-        }
         Penduduk::where(['id' => $id])->where('kk_level', '!=', SHDKEnum::KEPALA_KELUARGA)->update(['kk_level' => $data['kk_level']]);
 
-        redirect(ci_route("keluarga.anggota.{$id_kk}"));
+        redirect_with('success', 'Berhasil ubah SDHK anggota keluarga', ci_route("keluarga.anggota.{$id_kk}"));
+    }
+
+    /**
+     * Tampilkan form pecah KK dalam modal (AJAX).
+     *
+     * @param int|string $kk ID atau nomor KK lama
+     * @param int|string $id ID penduduk yang akan menjadi kepala keluarga baru
+     *
+     * @return Illuminate\View\View
+     *
+     * Alur:
+     * 1. Ambil calon kepala keluarga baru dari penduduk.
+     * 2. Ambil daftar anggota KK lama selain kepala keluarga.
+     * 3. Susun urutan: kepala keluarga baru di atas, lalu anggota lain.
+     * 4. Siapkan daftar hubungan keluarga (SHDK) kecuali kepala keluarga.
+     * 5. Kirim ke view untuk ditampilkan dalam modal.
+     */
+    public function ajax_gabung_kk($kk, $id)
+    {
+        $data['kk'] = $kk;
+        $data['id'] = $id;
+
+        // Ambil kepala keluarga baru (berdasarkan $id)
+        $kepalaBaru                     = Penduduk::find($id);
+        $data['isGabungKepalaKeluarga'] = ($kepalaBaru->kk_level == SHDKEnum::KEPALA_KELUARGA);
+
+        // Ambil anggota selain kepala keluarga lama
+        $anggotaLain = Penduduk::status(StatusDasarEnum::HIDUP)
+            ->where('id_kk', $kk)
+            ->where('kk_level', '!=', SHDKEnum::KEPALA_KELUARGA)
+            ->where('id', '!=', $id) // pastikan calon kepala baru tidak ikut di daftar anggota
+            ->orderBy('kk_level')
+            ->orderBy('tanggallahir')
+            ->get();
+
+        // Gabungkan: kepala keluarga baru di atas, sisanya di bawah
+        $data['main'] = collect([$kepalaBaru])->merge($anggotaLain);
+
+        // Daftar hubungan (SHDK) kecuali Kepala Keluarga
+        $data['hubungan'] = Arr::except(
+            SHDKEnum::all(),
+            [SHDKEnum::KEPALA_KELUARGA]
+        );
+
+        $data['statusKawin'] = StatusKawinEnum::all();
+
+        // Data tambahan
+        $data['no_kk']          = '';
+        $data['nokk_sementara'] = KeluargaModel::formatNomerKKSementara();
+        $data['form_action']    = ci_route('keluarga.gabung_kk', [$kk, $id]);
+
+        return view('admin.penduduk.keluarga.modal.ajax_gabung_kk_form', $data);
+    }
+
+    /**
+     * Pecah KK lama menjadi KK baru dengan kepala keluarga baru dan anggota terpilih.
+     *
+     * @param int|string $kk ID atau nomor KK lama
+     * @param int|string $id ID penduduk yang menjadi kepala keluarga baru
+     *
+     * @return void
+     *
+     * Alur:
+     * 1. Ambil data KK lama.
+     * 2. Buat record KK baru dengan no_kk baru (atau sementara) dan set kepala keluarga baru.
+     * 3. Pindahkan anggota yang dicentang ke KK baru, termasuk memperbarui hubungan keluarga (kk_level) jika diisi.
+     * 4. Pastikan kepala baru otomatis menjadi KEPALA KELUARGA.
+     * 5. Simpan log peristiwa (keluarga baru).
+     * 6. Redirect ke halaman anggota KK baru.
+     */
+    public function gabung_kk($kk, $id)
+    {
+        $post           = $this->input->post();
+        $kkLama         = KeluargaModel::find($kk);
+        $noKkSebelumnya = $kkLama->no_kk;
+
+        if (! $kkLama) {
+            set_session('error', 'KK lama tidak ditemukan.');
+            redirect('keluarga');
+        }
+
+        if (empty($post['nokk_sementara'])) {
+            $cekKK = KeluargaModel::where('no_kk', $post['no_kk'])->first();
+            if ($cekKK) {
+                set_session('error', 'Nomor KK telah terdaftar.');
+                redirect("keluarga/anggota/{$kkLama->id}");
+            }
+        }
+
+        // Buat KK baru
+        $kkBaru               = $kkLama->replicate();
+        $kkBaru->no_kk        = $post['no_kk'] ?: KeluargaModel::formatNomerKKSementara();
+        $kkBaru->nik_kepala   = $id;
+        $kkBaru->tgl_cetak_kk = null;
+        $kkBaru->tgl_daftar   = date('Y-m-d H:i:s');
+        $kkBaru->updated_at   = date('Y-m-d H:i:s');
+        $kkBaru->save();
+
+        $anggota  = $post['anggota'] ?? [];
+        $hubungan = $post['kk_level'] ?? [];
+
+        foreach ($anggota as $idPenduduk) {
+            $penduduk = Penduduk::find($idPenduduk);
+            if ($penduduk) {
+                $penduduk->id_kk = $kkBaru->id;
+                // Ubah hubungan jika ada input baru
+                if (isset($hubungan[$idPenduduk]) && $hubungan[$idPenduduk]) {
+                    $penduduk->kk_level = $hubungan[$idPenduduk];
+                }
+                $penduduk->save();
+            }
+        }
+
+        $statusKawin = $post['status_kawin'] ?? [];
+
+        foreach ($statusKawin as $idPenduduk => $value) {
+            $penduduk = Penduduk::find($idPenduduk);
+            if ($penduduk) {
+                $penduduk->no_kk_sebelumnya = $noKkSebelumnya;
+                $penduduk->status_kawin     = $value;
+                $penduduk->save();
+            }
+        }
+
+        // Kepala baru
+        $kepalaBaru = Penduduk::find($id);
+        if ($kepalaBaru) {
+            $kepalaBaru->id_kk    = $kkBaru->id;
+            $kepalaBaru->kk_level = SHDKEnum::KEPALA_KELUARGA;
+            $kepalaBaru->save();
+        }
+
+        App\Models\LogKeluarga::create([
+            'id_kk'           => $kkBaru->id,
+            'id_peristiwa'    => PeristiwaKeluargaEnum::KELUARGA_BARU->value,
+            'tgl_peristiwa'   => date('Y-m-d H:i:s'),
+            'id_pend'         => $id, // kepala keluarga baru
+            'id_log_penduduk' => null,
+            'updated_by'      => ci_auth()->id,
+        ]);
+
+        set_session('success', 'Gabung KK baru berhasil dibuat.');
+        redirect("keluarga/anggota/{$kkBaru->id}");
     }
 
     // Pecah keluarga
@@ -178,7 +330,29 @@ class AnggotaKeluarga extends Admin_Controller
 
         try {
             $keluarga = KeluargaModel::findOrFail($kk);
-            $keluarga->hapusAnggota($id, $keluarga->no_kk);
+            $penduduk = Penduduk::findOrFail($id);
+
+            // Cek apakah dia kepala keluarga
+            $isKepala = $penduduk->kk_level == SHDKEnum::KEPALA_KELUARGA;
+
+            if ($isKepala) {
+                // Ambil semua anggota (selain kepala)
+                $anggota = Penduduk::where('id_kk', $kk)
+                    ->where('id', '!=', $id)
+                    ->get();
+
+                // Pecahkan dulu semua anggota
+                foreach ($anggota as $agt) {
+                    $keluarga->hapusAnggota($agt->id, $keluarga->no_kk);
+                }
+
+                // Terakhir: pecahkan kepala keluarganya sendiri
+                $keluarga->hapusAnggota($id, $keluarga->no_kk);
+            } else {
+                // Jika bukan kepala keluarga: hapus langsung
+                $keluarga->hapusAnggota($id, $keluarga->no_kk);
+            }
+
             redirect_with('success', 'Berhasil hapus anggota keluarga', ci_route("keluarga.anggota.{$kk}"));
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
@@ -253,7 +427,7 @@ class AnggotaKeluarga extends Admin_Controller
         $data['cacat']              = CacatEnum::all();
         $data['sakit_menahun']      = SakitMenahunEnum::all();
         $data['cara_kb']            = CaraKBEnum::all();
-        $data['ktp_el']             = array_flip(unserialize(KTP_EL));
+        $data['ktp_el']             = StatusRekamEnum::all();
         $data['status_rekam']       = StatusKTPEnum::all();
         $data['tempat_dilahirkan']  = array_flip(unserialize(TEMPAT_DILAHIRKAN));
         $data['jenis_kelahiran']    = array_flip(unserialize(JENIS_KELAHIRAN));
@@ -261,11 +435,13 @@ class AnggotaKeluarga extends Admin_Controller
         $data['pilihan_asuransi']   = AsuransiEnum::all();
         $data['kehamilan']          = HamilEnum::all();
         $data['suku']               = SukuEnum::all();
-        $data['suku_penduduk']      = Penduduk::distinct()->select('suku')->whereNotNull('suku')->whereRaw('LENGTH(suku) > 0')->pluck('suku', 'suku');
         $data['nik_sementara']      = Penduduk::nikSementara();
         $data['status_penduduk']    = [StatusPendudukEnum::TETAP => StatusPendudukEnum::valueOf(StatusPendudukEnum::TETAP)];
         $data['controller']         = 'keluarga';
         $data['jenis_peristiwa']    = $peristiwa;
+        $data['marga_penduduk']     = Penduduk::distinct()->select('marga')->whereNotNull('marga')->whereRaw('LENGTH(marga) > 0')->pluck('marga', 'marga');
+        $data['suku_penduduk']      = Penduduk::distinct()->select('suku')->whereNotNull('suku')->whereRaw('LENGTH(suku) > 0')->pluck('suku', 'suku');
+        $data['adat_penduduk']      = Penduduk::distinct()->select('adat')->whereNotNull('adat')->whereRaw('LENGTH(adat) > 0')->pluck('adat', 'adat');
 
         // data orang tua
         $orangTua          = Penduduk::orangTua($id);

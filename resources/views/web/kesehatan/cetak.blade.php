@@ -8,10 +8,10 @@
         <tr>
             <td>
                 @if ($aksi != 'unduh')
-                    <img class="logo" src="{{ gambar_desa($config['logo']) }}" alt="logo-desa">
+                    <img class="logo" src="{{ gambar_desa($desa['logo']) }}" alt="logo-desa">
                 @endif
                 <h1 class="judul" align="center">
-                    PEMERINTAH {!! strtoupper(setting('sebutan_kabupaten') . ' ' . $config['nama_kabupaten'] . ' <br>' . setting('sebutan_kecamatan') . ' ' . $config['nama_kecamatan'] . ' <br>' . setting('sebutan_desa') . ' ' . $config['nama_desa']) !!}
+                    PEMERINTAH {!! strtoupper(setting('sebutan_kabupaten') . ' ' . $desa['nama_kabupaten'] . ' <br>' . setting('sebutan_kecamatan') . ' ' . $desa['nama_kecamatan'] . ' <br>' . setting('sebutan_desa') . ' ' . $desa['nama_desa']) !!}
                 </h1>
             </td>
         </tr>
@@ -83,7 +83,7 @@
                                 TOTAL ANAK USIA 0 – 23 BULAN </th>
                             <th colspan="1" width="23%" class="text-center" style="vertical-align: middle;">HIJAU
                                 (NORMAL)</th>
-                            <th colspan="2" class="text-center" style="vertical-align: middle;">Kuning (Resiko
+                            <th colspan="2" class="text-center" style="vertical-align: middle;">Kuning (Risiko
                                 Stunting)</th>
                             <th colspan="2" class="text-center" style="vertical-align: middle;">Merah Terindikasi
                                 Stunting</th>
@@ -171,7 +171,7 @@
                         </tr>
                         <tr>
                             <th colspan="1" class="text-center" style="vertical-align: middle;">5</th>
-                            <td colspan="3" style="vertical-align: middle;">Ibu hamil dengan kondisi resiko tinggi
+                            <td colspan="3" style="vertical-align: middle;">Ibu hamil dengan kondisi risiko tinggi
                                 dan/atau Kekurangan Energi Kronis (KEK) mendapat kunjungan ke rumah oleh bidan Desa
                                 secara terpadu minimal 1 bulan sekali </td>
                             <td colspan="2" class="text-center" style="vertical-align: middle;">

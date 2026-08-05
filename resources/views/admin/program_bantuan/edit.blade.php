@@ -18,8 +18,7 @@
     @include('admin.layouts.components.notifikasi')
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ site_url('program_bantuan') }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar Program Bantuan"><i class="fa fa-arrow-circle-o-left"></i> Kembali Ke
-                Daftar Program Bantuan</a>
+            <x-kembali-button judul="Kembali ke Daftar Program Bantuan" :url="'program_bantuan'" />
         </div>
         <form id="validasi" action="{{ $form_action }}" method="POST" enctype="multipart/form-data" class="form-horizontal">
             <div class="box-body">
@@ -44,14 +43,8 @@
                     <label class="col-sm-3 control-label" for="penerima">Penerima</label>
                     <div class="col-sm-9">
                         <select class="form-control input-sm select2 required" name="kk_level[]" multiple="multiple" {{ $program['peserta_count'] != 0 ? 'disabled' : '' }}>
-                            @php
-                                $data['kk_level'] = json_decode($data['kk_level'], true);
-                                if ($data['kk_level'] === null || count($kk_level) == 0) {
-                                    $data['kk_level'] = ['1', '2', '3', '4'];
-                                }
-                            @endphp
                             @foreach ($kk_level as $key => $value)
-                                <option value="{{ $key }}" {{ in_array($key, $data['kk_level'] ?? []) ? 'selected' : '' }}>{{ $value }}</option>
+                                <option value="{{ $key }}" {{ in_array($key, json_decode($program['kk_level'], true) ?? []) ? 'selected' : '' }}>{{ $value }}</option>
                             @endforeach
                         </select>
                     </div>

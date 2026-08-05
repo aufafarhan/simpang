@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -56,18 +56,23 @@ class Wilayah extends BaseModel
     use ShortcutCache;
 
     /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'tweb_wil_clusterdesa';
-
-    /**
      * The timestamps for the model.
      *
      * @var bool
      */
     public $timestamps = false;
+
+    public $sortable = [
+        'order_column_name'  => 'urut',
+        'sort_when_creating' => false,
+    ];
+
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'tweb_wil_clusterdesa';
 
     /**
      * The guarded with the model.
@@ -86,10 +91,58 @@ class Wilayah extends BaseModel
         'zoom' => Zoom::class,
     ];
 
-    public $sortable = [
-        'order_column_name'  => 'urut',
-        'sort_when_creating' => false,
-    ];
+    public static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(static function ($model): void {
+
+            if ($model->isDusun()) {
+                $max = Wilayah::dusun()->max('urut');
+            } elseif ($model->isRw()) {
+                $max = Wilayah::rw($model->dusun)->max('urut');
+            } else {
+                $max = Wilayah::rt($model->dusun, $model->rw)->max('urut');
+            }
+
+            $model->urut = ($max ?? 0) + 1;
+        });
+    }
+
+    public static function updateUrutan(): void
+    {
+        $all  = Wilayah::dusun()->with(['rws' => static fn ($q) => $q->with('rts')])->orderBy('urut')->get();
+        $urut = 1;
+
+        foreach ($all as $dusun) {
+            $dusun->update(['urut_cetak' => $urut++]);
+
+            foreach ($dusun->rws as $rw) {
+                $rw->update(['urut_cetak' => $urut++]);
+
+                foreach ($rw->rts as $rt) {
+                    $rt->update(['urut_cetak' => $urut++]);
+                }
+            }
+        }
+    }
+
+    public static function tree()
+    {
+        return self::select(['id', 'dusun', 'rt', 'rw'])->get()->groupBy('dusun')->map(static fn ($item) => $item->filter(static fn ($q): bool => $q->rw !== '0')->groupBy('rw')->map(static fn ($item) => $item->filter(static fn ($q): bool => ! $q->isDusun() && ! $q->bukanRT() )));
+    }
+
+    public static function treeAccess()
+    {
+        $user = ci_auth();
+        if ($user->batasi_wilayah) {
+            $aksesWilayah = $user->akses_wilayah ?? [];
+
+            return self::select(['id', 'dusun', 'rt', 'rw'])->whereIn('id', $aksesWilayah)->get()->groupBy('dusun')->map(static fn ($item) => $item->filter(static fn ($q): bool => $q->rw !== '0')->groupBy('rw')->map(static fn ($item) => $item->filter(static fn ($q): bool => ! $q->isDusun() && ! $q->bukanRT() )));
+        }
+
+        return self::select(['id', 'dusun', 'rt', 'rw'])->get()->groupBy('dusun')->map(static fn ($item) => $item->filter(static fn ($q): bool => $q->rw !== '0')->groupBy('rw')->map(static fn ($item) => $item->filter(static fn ($q): bool => ! $q->isDusun() && ! $q->bukanRT()  )));
+    }
 
     /**
      * Scope query untuk dusun
@@ -106,24 +159,39 @@ class Wilayah extends BaseModel
     /**
      * Scope query untuk rw.
      *
-     * @param Builder $query
+     * @param Builder    $query
+     * @param mixed|null $dusun
      *
      * @return Builder
      */
-    public function scopeRw($query)
+    public function scopeRw($query, $dusun = null)
     {
+        if ($dusun) {
+            $query->whereDusun($dusun);
+        }
+
         return $query->where('rt', '=', '0')->where('rw', '!=', '0');
     }
 
     /**
      * Scope query untuk rt
      *
-     * @param Builder $query
+     * @param Builder    $query
+     * @param mixed|null $dusun
+     * @param mixed|null $rw
      *
      * @return Builder
      */
-    public function scopeRt($query)
+    public function scopeRt($query, $dusun = null, $rw = null)
     {
+        if ($dusun) {
+            $query->whereDusun($dusun);
+
+            if ($dusun) {
+                $query->whereRw($rw);
+            }
+        }
+
         return $query->where('rt', '!=', '0');
     }
 
@@ -132,7 +200,7 @@ class Wilayah extends BaseModel
      */
     public function kepala(): HasOne
     {
-        return $this->hasOne(Penduduk::class, 'id', 'id_kepala')->select('nik', 'nama', 'id');
+        return $this->hasOne(PendudukSaja::class, 'id', 'id_kepala')->select('nik', 'nama', 'id');
     }
 
     /**
@@ -163,27 +231,14 @@ class Wilayah extends BaseModel
         return $this->hasManyThrough(PendudukHidup::class, Wilayah::class, 'dusun', 'id_cluster', 'dusun')->where('sex', JenisKelaminEnum::PEREMPUAN);
     }
 
-    public function keluargaAktif(): HasManyThrough
+    public function keluargaAktif()
     {
-        return $this->hasManyThrough(KeluargaAktif::class, Wilayah::class, 'dusun', 'id_cluster', 'dusun');
-    }
-
-    public static function updateUrutan(): void
-    {
-        $all  = Wilayah::dusun()->with(['rws' => static fn ($q) => $q->with('rts')])->orderBy('urut')->get();
-        $urut = 1;
-
-        foreach ($all as $dusun) {
-            $dusun->update(['urut_cetak' => $urut++]);
-
-            foreach ($dusun->rws as $rw) {
-                $rw->update(['urut_cetak' => $urut++]);
-
-                foreach ($rw->rts as $rt) {
-                    $rt->update(['urut_cetak' => $urut++]);
-                }
-            }
-        }
+        return $this->hasManyThrough(KeluargaAktif::class, Wilayah::class, 'dusun', 'id_cluster', 'dusun')
+            ->whereHas('kepalaKeluarga', static function ($q) {
+                $q->whereNotNull('id_kk')
+                    ->where('kk_level', 1)
+                    ->where('status_dasar', 1);
+            });
     }
 
     public function isDusun(): bool
@@ -206,24 +261,7 @@ class Wilayah extends BaseModel
         return $this->attributes['rt'] == '0';
     }
 
-    public static function tree()
-    {
-        return self::select(['id', 'dusun', 'rt', 'rw'])->get()->groupBy('dusun')->map(static fn ($item) => $item->filter(static fn ($q): bool => $q->rw !== '0')->groupBy('rw')->map(static fn ($item) => $item->filter(static fn ($q): bool => ! $q->isDusun() && ! $q->bukanRT() )));
-    }
-
-    public static function treeAccess()
-    {
-        $user = ci_auth();
-        if ($user->batasi_wilayah) {
-            $aksesWilayah = $user->akses_wilayah ?? [];
-
-            return self::select(['id', 'dusun', 'rt', 'rw'])->whereIn('id', $aksesWilayah)->get()->groupBy('dusun')->map(static fn ($item) => $item->filter(static fn ($q): bool => $q->rw !== '0')->groupBy('rw')->map(static fn ($item) => $item->filter(static fn ($q): bool => ! $q->isDusun() && ! $q->bukanRT() )));
-        }
-
-        return self::select(['id', 'dusun', 'rt', 'rw'])->get()->groupBy('dusun')->map(static fn ($item) => $item->filter(static fn ($q): bool => $q->rw !== '0')->groupBy('rw')->map(static fn ($item) => $item->filter(static fn ($q): bool => ! $q->isDusun() && ! $q->bukanRT()  )));
-    }
-
-    protected function getAlamatAttribute()
+    protected function getAlamatAttribute(): string
     {
         return ($this->attributes['rt'] != '0' ? 'RT ' . $this->attributes['rt'] . ' / ' : '') . ($this->attributes['rw'] != '0' ? 'RW ' . $this->attributes['rw'] . ' - ' : '') . $this->attributes['dusun'];
     }

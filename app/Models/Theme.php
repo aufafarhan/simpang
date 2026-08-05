@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -49,8 +49,20 @@ class Theme extends BaseModel
     use QueryCacheable;
 
     public const DEFAULT_THEME = 'esensi';
-    public const PATH_SISTEM   = 'vendor/themes';
-    public const PATH_DESA     = 'desa/themes';
+    public const PATH_SISTEM   = 'storage/app/themes/';
+    public const PATH_DESA     = 'desa/themes/';
+
+    public $cacheFor = -1;
+
+    /**
+     * @var mixed[]|string
+     */
+    public $tema;
+
+    /**
+     * @var 'desa/themes'|'vendor/themes'
+     */
+    public $folder;
 
     /**
      * Invalidate the cache automatically
@@ -59,8 +71,6 @@ class Theme extends BaseModel
      * @var bool
      */
     protected static $flushCacheOnUpdate = true;
-
-    public $cacheFor = -1;
 
     /**
      * The table associated with the model.
@@ -93,6 +103,23 @@ class Theme extends BaseModel
         'opsi'   => 'json',
     ];
 
+    private string $templateFile = 'resources/views/template.blade.php';
+
+    public static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(static function ($model): void {
+            $model->slug = Str::slug('desa-' . $model->nama);
+        });
+
+        static::deleting(static function ($model): void {
+            deleteDir($model->full_path);
+
+            cache()->forget('theme_active');
+        });
+    }
+
     public function getFullPathAttribute()
     {
         return $this->path;
@@ -100,12 +127,12 @@ class Theme extends BaseModel
 
     public function getViewPathAttribute(): string
     {
-        return '../../' . $this->getFullPathAttribute();
+        return $this->getFullPathAttribute() . '/resources/views';
     }
 
     public function getAssetPathAttribute(): string
     {
-        return $this->sistem ? $this->view_path : self::PATH_DESA . '/' . end(explode('/', $this->path));
+        return $this->getFullPathAttribute() . '/assets';
     }
 
     public function getConfigAttribute()
@@ -117,12 +144,22 @@ class Theme extends BaseModel
         return [];
     }
 
-    public function scopeStatus($query, $status = 1)
+    public function scopeStatus($query, $status = '1')
     {
         return $query->where('status', $status);
     }
 
-    public function scopeSistem($query, $status = 1)
+    public function scopeIsActive($query)
+    {
+        return $query->where('status', 1);
+    }
+
+    public function scopeIsNotActive($query)
+    {
+        return $query->where('status', 0);
+    }
+
+    public function scopeSistem($query, $status = '1')
     {
         return $query->where('sistem', $status);
     }
@@ -143,34 +180,51 @@ class Theme extends BaseModel
 
     public function aktif()
     {
-        $aktif = self::status()->first();
+        $aktif = self::isActive()->first();
 
-        if ($aktif && file_exists($aktif->full_path . '/template.php')) {
+        // Jika ada tema aktif dan file tema valid, kembalikan tema tersebut.
+        if ($aktif && file_exists($aktif->full_path . '/composer.json')) {
             return $aktif;
         }
 
-        self::whereIn('sistem', [0, 1])->update(['status' => 0]); // Menonaktifkan semua tema kecuali DEFAULT_THEME
-        self::sistem()->where('slug', self::DEFAULT_THEME)->update(['status' => 1]); // Mengaktifkan DEFAULT_THEME
+        // Jika tidak ada tema aktif yang valid, fallback ke DEFAULT_THEME
+        // Nonaktifkan semua tema terlebih dahulu.
+        self::whereIn('sistem', [0, 1])->get()->each(static function ($theme): void {
+            $theme->update(['status' => 0]);
+        });
 
-        return self::status()->first();
+        // Aktifkan DEFAULT_THEME (tema sistem)
+        $defaultTheme = self::sistem(1)->where('slug', self::DEFAULT_THEME)->first();
+        if ($defaultTheme) {
+            $defaultTheme->update(['status' => 1]);
+        }
+
+        return self::isActive()->first();
     }
 
-    public static function boot(): void
+    // Mengambil latar belakang website ubahan
+    public function latarWebsite()
     {
-        parent::boot();
+        $ubahan_tema   = "desa/pengaturan/{$this->tema}/images/";
+        $bawaan_tema   = "{$this->folder}/{$this->tema}/assets/css/images/latar_website.jpg";
+        $latar_website = is_file($ubahan_tema) ? $ubahan_tema : $bawaan_tema;
 
-        static::creating(static function ($model): void {
-            $model->slug = Str::slug('desa-' . $model->nama);
-        });
+        return is_file($latar_website) ? $latar_website : null;
+    }
 
-        static::updating(static function ($model): void {
-            cache()->forget('theme_active');
-        });
+    public function lokasiLatarWebsite(): string
+    {
+        $folder = "desa/pengaturan/{$this->tema}/images/";
+        if (! file_exists($folder)) {
+            mkdir($folder, 0755, true);
+        }
 
-        static::deleting(static function ($model): void {
-            deleteDir($model->full_path);
+        return $folder;
+    }
 
-            cache()->forget('theme_active');
-        });
+    // Mengambil latar belakang login mandiri ubahan
+    public function latarLoginMandiri()
+    {
+        return file_exists(FCPATH . LATAR_KEHADIRAN) ? LATAR_KEHADIRAN : DEFAULT_LATAR_KEHADIRAN;
     }
 }

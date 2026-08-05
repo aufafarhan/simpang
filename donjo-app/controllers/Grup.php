@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,6 +39,7 @@ use App\Enums\StatusEnum;
 use App\Models\GrupAkses;
 use App\Models\Modul;
 use App\Models\UserGrup;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -76,36 +77,56 @@ class Grup extends Admin_Controller
         if ($this->input->is_ajax_request()) {
             $status = $this->input->get('status');
 
+            $superAdmin = super_admin();
+
             return datatables()->of(UserGrup::withCount('users')
-                ->when($status != '', static function ($query) use ($status): void {
+                ->when($status != '', static function ($query) use ($status) {
                     $query->status($status);
                 }))
-                ->addColumn('ceklist', static function ($row) {
-                    if (can('h') || can('u')) {
-                        return $row->jenis == UserGrup::DESA ? '<input type="checkbox" name="id_cb[]" value="' . $row->id . '"/>' : '';
-                    }
-                })
+                ->addColumn('ceklist', static fn ($row) => '<input type="checkbox" name="id_cb[]" value="' . $row->id . '"/>')
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row): string {
+                ->addColumn('aksi', static function ($row) use ($superAdmin): string {
                     $aksi = '';
-                    if ($row->id == 1) {
-                        return $aksi;
-                    }
-                    $aksi .= '<a href="' . ci_route('grup.viewForm', $row->id) . '" class="btn bg-info btn-sm" title="Lihat"><i class="fa fa-eye fa-sm"></i></a> ';
+                    // Lihat
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'        => ci_route('grup.viewForm', $row->id),
+                        'judul'      => 'Lihat',
+                        'icon'       => 'fa fa-eye fa-sm',
+                        'type'       => 'bg-info',
+                        'buttonOnly' => true,
+                    ])->render();
 
-                    if (can('u')) {
+                    // Edit
+                    if (can('u') && $row->id != $superAdmin) {
                         if ($row->jenis == UserGrup::DESA) {
-                            $aksi .= '<a href="' . ci_route('grup.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah"><i class="fa fa-edit"></i></a> ';
-                        }
-                        $aksi .= '<a href="' . ci_route('grup.salin', $row->id) . '" class="btn bg-olive btn-sm" title="Salin"><i class="fa fa-copy"></i></a> ';
-                        if ($row->status == StatusEnum::YA) {
-                            $aksi .= '<a href="' . ci_route('grup.lock', "{$row->id}") . '" class="btn bg-navy btn-sm" title="Non Aktifkan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('grup.lock', "{$row->id}") . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock">&nbsp;</i></a> ';
+                            $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                'url' => '/grup/form/' . $row->id,
+                            ])->render();
                         }
                     }
-                    if (can('h') && $row->jenis == UserGrup::DESA && $row->users_count <= 0) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('grup.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a>';
+                    // Salin
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'        => ci_route('grup.salin', $row->id),
+                        'judul'      => 'Salin',
+                        'icon'       => 'fa fa-copy',
+                        'type'       => 'bg-olive',
+                        'buttonOnly' => true,
+                    ])->render();
+
+                    // Aktif / Nonaktifkan
+                    if ($row->id != $superAdmin) {
+                        $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                            'url'    => ci_route('grup.lock', $row->id),
+                            'active' => $row->status == StatusEnum::YA,
+                        ])->render();
+                    }
+
+                    // Hapus
+                    if (($row->id != $superAdmin) && $row->jenis == UserGrup::DESA && $row->users_count <= 0) {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => '/grup/delete/' . $row->id,
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;
@@ -187,14 +208,6 @@ class Grup extends Admin_Controller
         }
     }
 
-    private function set_form_validation(): void
-    {
-        $this->form_validation->set_error_delimiters('', '');
-        $this->form_validation->set_rules('nama', 'Nama Grup', 'required|callback_syarat_nama');
-        $this->form_validation->set_message('nama', 'Hanya boleh berisi karakter alfanumerik, spasi dan strip');
-        $this->form_validation->set_rules('modul[]', 'Akses Modul', 'required');
-    }
-
     public function syarat_nama($str)
     {
         return ! preg_match('/[^a-zA-Z0-9 \\-]/', (string) $str);
@@ -229,27 +242,6 @@ class Grup extends Admin_Controller
         }
     }
 
-    private function simpanAkses(string $grupId, array $moduls): void
-    {
-        $grupAkses = [];
-        $configId  = identitas()->id;
-        GrupAkses::whereIdGrup($grupId)->delete();
-
-        foreach ($moduls['id'] as $mod) {
-            $baca  = $moduls['akses_baca'][$mod] ? 1 : 0;
-            $ubah  = $moduls['akses_ubah'][$mod] ? 2 : 0;
-            $hapus = $moduls['akses_hapus'][$mod] ? 4 : 0;
-
-            $akses       = $baca + $ubah + $hapus;
-            $grupAkses[] = ['config_id' => $configId, 'akses' => $akses, 'id_grup' => $grupId, 'id_modul' => $mod];
-        }
-        if ($grupAkses) {
-            GrupAkses::insert($grupAkses);
-        }
-        cache()->forget("akses_grup_{$grupId}");
-        cache()->forget("{$grupId}_admin_menu");
-    }
-
     public function delete($id = null): void
     {
         isCan('h');
@@ -267,7 +259,7 @@ class Grup extends Admin_Controller
             GrupAkses::whereIn('id_grup', $this->request['id_cb'] ?? [$id])->delete();
             UserGrup::destroy($this->request['id_cb'] ?? $id);
             // cache()->flush();
-            $this->cache->hapus_cache_untuk_semua('_cache_modul');
+            hapus_cache('_cache_modul');
             redirect_with('success', 'Grup pengguna berhasil dihapus');
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
@@ -338,25 +330,6 @@ class Grup extends Admin_Controller
         redirect_with('error', 'Gagal Impor Data<br/>' . $this->upload->display_errors());
     }
 
-    private function formatImport($list_data = null)
-    {
-        return collect(json_decode((string) $list_data, true))
-            ->map(static fn ($item): array => [
-                'config_id'  => identitas('id'),
-                'nama'       => $item['nama'],
-                'slug'       => $item['slug'],
-                'jenis'      => UserGrup::DESA,
-                'status'     => $item['status'],
-                'akses'      => $item['akses'],
-                'created_at' => date('Y-m-d H:i:s'),
-                'creted_by'  => ci_auth()->id,
-                'updated_at' => date('Y-m-d H:i:s'),
-                'updated_by' => ci_auth()->id,
-            ])
-            ->filter(static fn ($item): bool => $item['nama'] && $item['slug'])
-            ->toArray();
-    }
-
     public function impor_filter($data)
     {
         set_session('data_impor_pengguna', $data);
@@ -379,6 +352,54 @@ class Grup extends Admin_Controller
         $this->prosesImport(session('data_impor_pengguna'), $id);
 
         redirect_with('success', 'Berhasil Impor Data');
+    }
+
+    private function set_form_validation(): void
+    {
+        $this->form_validation->set_error_delimiters('', '');
+        $this->form_validation->set_rules('nama', 'Nama Grup', 'required|callback_syarat_nama');
+        $this->form_validation->set_message('nama', 'Hanya boleh berisi karakter alfanumerik, spasi dan strip');
+        $this->form_validation->set_rules('modul[]', 'Akses Modul', 'required');
+    }
+
+    private function simpanAkses(string $grupId, array $moduls): void
+    {
+        $grupAkses = [];
+        $configId  = identitas()->id;
+        GrupAkses::whereIdGrup($grupId)->delete();
+
+        foreach ($moduls['id'] as $mod) {
+            $baca  = $moduls['akses_baca'][$mod] ? 1 : 0;
+            $ubah  = $moduls['akses_ubah'][$mod] ? 2 : 0;
+            $hapus = $moduls['akses_hapus'][$mod] ? 4 : 0;
+
+            $akses       = $baca + $ubah + $hapus;
+            $grupAkses[] = ['config_id' => $configId, 'akses' => $akses, 'id_grup' => $grupId, 'id_modul' => $mod];
+        }
+        if ($grupAkses) {
+            GrupAkses::insert($grupAkses);
+        }
+        cache()->forget("akses_grup_{$grupId}");
+        cache()->forget("{$grupId}_admin_menu");
+    }
+
+    private function formatImport($list_data = null)
+    {
+        return collect(json_decode((string) $list_data, true))
+            ->map(static fn ($item): array => [
+                'config_id'  => identitas('id'),
+                'nama'       => $item['nama'],
+                'slug'       => $item['slug'],
+                'jenis'      => UserGrup::DESA,
+                'status'     => $item['status'],
+                'akses'      => $item['akses'],
+                'created_at' => date('Y-m-d H:i:s'),
+                'creted_by'  => ci_auth()->id,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'updated_by' => ci_auth()->id,
+            ])
+            ->filter(static fn ($item): bool => $item['nama'] && $item['slug'])
+            ->toArray();
     }
 
     private function prosesImport($list_data = null, $id = null): bool

@@ -34,12 +34,13 @@
                         <tr>
                             <th class="padat">NO</th>
                             <th class="aksi">AKSI</th>
-                            <th>NO ANTREAN</th>
-                            <th>NIK</th>
-                            <th>NAMA PENDUDUK</th>
-                            <th>NO HP AKTIF</th>
+                            <th class="padat">NO ANTREAN</th>
+                            <th class="padat">NIK</th>
+                            <th class="padat">NAMA PENDUDUK</th>
+                            <th class="padat">NO HP AKTIF</th>
                             <th>JENIS SURAT</th>
-                            <th>TANGGAL KIRIM</th>
+                            <th>KETERANGAN</th>
+                            <th class="padat">TANGGAL KIRIM</th>
                         </tr>
                     </thead>
                 </table>
@@ -61,6 +62,8 @@
                     url: "{{ ci_route('permohonan_surat_admin.datatables') }}",
                     data: function(req) {
                         req.status = $('#status').val();
+                        console.log(req.status);
+                        
                     }
                 },
                 columns: [{
@@ -109,6 +112,12 @@
                         orderable: true
                     },
                     {
+                        data: 'keterangan',
+                        name: 'keterangan',
+                        searchable: false,
+                        orderable: false
+                    },
+                    {
                         data: 'created_at',
                         name: 'created_at',
                         searchable: true,
@@ -116,7 +125,7 @@
                     },
                 ],
                 order: [
-                    [7, 'desc']
+                    [8, 'desc']
                 ],
                 pageLength: 25
             });

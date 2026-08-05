@@ -15,7 +15,8 @@ class Galeri extends MY_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('first_gallery_m');
+        // Pengganti First_gallery_m yang dihapus di OpenSID 2607.
+        $this->load->helper('api_v1');
 
         if (strtolower($this->input->method()) === 'options') {
             $this->cors();
@@ -30,8 +31,8 @@ class Galeri extends MY_Controller
     public function index(): void
     {
         $page   = max(1, (int) $this->input->get('page'));
-        $paging = $this->first_gallery_m->paging($page);
-        $items  = $this->first_gallery_m->gallery_show($paging->offset, $paging->per_page);
+        $paging = galeri_paging_api($page);
+        $items  = galeri_list_api(0, $paging->offset, $paging->per_page);
 
         $data = array_map(fn ($album) => $this->mapAlbum($album), $items);
 
@@ -51,7 +52,7 @@ class Galeri extends MY_Controller
     public function detail($id = 0): void
     {
         $id     = (int) $id;
-        $parent = $this->first_gallery_m->get_parent($id);
+        $parent = galeri_album_api($id);
 
         if (! $parent || (int) $parent['enabled'] !== 1) {
             json(['data' => null, 'message' => 'Album tidak ditemukan'], 404);
@@ -59,8 +60,8 @@ class Galeri extends MY_Controller
         }
 
         $page   = max(1, (int) $this->input->get('page'));
-        $paging = $this->first_gallery_m->paging2($id, $page);
-        $items  = $this->first_gallery_m->sub_gallery_show($id, $paging->offset, $paging->per_page);
+        $paging = galeri_paging_api($page, $id);
+        $items  = galeri_list_api($id, $paging->offset, $paging->per_page);
 
         $fotos = array_map(fn ($f) => $this->mapFoto($f), $items);
 

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -41,6 +41,7 @@ use App\Enums\JenisPeraturan;
 use App\Enums\StatusEnum;
 use App\Models\Dokumen;
 use App\Models\DokumenHidup;
+use Illuminate\Support\Facades\View;
 
 class Lembaran_desa extends Admin_Controller
 {
@@ -55,39 +56,44 @@ class Lembaran_desa extends Admin_Controller
 
     public function index(): void
     {
+        $tahunAwal = Dokumen::tahun()->pluck('tahun')->min() ?? date('Y');
+
+        $data['list_tahun'] = collect(tahun($tahunAwal))->map(static fn ($tahun) => ['tahun' => $tahun]);
+
         $data['jenis_peraturan'] = JenisPeraturan::all();
         $sebutan_desa            = ucwords((string) setting('sebutan_desa'));
         $data['main_content']    = 'admin.dokumen.lembaran_desa.index';
         $data['subtitle']        = "Buku Lembaran {$sebutan_desa} Dan Berita {$sebutan_desa}";
         $data['selected_nav']    = 'lembaran';
-
+        $data['status']          = request('status');
         view('admin.bumindes.umum.main', $data);
     }
 
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
-            return datatables()->of(DokumenHidup::PeraturanDesa(3))
+            return datatables()->of(DokumenHidup::peraturanDesa(3))
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                            $aksi .= '<a href="' . ci_route('lembaran_desa.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                    }
+                    $aksi = View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "lembaran_desa/form/{$row->id}",
+                    ])->render();
 
-                    if (can('u')) {
-                        if ($row->enabled == StatusEnum::YA) {
-                            $aksi .= '<a href="' . ci_route('lembaran_desa.lock', $row->id) . '" class="btn bg-navy btn-sm" title="Nonaktifkan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('lembaran_desa.lock', $row->id) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        }
-                    }
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => ci_route('lembaran_desa.lock', $row->id),
+                        'active' => $row->enabled,
+                    ])->render();
 
                     if ($row->satuan != null) {
-                        $aksi .= '<a href="' . ci_route('lembaran_desa.unduh_berkas', $row->id) . '" class="btn bg-purple btn-sm" title="Unduh"><i class="fa fa-download"></i></a> ';
-                    } else {
-                        $aksi .= '<a class="btn bg-purple btn-sm" disabled title="Unduh"><i class="fa fa-download"></i></a> ';
+                         $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                             'url'        => ci_route('lembaran_desa.unduh_berkas', $row->id),
+                             'judul'      => 'Unduh',
+                             'icon'       => 'fa fa-download',
+                             'type'       => 'bg-purple',
+                             'buttonOnly' => true,
+                         ])->render();
                     }
 
                     return $aksi;
@@ -144,7 +150,64 @@ class Lembaran_desa extends Admin_Controller
             log_message('error', $e->getMessage());
             redirect_with('error', 'Data gagal disimpan');
         }
+    }
 
+    public function lock($id = ''): void
+    {
+        isCan('u');
+        if (Dokumen::gantiStatus($id, 'enabled')) {
+            redirect_with('success', 'Berhasil Ubah Status');
+        }
+        redirect_with('error', 'Gagal Ubah Status');
+    }
+
+    public function dialog($aksi = 'cetak')
+    {
+        $tahunAwal = Dokumen::tahun()->pluck('tahun')->min() ?? date('Y');
+
+        $data['list_tahun'] = collect(tahun($tahunAwal))->map(static fn ($tahun) => ['tahun' => $tahun]);
+
+        $data['aksi']       = $aksi;
+        $data['formAction'] = ci_route('lembaran_desa.cetak', $aksi);
+
+        return view('admin.dokumen.lembaran_desa.dialog', $data);
+    }
+
+    public function cetak($aksi = '')
+    {
+        $query = datatables(DokumenHidup::PeraturanDesa(3)->when($this->request['tahun'], function ($q) {
+        $q->whereYear('tgl_upload', $this->request['tahun']);
+    }));
+
+        $data         = $this->modal_penandatangan();
+        $data['aksi'] = $aksi;
+        $data['main'] = $query->prepareQuery()?->results()?->map(static function ($document) {
+            $array = $document?->toArray();
+            if (isset($array['attr'])) {
+                $array['attr'] = json_decode((string) $array['attr'], true);
+            }
+
+            return $array;
+        })?->toArray();
+
+        $data['file']      = 'Lembaran Desa';
+        $data['isi']       = 'admin.dokumen.lembaran_desa.cetak';
+        $data['letak_ttd'] = ['1', '1', '2'];
+        $data['tgl_cetak'] = $this->request['tahun'];
+
+        return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    /**
+     * Unduh berkas berdasarkan kolom dokumen.id
+     *
+     * @param int $id_dokumen Id berkas pada koloam dokumen.id
+     */
+    public function unduh_berkas($id_dokumen = 0): void
+    {
+        // Ambil nama berkas dari database
+        $data = DokumenHidup::GetDokumen($id_dokumen);
+        ambilBerkas($data['satuan'], $this->controller, null, LOKASI_DOKUMEN);
     }
 
     private function upload_dokumen()
@@ -154,7 +217,7 @@ class Lembaran_desa extends Admin_Controller
         $config['allowed_types'] = 'jpg|jpeg|png|pdf';
         $config['file_name']     = namafile($this->input->post('nama', true));
 
-        $this->load->library('MY_Upload', null, 'upload');
+        $this->load->library('upload');
         $this->upload->initialize($config);
 
         if (! $this->upload->do_upload('satuan')) {
@@ -177,7 +240,7 @@ class Lembaran_desa extends Admin_Controller
         $data['kategori']             = (int) $post['kategori'] ?: 1;
         $data['kategori_info_publik'] = (int) $post['kategori_info_publik'] ?: null;
         $data['id_syarat']            = (int) $post['id_syarat'] ?: null;
-        $data['id_pend']              = (int) $post['id_pend'] ?: 0;
+        $data['id_pend']              = (int) $post['id_pend'] ?: null;
         $data['tipe']                 = (int) $post['tipe'];
         $data['url']                  = $this->security->xss_clean($post['url']) ?: null;
 
@@ -201,61 +264,5 @@ class Lembaran_desa extends Admin_Controller
         $data['attr']['keterangan']        = htmlentities((string) $post['attr']['keterangan']);
 
         return $data;
-    }
-
-    public function lock($id = ''): void
-    {
-        isCan('u');
-        if (Dokumen::gantiStatus($id, 'enabled')) {
-            redirect_with('success', 'Berhasil Ubah Status');
-        }
-        redirect_with('error', 'Gagal Ubah Status');
-    }
-
-    public function dialog($aksi = 'cetak')
-    {
-        $data['aksi']       = $aksi;
-        $data['list_tahun'] = DokumenHidup::GetTahun(3);
-        $data['formAction'] = ci_route('lembaran_desa.cetak', $aksi);
-
-        return view('admin.dokumen.lembaran_desa.dialog', $data);
-    }
-
-    public function cetak($aksi = '')
-    {
-        $data          = $this->modal_penandatangan();
-        $data['aksi']  = $aksi;
-        $laporan       = DokumenHidup::PeraturanDesa(3)->get();
-        $data['tahun'] = $this->input->post('tahun');
-        if ($data['tahun']) {
-            $regex   = '"tgl_ditetapkan":"[[:digit:]]{2}-[[:digit:]]{2}-' . $data['tahun'];
-            $laporan = DokumenHidup::PeraturanDesa(3)->whereRaw("attr REGEXP '" . $regex . "'")->get();
-        }
-        $data['main'] = $laporan->map(static function ($document) {
-                $array = $document->toArray();
-                if (isset($array['attr'])) {
-                    $array['attr'] = json_decode((string) $array['attr'], true);
-                }
-
-                return $array;
-            })->toArray();
-        $data['config']    = $this->header['desa'];
-        $data['file']      = 'Lembaran Desa';
-        $data['isi']       = 'admin.dokumen.lembaran_desa.cetak';
-        $data['letak_ttd'] = ['1', '1', '2'];
-
-        return view('admin.layouts.components.format_cetak', $data);
-    }
-
-    /**
-     * Unduh berkas berdasarkan kolom dokumen.id
-     *
-     * @param int $id_dokumen Id berkas pada koloam dokumen.id
-     */
-    public function unduh_berkas($id_dokumen = 0): void
-    {
-        // Ambil nama berkas dari database
-        $data = DokumenHidup::GetDokumen($id_dokumen);
-        ambilBerkas($data['satuan'], $this->controller, null, LOKASI_DOKUMEN);
     }
 }

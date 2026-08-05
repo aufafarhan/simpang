@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 namespace App\Models;
 
+use App\Enums\JenisKelaminEnum;
 use App\Traits\ConfigId;
 use App\Traits\ShortcutCache;
 use Cviebrock\EloquentSluggable\Sluggable;
@@ -51,13 +52,6 @@ class Kelompok extends BaseModel
     use Sluggable;
 
     /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'kelompok';
-
-    /**
      * The timestamps for the model.
      *
      * @var bool
@@ -65,11 +59,88 @@ class Kelompok extends BaseModel
     public $timestamps = false;
 
     /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'kelompok';
+
+    /**
      * The guarded with the model.
      *
      * @var array
      */
     protected $guarded = ['id'];
+
+    protected $append = ['kategori', 'nama_ketua'];
+
+    public static function boot(): void
+    {
+        parent::boot();
+
+        static::updating(static function ($model): void {
+            static::deleteFile($model, 'logo');
+        });
+
+        static::deleting(static function ($model): void {
+            static::deleteFile($model, 'logo', true);
+        });
+    }
+
+    public static function deleteFile($model, ?string $file, $deleting = false): void
+    {
+        if ($model->isDirty($file) || $deleting) {
+            $logo = LOKASI_LOGO_DESA . $model->getOriginal($file);
+            if (file_exists($logo)) {
+                unlink($logo);
+            }
+        }
+    }
+
+    public static function get_ketua_kelompok($id)
+    {
+        $data = DB::table('kelompok as k')
+            ->select([
+                'u.id',
+                'u.nik',
+                'u.nama',
+                'u.sex',
+                'u.sex as jenis_kelamin_id',
+                'k.id as id_kelompok',
+                'k.nama as nama_kelompok',
+                'u.tempatlahir',
+                'u.tanggallahir',
+                DB::raw("DATE_FORMAT(FROM_DAYS(TO_DAYS(NOW()) - TO_DAYS(`u.tanggallahir`)), '%Y') + 0 AS umur"),
+                'wil.rt',
+                'wil.rw',
+                'wil.dusun',
+            ])
+            ->leftJoin('tweb_penduduk as u', 'u.id', '=', 'k.id_ketua')
+            ->leftJoin('tweb_wil_clusterdesa as wil', 'wil.id', '=', 'u.id_cluster')
+            ->where('k.id', $id)
+            ->first()->toArray();
+
+            if ($data) {
+                $data['alamat_wilayah'] = Penduduk::get_alamat_wilayah($data['id']);
+            }
+
+        return $data ?? null;
+    }
+
+    public static function slugCheck($nama, $type)
+    {
+        return self::whereSlug($nama)->whereTipe($type)->exists();
+    }
+
+    public function getKategoriAttribute()
+    {
+        return $this->kelompokMaster->kelompok;
+    }
+
+    public function getNamaKetuaAttribute()
+    {
+        return $this->ketua->nama;
+    }
 
     public function ketua()
     {
@@ -86,6 +157,11 @@ class Kelompok extends BaseModel
         return $this->hasMany(KelompokAnggota::class, 'id_kelompok', 'id');
     }
 
+    public function pengurus()
+    {
+        return $this->hasMany(KelompokAnggota::class, 'id_kelompok', 'id')->pengurus();
+    }
+
     /**
      * Scope query untuk status kelompok
      *
@@ -96,6 +172,11 @@ class Kelompok extends BaseModel
         return $query->whereHas('ketua', static function ($q) use ($status): void {
             $q->status($status);
         });
+    }
+
+    public function scopeSlug(mixed $query, mixed $slug)
+    {
+        return $query->where('slug', $slug);
     }
 
     /**
@@ -238,65 +319,6 @@ class Kelompok extends BaseModel
         return $query->whereRaw('jabatan', 'REGEXP', '[a-zA-Z]+')->where('id_kelompok', $id_kelompok)->orderBy('jabatan')->get()->toArray();
     }
 
-    public static function boot(): void
-    {
-        parent::boot();
-
-        static::updating(static function ($model): void {
-            static::deleteFile($model, 'logo');
-        });
-
-        static::deleting(static function ($model): void {
-            static::deleteFile($model, 'logo', true);
-        });
-    }
-
-    public static function deleteFile($model, ?string $file, $deleting = false): void
-    {
-        if ($model->isDirty($file) || $deleting) {
-            $logo = LOKASI_LOGO_DESA . $model->getOriginal($file);
-            if (file_exists($logo)) {
-                unlink($logo);
-            }
-        }
-    }
-
-    public static function get_ketua_kelompok($id)
-    {
-        $data = DB::table('kelompok as k')
-            ->select([
-                'u.id',
-                'u.nik',
-                'u.nama',
-                'k.id as id_kelompok',
-                'k.nama as nama_kelompok',
-                'u.tempatlahir',
-                'u.tanggallahir',
-                DB::raw("DATE_FORMAT(FROM_DAYS(TO_DAYS(NOW()) - TO_DAYS(`u.tanggallahir`)), '%Y') + 0 AS umur"),
-                'd.nama as pendidikan',
-                'f.nama as warganegara',
-                'a.nama as agama',
-                's.nama as sex',
-                'wil.rt',
-                'wil.rw',
-                'wil.dusun',
-            ])
-            ->leftJoin('tweb_penduduk as u', 'u.id', '=', 'k.id_ketua')
-            ->leftJoin('tweb_penduduk_pendidikan_kk as d', 'u.pendidikan_kk_id', '=', 'd.id')
-            ->leftJoin('tweb_penduduk_warganegara as f', 'u.warganegara_id', '=', 'f.id')
-            ->leftJoin('tweb_penduduk_agama as a', 'u.agama_id', '=', 'a.id')
-            ->leftJoin('tweb_penduduk_sex as s', 's.id', '=', 'u.sex')
-            ->leftJoin('tweb_wil_clusterdesa as wil', 'wil.id', '=', 'u.id_cluster')
-            ->where('k.id', $id)
-            ->first()->toArray();
-
-            if ($data) {
-                $data['alamat_wilayah'] = Penduduk::get_alamat_wilayah($data['id']);
-            }
-
-        return $data ?? null;
-    }
-
     /**
      * Return the sluggable configuration array for this model.
      */
@@ -310,8 +332,24 @@ class Kelompok extends BaseModel
         ];
     }
 
-    public static function slugCheck($nama, $type)
+    public function judulStatistik($tipe = 0, $nomor = 0, $sex = 0)
     {
-        return self::whereSlug($nama)->whereTipe($type)->exists();
+        if ($nomor == JUMLAH) {
+            $judul = ['nama' => ' : JUMLAH'];
+        } elseif ($nomor == BELUM_MENGISI) {
+            $judul = ['nama' => ' : BELUM MENGISI'];
+        } elseif ($nomor == TOTAL) {
+            $judul = ['nama' => ' : TOTAL'];
+        } else {
+            $table = match ($tipe) {
+                'penerima_bantuan' => 'program',
+                default            => 'kelompok',
+            };
+            $judul = $this->where(['id' => $nomor])->first()->toArray();
+        }
+
+        $judul['nama'] .= ' - ' . JenisKelaminEnum::valueToUpper($sex) ?? 'TIDAK DIKETAHUI';
+
+        return $judul;
     }
 }

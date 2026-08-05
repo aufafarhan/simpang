@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -50,11 +50,9 @@ class VerifyNotification extends Notification
     /**
      * Get the notification's channels.
      *
-     * @param mixed $notifiable
-     *
      * @return array|string
      */
-    public function via($notifiable)
+    public function via(mixed $notifiable): array
     {
         return [$this->via];
     }
@@ -62,11 +60,9 @@ class VerifyNotification extends Notification
     /**
      * Build the mail representation of the notification.
      *
-     * @param mixed $notifiable
-     *
      * @return MailMessage
      */
-    public function toMail($notifiable)
+    public function toMail(mixed $notifiable)
     {
         return (new MailMessage())
             ->subject('Verifikasi Alamat Email')
@@ -76,14 +72,14 @@ class VerifyNotification extends Notification
             ]);
     }
 
-    public function toTelegram($notifiable)
+    public function toTelegram($notifiable): \NotificationChannels\Telegram\TelegramBase
     {
         return TelegramMessage::create()
             ->to($notifiable->getTelegramForVerification())
             ->content('Hello!')
             ->line('')
             ->line('')
-            ->line('Silakan klik tombol di bawah ini untuk memverifikasi alamat telegram Anda.')
+            ->line('Silakan klik tombol di bawah ini untuk melakukan verifikasi alamat telegram Anda.')
             ->line('')
             ->line('Jika Anda tidak membuat akun, tidak diperlukan tindakan lebih lanjut.')
             ->line('')
@@ -95,14 +91,12 @@ class VerifyNotification extends Notification
     /**
      * Get the verification URL for the given notifiable.
      *
-     * @param mixed $notifiable
-     *
      * @return string
      */
-    protected function verificationUrl($notifiable)
+    protected function verificationUrl(mixed $notifiable)
     {
-        $hash      = sha1($for = $this->via == 'mail' ? $notifiable->getEmailForVerification() : $notifiable->getTelegramForVerification());
-        $signature = hash_hmac('sha256', $for, config_item('encryption_key'));
+        $hash      = sha1((string) ($for = $this->via == 'mail' ? $notifiable->getEmailForVerification() : $notifiable->getTelegramForVerification()));
+        $signature = hash_hmac('sha256', (string) $for, config_item('encryption_key'));
         $expire    = strtotime(date('Y-m-d H:i:s') . ' +60 minutes');
         $via       = $this->via === 'mail' ? 'email' : 'telegram';
 

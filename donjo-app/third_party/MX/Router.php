@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -55,6 +55,128 @@ class MX_Router extends CI_Router
     public function fetch_module()
     {
         return $this->module;
+    }
+
+    /**
+     * [Locate the controller]
+     *
+     * @method locate
+     *
+     * @param [type] $segments [description]
+     *
+     * @return [type]           [description]
+     */
+    public function locate($segments)
+    {
+        // Clear var $this->directory before search controller in function locate() of the Router class.
+        // Solve the problem of trying to load a "root" controller using Modules::run('controller/method') after loading a module controller
+        // with Modules::run('module/controller/method')
+        $this->directory = null;
+        $this->located   = 0;
+        $ext             = $this->config->item('controller_suffix') . EXT;
+
+        // use module route if available
+        if (isset($segments[0]) && $routes = Modules::parse_routes($segments[0], implode('/', $segments))) {
+            $segments = $routes;
+        }
+
+        // Backward function
+        // Before PHP 7.1.0, list() only worked on numerical arrays and assumes the numerical indices start at 0.
+        [$module, $directory, $controller] = array_pad($segments, 3, null);
+
+        foreach (Modules::$locations as $location => $offset) {
+            $paths = [
+                $location . $module . '/app/Http/Controllers/',
+                $location . $module . '/Http/Controllers/',
+            ];
+
+            foreach ($paths as $path) {
+                if (! is_dir($path)) continue;
+
+                $source          = $path;
+                $this->module    = $module;
+                $this->directory = str_replace($location, $offset, $path);
+
+                if ($directory) {
+
+                    if (is_dir($source . $directory . '/')) {
+                        $source          .= $directory . '/';
+                        $this->directory .= $directory . '/';
+
+                        if ($controller && is_file($source . ucfirst($controller) . $ext)) {
+                            $this->located = 3;
+
+                            return array_slice($segments, 2);
+                        }
+
+                        $this->located = -1;
+                    } elseif (is_file($source . ucfirst($directory) . $ext)) {
+                        $this->located = 2;
+
+                        return array_slice($segments, 1);
+                    } else {
+                        $this->located = -1;
+                    }
+                }
+
+                if (is_file($source . ucfirst($module) . $ext)) {
+                    $this->located = 1;
+
+                    return $segments;
+                }
+            }
+        }
+
+        if ($this->directory !== null && $this->directory !== '' && $this->directory !== '0') {
+            return;
+        }
+
+        // application sub-directory controller exists?
+        if ($directory) {
+            if (is_file(APPPATH . 'controllers/' . $module . '/' . ucfirst($directory) . $ext)) {
+                $this->directory = $module . '/';
+
+                return array_slice($segments, 1);
+            }
+
+            // application sub-sub-directory controller exists?
+            if ($controller && is_file(APPPATH . 'controllers/' . $module . '/' . $directory . '/' . ucfirst($controller) . $ext)) {
+                $this->directory = $module . '/' . $directory . '/';
+
+                return array_slice($segments, 2);
+            }
+        }
+
+        // application controllers sub-directory exists?
+        if (is_dir(APPPATH . 'controllers/' . $module . '/')) {
+            $this->directory = $module . '/';
+
+            return array_slice($segments, 1);
+        }
+
+        // application controller exists?
+        if (is_file(APPPATH . 'controllers/' . ucfirst($module) . $ext)) {
+            return $segments;
+        }
+        $this->located = -1;
+    }
+
+    /**
+     * [set_class description]
+     *
+     * @method set_class
+     *
+     * @param [type]    $class [description]
+     */
+    public function set_class($class): void
+    {
+        $suffix = $this->config->item('controller_suffix');
+        // Fixing Error Message: strpos(): Non-string needles will be interpreted as strings in the future.
+        // Use an explicit chr() call to preserve the current behavior.
+        if ($suffix && strpos($class, (string) $suffix) === false) {
+            $class .= $suffix;
+        }
+        parent::set_class($class);
     }
 
     /**
@@ -131,108 +253,6 @@ class MX_Router extends CI_Router
     }
 
     /**
-     * [Locate the controller]
-     *
-     * @method locate
-     *
-     * @param [type] $segments [description]
-     *
-     * @return [type]           [description]
-     */
-    public function locate($segments)
-    {
-        // Clear var $this->directory before search controller in function locate() of the Router class.
-        // Solve the problem of trying to load a "root" controller using Modules::run('controller/method') after loading a module controller
-        // with Modules::run('module/controller/method')
-        $this->directory = null;
-        $this->located   = 0;
-        $ext             = $this->config->item('controller_suffix') . EXT;
-
-        // use module route if available
-        if (isset($segments[0]) && $routes = Modules::parse_routes($segments[0], implode('/', $segments))) {
-            $segments = $routes;
-        }
-
-        // Backward function
-        // Before PHP 7.1.0, list() only worked on numerical arrays and assumes the numerical indices start at 0.
-        [$module, $directory, $controller] = array_pad($segments, 3, null);
-
-        // check modules
-        foreach (Modules::$locations as $location => $offset) {
-            // module exists?
-            if (is_dir($source = $location . $module . '/Http/Controllers/')) {
-                $this->module    = $module;
-                $this->directory = $offset . $module . '/Http/Controllers/';
-
-                // module sub-controller exists?
-                if ($directory) {
-                    // module sub-directory exists?
-                    if (is_dir($source . $directory . '/')) {
-                        $source          .= $directory . '/';
-                        $this->directory .= $directory . '/';
-
-                        // module sub-directory controller exists?
-                        if ($controller) {
-                            if (is_file($source . ucfirst($controller) . $ext)) {
-                                $this->located = 3;
-
-                                return array_slice($segments, 2);
-                            }
-                            $this->located = -1;
-                        }
-                    } elseif (is_file($source . ucfirst($directory) . $ext)) {
-                        $this->located = 2;
-
-                        return array_slice($segments, 1);
-                    } else {
-                        $this->located = -1;
-                    }
-                }
-
-                // module controller exists?
-                if (is_file($source . ucfirst($module) . $ext)) {
-                    $this->located = 1;
-
-                    return $segments;
-                }
-            }
-        }
-
-        if ($this->directory !== null && $this->directory !== '' && $this->directory !== '0') {
-            return;
-        }
-
-        // application sub-directory controller exists?
-        if ($directory) {
-            if (is_file(APPPATH . 'controllers/' . $module . '/' . ucfirst($directory) . $ext)) {
-                $this->directory = $module . '/';
-
-                return array_slice($segments, 1);
-            }
-
-            // application sub-sub-directory controller exists?
-            if ($controller && is_file(APPPATH . 'controllers/' . $module . '/' . $directory . '/' . ucfirst($controller) . $ext)) {
-                $this->directory = $module . '/' . $directory . '/';
-
-                return array_slice($segments, 2);
-            }
-        }
-
-        // application controllers sub-directory exists?
-        if (is_dir(APPPATH . 'controllers/' . $module . '/')) {
-            $this->directory = $module . '/';
-
-            return array_slice($segments, 1);
-        }
-
-        // application controller exists?
-        if (is_file(APPPATH . 'controllers/' . ucfirst($module) . $ext)) {
-            return $segments;
-        }
-        $this->located = -1;
-    }
-
-    /**
      * [set module path]
      *
      * @method _set_module_path
@@ -263,23 +283,5 @@ class MX_Router extends CI_Router
                 }
             }
         }
-    }
-
-    /**
-     * [set_class description]
-     *
-     * @method set_class
-     *
-     * @param [type]    $class [description]
-     */
-    public function set_class($class): void
-    {
-        $suffix = $this->config->item('controller_suffix');
-        // Fixing Error Message: strpos(): Non-string needles will be interpreted as strings in the future.
-        // Use an explicit chr() call to preserve the current behavior.
-        if ($suffix && strpos($class, (string) $suffix) === false) {
-            $class .= $suffix;
-        }
-        parent::set_class($class);
     }
 }

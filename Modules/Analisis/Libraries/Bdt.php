@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,13 +37,13 @@
 
 namespace Modules\Analisis\Libraries;
 
+use App\Libraries\SpreadsheetExcelReader;
 use App\Models\Penduduk;
 use App\Models\Rtm;
 use Modules\Analisis\Models\AnalisisIndikator;
 use Modules\Analisis\Models\AnalisisMaster;
 use Modules\Analisis\Models\AnalisisParameter;
 use Modules\Analisis\Models\AnalisisRespon;
-use Spreadsheet_Excel_Reader;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -65,15 +65,59 @@ class Bdt
     private $kolom_subjek;
     private $kolom_indikator_pertama;
     private $list_id_subjek;
+    private $subjekTipe;
 
-    public function __construct($idMaster, $periode)
+    public function __construct($idMaster, $periode, $subjekTipe)
     {
         $this->idMaster       = $idMaster;
         $this->periode        = $periode;
         $this->analisisMaster = AnalisisMaster::findOrFail($idMaster);
+        $this->subjekTipe     = $subjekTipe;
     }
 
-    private function file_import_valid()
+    /*
+     * 1. Impor pengelompokan rumah tangga
+     * 2. Impor data BDT 2015 ke dalam analisis_respon
+     *
+     * Abaikan subjek di data BDT yang tidak ada di database
+    */
+    public function impor(): void
+    {
+        $_SESSION['error_msg'] = '';
+        $_SESSION['success']   = 1;
+        if ($this->fileImportValid() == false) {
+            return;
+        }
+
+        // Pakai parameter 'false' untuk mengurangi penggunaan memori
+        // https://github.com/jasonrogena/php-excel-reader/issues/96
+        $data = new SpreadsheetExcelReader($_FILES['bdt']['tmp_name'], false);
+        // Baca jumlah baris berkas BDT
+        $this->jml_baris     = $data->rowcount($sheet_index = 0);
+        $this->baris_pertama = $this->cariBarisPertama($data, $this->jml_baris);
+        if ($this->baris_pertama <= 0) {
+            $_SESSION['error_msg'] .= ' -> Tidak ada data';
+            $_SESSION['success'] = -1;
+
+            return;
+        }
+
+        // BDT2015 terbatas pada subjek rumah tangga dan penduduk
+        if ($_SESSION['subjek_tipe'] == 3) {
+            // Rumah tangga
+            $this->kolom_subjek            = $this->kolom['id_rtm'];
+            $this->kolom_indikator_pertama = $this->kolom['awal_respon_rt'];
+        } else {
+            // Penduduk
+            $this->kolom_subjek            = $this->kolom['nik'];
+            $this->kolom_indikator_pertama = $this->kolom['awal_respon_penduduk'];
+        }
+
+        $data_sheet = $data->sheets[0]['cells'];
+        $this->imporRespon($data_sheet);
+    }
+
+    private function fileImportValid()
     {
         // error 1 = UPLOAD_ERR_INI_SIZE; lihat Upload.php
         // TODO: pakai cara upload yg disediakan Codeigniter
@@ -96,49 +140,7 @@ class Bdt
         return true;
     }
 
-    /*
-     * 1. Impor pengelompokan rumah tangga
-     * 2. Impor data BDT 2015 ke dalam analisis_respon
-     *
-     * Abaikan subjek di data BDT yang tidak ada di database
-    */
-    public function impor(): void
-    {
-        $_SESSION['error_msg'] = '';
-        $_SESSION['success']   = 1;
-        if ($this->file_import_valid() == false) {
-            return;
-        }
-
-        // Pakai parameter 'false' untuk mengurangi penggunaan memori
-        // https://github.com/jasonrogena/php-excel-reader/issues/96
-        $data = new Spreadsheet_Excel_Reader($_FILES['bdt']['tmp_name'], false);
-        // Baca jumlah baris berkas BDT
-        $this->jml_baris     = $data->rowcount($sheet_index = 0);
-        $this->baris_pertama = $this->cari_baris_pertama($data, $this->jml_baris);
-        if ($this->baris_pertama <= 0) {
-            $_SESSION['error_msg'] .= ' -> Tidak ada data';
-            $_SESSION['success'] = -1;
-
-            return;
-        }
-
-        // BDT2015 terbatas pada subjek rumah tangga dan penduduk
-        if ($_SESSION['subjek_tipe'] == 3) {
-            // Rumah tangga
-            $this->kolom_subjek            = $this->kolom['id_rtm'];
-            $this->kolom_indikator_pertama = $this->kolom['awal_respon_rt'];
-        } else {
-            // Penduduk
-            $this->kolom_subjek            = $this->kolom['nik'];
-            $this->kolom_indikator_pertama = $this->kolom['awal_respon_penduduk'];
-        }
-
-        $data_sheet = $data->sheets[0]['cells'];
-        $this->impor_respon($data_sheet);
-    }
-
-    private function impor_respon($data_sheet): void
+    private function imporRespon($data_sheet): void
     {
         $gagal        = 0;
         $ada          = 0;
@@ -149,7 +151,7 @@ class Bdt
         $respon = [];
 
         for ($i = $this->baris_pertama; $i <= $this->jml_baris; $i++) {
-            $data_subjek = $this->tulis_rtm($data_sheet[$i], $rtm);
+            $data_subjek = $this->tulisRtm($data_sheet[$i], $rtm);
             if (! $data_subjek) {
                 $gagal++;
 
@@ -163,7 +165,7 @@ class Bdt
                 } else {
                     $this->list_id_subjek[$data_sheet[$i][$this->kolom_subjek]] = $data_subjek['id_penduduk'];
                 }
-                $this->siapkan_respon($indikator, $per, $data_sheet[$i], $respon);
+                $this->siapkanRespon($indikator, $per, $data_sheet[$i], $respon);
                 $sudah_proses[] = $data_sheet[$i][$this->kolom_subjek];
                 $ada++;
             }
@@ -171,7 +173,7 @@ class Bdt
 
         // echo '<br><br>';
         // echo var_dump($this->list_id_subjek);
-        $this->hapus_respon($this->list_id_subjek);
+        $this->hapusRespon($this->list_id_subjek);
 
         // echo '<br><br>';
         // echo var_dump($respon);
@@ -190,7 +192,7 @@ class Bdt
     }
 
     // Hapus semua respon untuk semua subjek pada periode aktif
-    private function hapus_respon($list_id_subjek): void
+    private function hapusRespon($list_id_subjek): void
     {
         if (empty($list_id_subjek)) {
             return;
@@ -204,10 +206,13 @@ class Bdt
             $prefix = ', ';
         }
 
-        AnalisisRespon::where('id_periode', $per)->whereRaw("id_subjek in({$list_id_subjek_str})")->delete();
+        AnalisisRespon::where('id_periode', $per)
+            ->whereRaw("id_subjek in({$list_id_subjek_str})")
+            ->orWhereRaw("{$this->subjekTipe} in({$list_id_subjek_str})")
+            ->delete();
     }
 
-    private function cari_baris_pertama(Spreadsheet_Excel_Reader $data, $jml_baris)
+    private function cariBarisPertama(SpreadsheetExcelReader $data, $jml_baris)
     {
         if ($jml_baris <= 1) {
             return 0;
@@ -235,7 +240,7 @@ class Bdt
         return 0;
     }
 
-    private function tulis_rtm($baris, &$rtm)
+    private function tulisRtm($baris, &$rtm)
     {
         $id_rtm    = $baris[$this->kolom['id_rtm']];
         $rtm_level = $baris[$this->kolom['rtm_level']];
@@ -280,22 +285,22 @@ class Bdt
         return $penduduk;
     }
 
-    private function siapkan_respon($indikator, $per, $baris, &$respon): void
+    private function siapkanRespon($indikator, $per, $baris, &$respon): void
     {
         foreach ($indikator as $key => $indi) {
             $isi = $baris[$this->kolom_indikator_pertama + $key];
 
             switch ($indi['id_tipe']) {
                 case 1:
-                    $list_parameter = $this->parameter_pilihan_tunggal($indi['id'], $isi);
+                    $list_parameter = $this->parameterPilihanTunggal($indi['id'], $isi);
                     break;
 
                 case 2:
-                    $list_parameter = $this->parameter_pilihan_ganda($indi['id'], $isi);
+                    $list_parameter = $this->parameterPilihanGanda($indi['id'], $isi);
                     break;
 
                 default:
-                    $list_parameter = $this->parameter_isian($indi['id'], $isi);
+                    $list_parameter = $this->parameterIsian($indi['id'], $isi);
                     break;
             }
 
@@ -303,17 +308,18 @@ class Bdt
             foreach ($list_parameter as $parameter) {
                 if (! empty($parameter)) {
                     $respon[] = [
-                        'id_indikator' => $indi['id'],
-                        'id_subjek'    => $this->list_id_subjek[$baris[$this->kolom_subjek]],
-                        'id_periode'   => $per,
-                        'id_parameter' => $parameter,
+                        'id_indikator'    => $indi['id'],
+                        'id_subjek'       => $this->list_id_subjek[$baris[$this->kolom_subjek]],
+                        $this->subjekTipe => $this->list_id_subjek[$baris[$this->kolom_subjek]],
+                        'id_periode'      => $per,
+                        'id_parameter'    => $parameter,
                     ];
                 }
             }
         }
     }
 
-    private function parameter_pilihan_tunggal($id_indikator, $isi)
+    private function parameterPilihanTunggal($id_indikator, $isi)
     {
         $param = AnalisisParameter::select('id')->where('id_indikator', $id_indikator)->where('kode_jawaban', $isi)->first()->toArray();
         if ($param) {
@@ -327,7 +333,7 @@ class Bdt
         return [$in_param];
     }
 
-    private function parameter_pilihan_ganda($id_indikator, $isi)
+    private function parameterPilihanGanda($id_indikator, $isi)
     {
         if (empty($isi)) {
             return [null];
@@ -345,7 +351,7 @@ class Bdt
         return $in_param;
     }
 
-    private function parameter_isian($id_indikator, $isi)
+    private function parameterIsian($id_indikator, $isi)
     {
         if (empty($isi)) {
             return [null];

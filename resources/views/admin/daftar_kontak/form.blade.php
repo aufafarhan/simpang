@@ -23,9 +23,7 @@
         <div class="col-md-9">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ $_SERVER['HTTP_REFERER'] }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                        <i class="fa fa-arrow-circle-left "></i>Kembali ke {{ $navigasi }}
-                    </a>
+                    <x-kembali-button  onclick="true" :judul="'Kembali Ke '.$navigasi" :url="$_SERVER['HTTP_REFERER']" />
                 </div>
                 {!! form_open($formAction, 'class="form-horizontal" id="validasi"') !!}
                 <div class="box-body">
@@ -42,7 +40,7 @@
                                 <option value="">Pilih Cara Hubungi</option>
                                 <?php foreach (['SMS', 'Email', 'Telegram'] as $value) : ?>
                                 <?php
-                                if ((bool) $setting->aktifkan_sms === false && $value === 'SMS') {
+                                if ((bool) setting('aktifkan_sms') === false && $value === 'SMS') {
                                     continue;
                                 }
                                 ?>

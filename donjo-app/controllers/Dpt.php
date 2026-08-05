@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -44,7 +44,6 @@ use App\Enums\StatusKawinEnum;
 use App\Enums\StatusPendudukEnum;
 use App\Models\Pemilihan;
 use App\Models\Penduduk;
-use App\Models\Sex;
 use App\Models\Wilayah;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -65,7 +64,6 @@ class Dpt extends Admin_Controller
     public function index(): void
     {
         isCan('b');
-        $data['jenis_kelamin']        = Sex::get();
         $data['wilayah']              = Wilayah::treeAccess();
         $data['tanggal_pemilihan']    = Schema::hasTable('pemilihan') ? Pemilihan::tanggalPemilihan() : Carbon::now()->format('Y-m-d');
         $data['input_umur']           = true;
@@ -94,15 +92,60 @@ class Dpt extends Admin_Controller
                 ->addColumn('rw', static fn ($row) => $row->keluarga->wilayah->rw ?? $row->wilayah->rw)
                 ->addColumn('rt', static fn ($row) => $row->keluarga->wilayah->rt ?? $row->wilayah->rt)
                 ->addColumn('umur_pemilihan', static fn ($row): string => usia($row->tanggallahir, $tglPemilihan, '%y'))
+                ->addColumn('pendidikan_kk', static fn ($row) => $row->pendidikan_kk)
+                ->addColumn('status_perkawinan', static fn ($row) => $row->status_perkawinan)
                 ->make();
         }
 
         return show_404();
     }
 
+    public function cetak($aksi = 'cetak', $privasi_nik = 0): void
+    {
+        $paramDatatable = json_decode((string) $this->input->post('params'), 1);
+
+        $query = datatables($this->sumberData());
+        $data  = [
+            'main'  => $query->prepareQuery()->results(),
+            'start' => app('datatables.request')->start(),
+            'aksi'  => 'cetak',
+        ];
+
+        if ($privasi_nik == 1) {
+            $data['privasi_nik'] = true;
+        }
+        if ($aksi == 'unduh') {
+            header('Content-type: application/octet-stream');
+            header('Content-Disposition: attachment; filename=DPT_' . $paramDatatable['tgl_pemilihan'] . '.xls');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+        }
+        view('admin.dpt.dpt_cetak', $data);
+    }
+
+    public function ajax_cetak(string $aksi = 'cetak'): void
+    {
+        $data['aksi']   = $aksi;
+        $data['action'] = ci_route('dpt.cetak.' . $aksi);
+
+        view('admin.dpt.ajax_cetak_bersama', $data);
+    }
+
     private function sumberData()
     {
-        $tglPemilihan   = $this->input->get('tgl_pemilihan') ?? date('d-m-Y');
+        $tglPemilihan = $this->input->get('tgl_pemilihan') ?? date('d-m-Y');
+
+        // Validate date format d-m-Y
+        if (! preg_match('/^\d{2}-\d{2}-\d{4}$/', $tglPemilihan)) {
+            $tglPemilihan = date('d-m-Y');
+        }
+
+        // Validate it's a real date
+        $dateObj = DateTime::createFromFormat('d-m-Y', $tglPemilihan);
+        if (! $dateObj || $dateObj->format('d-m-Y') !== $tglPemilihan) {
+            $tglPemilihan = date('d-m-Y');
+        }
+
         $sex            = $this->input->get('sex');
         $dusun          = $this->input->get('dusun');
         $rw             = $this->input->get('rw');
@@ -148,49 +191,6 @@ class Dpt extends Admin_Controller
             ->when($filterKategori, static fn ($q) => $q->where($filterKategori))
             ->when($sex, static fn ($q) => $q->where('sex', $sex))
             ->when($listCluster, static fn ($q) => $q->whereIn('id_cluster', $listCluster))
-            ->withOnly(['jenisKelamin', 'keluarga', 'wilayah', 'pendidikanKK', 'pekerjaan', 'statusKawin']);
-    }
-
-    public function cetak($aksi = 'cetak', $privasi_nik = 0): void
-    {
-        $paramDatatable = json_decode((string) $this->input->post('params'), 1);
-        $_GET           = $paramDatatable;
-
-        $orderColumn = $paramDatatable['columns'][$paramDatatable['order'][0]['column']]['name'];
-        $orderDir    = $paramDatatable['order'][0]['dir'];
-        $query       = $this->sumberData();
-
-        if ($orderColumn == 'keluarga.no_kk') {
-            $query->selectRaw('tweb_penduduk.*, tweb_keluarga.no_kk as no_kk')->leftJoin('tweb_keluarga', 'tweb_keluarga.id', '=', 'tweb_penduduk.id_kk');
-            $orderColumn = 'no_kk';
-        }
-
-        if ($paramDatatable['start']) {
-            $query->skip($paramDatatable['start']);
-        }
-
-        $data = [
-            'tanggal_pemilihan' => $paramDatatable['tgl_pemilihan'],
-            'main'              => $query->take($paramDatatable['length'])->orderBy($orderColumn, $orderDir)->get(),
-            'start'             => $paramDatatable['start'],
-        ];
-        if ($privasi_nik == 1) {
-            $data['privasi_nik'] = true;
-        }
-        if ($aksi == 'unduh') {
-            header('Content-type: application/octet-stream');
-            header('Content-Disposition: attachment; filename=DPT_' . $paramDatatable['tgl_pemilihan'] . '.xls');
-            header('Pragma: no-cache');
-            header('Expires: 0');
-        }
-        view('admin.dpt.dpt_cetak', $data);
-    }
-
-    public function ajax_cetak(string $aksi = 'cetak'): void
-    {
-        $data['aksi']   = $aksi;
-        $data['action'] = ci_route('dpt.cetak.' . $aksi);
-
-        view('admin.dpt.ajax_cetak_bersama', $data);
+            ->withOnly(['keluarga', 'wilayah']);
     }
 }

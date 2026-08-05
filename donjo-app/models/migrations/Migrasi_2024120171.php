@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -46,59 +46,36 @@ use Illuminate\Support\Facades\Schema;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
-class Migrasi_2024120171 extends MY_Model
+class Migrasi_2024120171
 {
     use Migrator;
 
     public function up()
     {
-        $hasil = true;
-
-        // Migrasi berdasarkan config_id
-        $config_id = DB::table('config')->pluck('id')->toArray();
-
-        foreach ($config_id as $id) {
-            $hasil = $this->migrasi_2024110651($hasil, $id);
-        }
-
-        $hasil = $this->migrasi_2024110351($hasil);
-        $hasil = $this->migrasi_2024110652($hasil);
-        $hasil = $this->migrasi_2024111251($hasil);
-        $hasil = $this->migrasi_2024112071($hasil);
-        $hasil = $this->migrasi_2024112551($hasil);
-
-        return $this->migrasi_2024112651($hasil);
+        $this->migrasi_2024110651();
+        $this->migrasi_2024110351();
+        $this->migrasi_2024110652();
+        $this->migrasi_2024111251();
+        $this->migrasi_2024112071();
+        $this->migrasi_2024112551();
+        $this->migrasi_2024112651();
     }
 
-    private function migrasi_2024110651($hasil, $id)
+    public function migrasi_2024110351()
     {
-        return $hasil && (new CreateGrupAksesService())->run($id);
+        $this->hapusForeignKey('persil_peta_fk', 'persil', 'lokasi');
+        $this->tambahForeignKey('persil_peta_fk', 'persil', 'id_peta', 'area', 'id', true);
+        $this->hapusForeignKey('mutasi_cdesa_peta_fk', 'mutasi_cdesa', 'lokasi');
+
+        $this->tambahForeignKey('mutasi_cdesa_peta_fk', 'mutasi_cdesa', 'id_peta', 'area', 'id', true);
     }
 
-    private function migrasi_2024110652($hasil)
-    {
-        copyFavicon();
-
-        return $hasil;
-    }
-
-    protected function migrasi_2024110351($hasil)
-    {
-        $hasil = $hasil && $this->hapus_foreign_key('lokasi', 'persil_peta_fk', 'persil');
-        $hasil = $hasil && $this->tambahForeignKey('persil_peta_fk', 'persil', 'id_peta', 'area', 'id', true);
-        $hasil = $hasil && $this->hapus_foreign_key('lokasi', 'mutasi_cdesa_peta_fk', 'mutasi_cdesa');
-
-        return $hasil && $this->tambahForeignKey('mutasi_cdesa_peta_fk', 'mutasi_cdesa', 'id_peta', 'area', 'id', true);
-    }
-
-    protected function migrasi_2024111251($hasil)
+    public function migrasi_2024111251()
     {
         FormatSurat::where('url_surat', 'sistem-surat-keterangan-pengantar-rujukcerai')->where('jenis', FormatSurat::TINYMCE_SISTEM)->delete();
-
-        return $hasil;
     }
 
-    protected function migrasi_2024112071($hasil)
+    public function migrasi_2024112071()
     {
         if (! Schema::hasColumn('suplemen', 'status')) {
             Schema::table('suplemen', static function (Blueprint $table) {
@@ -117,30 +94,25 @@ class Migrasi_2024120171 extends MY_Model
                 $table->longText('form_isian')->nullable()->comment('Menyimpan data formulir dinamis tambahan sebagai JSON atau teks');
             });
         }
-
-        return $hasil;
     }
 
-    protected function migrasi_2024112551($hasil)
+    public function migrasi_2024112551()
     {
         $query = <<<'SQL'
-                        delete t1
-                        FROM grup_akses t1
-                        INNER JOIN grup_akses t2
-                        WHERE
-                            t1.id > t2.id AND
-                            t1.config_id = t2.config_id AND
-                            t1.id_grup = t2.id_grup and
-                            t1.id_modul = t2.id_modul
+                DELETE t1
+                FROM grup_akses t1
+                INNER JOIN grup_akses t2
+                ON t1.config_id = t2.config_id
+                AND t1.id_grup = t2.id_grup
+                AND t1.id_modul = t2.id_modul
+                WHERE t1.id > t2.id;
             SQL;
         DB::statement($query);
 
         $this->tambahIndeks('grup_akses', 'config_id, id_grup, id_modul', 'UNIQUE', true);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024112651($hasil)
+    public function migrasi_2024112651()
     {
         if (Schema::hasColumn('shortcut', 'akses')) {
             Schema::table('shortcut', static function ($table) {
@@ -163,7 +135,15 @@ class Migrasi_2024120171 extends MY_Model
 
             (new ClearCacheObserver())->clearAllCache();
         }
+    }
 
-        return $hasil;
+    public function migrasi_2024110651()
+    {
+        (new CreateGrupAksesService())->handle();
+    }
+
+    public function migrasi_2024110652()
+    {
+        copyFavicon();
     }
 }

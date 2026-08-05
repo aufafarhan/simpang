@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>
-        {{ $setting->admin_title . ' ' . ucwords($setting->sebutan_desa . ' ' . ($desa['nama_desa'] ?? '')) . get_dynamic_title_page_from_path() }}
+        {{ setting('admin_title') . ' ' . ucwords(setting('sebutan_desa') . ' ' . ($desa['nama_desa'] ?? '')) . get_dynamic_title_page_from_path() }}
     </title>
     <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
     <link rel="shortcut icon" href="{{ favico_desa() }}" />
@@ -28,9 +28,24 @@
     <!-- Loading Lazy -->
     <link rel="stylesheet" href="<?= asset('js/progressive-image/progressive-image.css') ?>">
     @stack('css')
+    <style>
+    @keyframes pulse-badge {
+        0%, 100% { 
+            transform: scale(1); 
+            box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+        }
+        50% { 
+            transform: scale(1.1); 
+            box-shadow: 0 0 0 5px rgba(255, 193, 7, 0);
+        }
+    }
+    .notification-badge {
+        animation: pulse-badge 2s infinite;
+    }
+    </style>
 </head>
 
-<body id="sidebar_collapse" class="{{ $setting->warna_tema_admin }} fixed sidebar-mini">
+<body id="sidebar_collapse" class="{{ setting('warna_tema_admin') }} fixed sidebar-mini">
     <div class="wrapper">
 
         @include('admin.layouts.partials.header')
@@ -131,35 +146,6 @@
         });
     </script>
 
-    @if (isset($perbaharui_langganan) && $controller != 'pengguna' && !config_item('demo_mode'))
-        <!-- cek status langganan -->
-        <script type="text/javascript">
-            var controller = '{{ $controller }}';
-            $.ajax({
-                    url: `<?= config_item('server_layanan') ?>/api/v1/pelanggan/pemesanan`,
-                    headers: {
-                        "Authorization": `Bearer {{ $setting->layanan_opendesa_token }}`,
-                        "X-Requested-With": `XMLHttpRequest`,
-                    },
-                    type: 'Post',
-                })
-                .done(function(response) {
-                    let data = {
-                        body: response
-                    }
-                    $.ajax({
-                        url: `${SITE_URL}pelanggan/pemesanan`,
-                        type: 'post',
-                        dataType: 'json',
-                        data: data,
-                    }).done(function() {
-                        if (controller == 'pelanggan') {
-                            location.reload();
-                        }
-                    });
-                })
-        </script>
-    @endif
     @include('admin.layouts.components.token')
 
 </body>

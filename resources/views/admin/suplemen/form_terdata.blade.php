@@ -2,13 +2,13 @@
 
 @section('title')
     <h1>
-        Daftar Terdata Suplemen
+        Data Terdata {{ $module_name }}
         <small>{{ $action }} Data</small>
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ ci_route('suplemen.rincian', $suplemen->id) }}">Daftar Terdata Suplemen</a></li>
+    <li class="breadcrumb-item"><a href="{{ ci_route('suplemen.rincian', $suplemen->id) }}">Data {{ $module_name }}</a></li>
     <li class="active">{{ $action }} Data</li>
 @endsection
 
@@ -17,8 +17,9 @@
 
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('suplemen') }}" class="btn btn-social btn-primary btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Suplemen</a>
-            <a href="{{ ci_route('suplemen.rincian', $suplemen->id) }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Terdata Suplemen</a>
+            @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('suplemen'), 'label' => 'Daftar Suplemen'])
+
+            @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('suplemen.rincian', $suplemen->id), 'label' => "Daftar {$module_name}"])
         </div>
         @include('admin.suplemen.rincian')
         <div class="box-body">
@@ -44,7 +45,7 @@
                                         <option selected value="">{{ 'NIK : ' . $individu->nik . ' - ' . $individu->nama . ' RT-' . $individu->wilayah->rt . ', RW-' . $individu->wilayah->rw . ', ' . strtoupper(setting('sebutan_dusun')) . ' ' . $individu->wilayah->dusun }}</option>
                                     @else
                                         <option selected value="">
-                                            {{ 'No KK : ' . $individu->keluarga->no_kk . ' - ' . $individu->pendudukHubungan->nama . '- NIK : ' . $individu->nik . ' - ' . $individu->nama . ' RT-' . $individu->wilayah->rt . ', RW-' . $individu->wilayah->rw . ', ' . strtoupper(setting('sebutan_dusun')) . ' ' . $individu->wilayah->dusun }}
+                                            {{ 'No KK : ' . $individu->keluarga->no_kk . ' - ' . $individu->penduduk_hubungan . '- NIK : ' . $individu->nik . ' - ' . $individu->nama . ' RT-' . $individu->wilayah->rt . ', RW-' . $individu->wilayah->rw . ', ' . strtoupper(setting('sebutan_dusun')) . ' ' . $individu->wilayah->dusun }}
                                         </option>
                                     @endif
                                 @endif
@@ -74,12 +75,16 @@
                     </div>
                 </div>
             @endif
+            @if ($data_form_isian)
+                @include('admin.suplemen.form_isian')
+            @endif
             <div class="form-group">
-                <label class="col-sm-3 control-label" for="keterangan">Keterangan</label>
+                <label class=" col-sm-3 control-label" for="keterangan">Keterangan</label>
                 <div class="col-sm-9">
                     <textarea name="keterangan" class="form-control input-sm" maxlength="300" placeholder="Keterangan" rows="3" style="resize:none;">{{ $terdata->keterangan }}</textarea>
                 </div>
             </div>
+
             <div class="box-footer">
                 <button type="reset" class="btn btn-social btn-danger btn-sm" onclick="reset_form($(this).val());"><i class="fa fa-times"></i> Batal</button>
                 <button type="submit" class="btn btn-social btn-info btn-sm pull-right"><i class="fa fa-check"></i> Simpan</button>

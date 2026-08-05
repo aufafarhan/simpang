@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,45 +29,79 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Libraries\OTP\OtpManager;
 use App\Models\User;
+use App\Services\OtpService;
+use App\Traits\UploadFotoUser;
+use Exception;
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Pengguna extends Admin_Controller
 {
+    use UploadFotoUser;
+
+    private OtpManager $otp;
+    private OtpService $otpService;
+
     public function __construct()
     {
         parent::__construct();
-        $this->lang->load('passwords');
-        $this->load->library('Reset/Password', '', 'password');
-        $this->load->library('OTP/OTP_manager', null, 'otp_library');
-        $this->load->model('user_model');
+        $this->otp        = new OtpManager();
+        $this->otpService = new OtpService();
     }
 
     public function index()
     {
-        $userData = User::findOrFail(ci_auth()->id);
+        $userData      = User::findOrFail(ci_auth()->id);
+        $botUsername   = null;
+        $telegramError = false;
+        $isChatStarted = false;
+
+        try {
+            $botUsername = setting('telegram_notifikasi') ? $this->otpService->getBotUsername() : null;
+            // Jika username bot berhasil didapat dan pengguna memiliki id_telegram,
+            // periksa apakah chat sudah dimulai.
+            if (! empty($userData->id_telegram) && $botUsername) {
+                $isChatStarted = $this->otpService->verifyTelegramChatId($userData->id_telegram);
+            }
+        } catch (Exception $e) {
+            $telegramError = true;
+        }
 
         return view('admin.pengguna.index', [
-            'form_action'     => 'pengguna/update',
-            'password_action' => 'pengguna/update_password',
-            'userData'        => $userData,
+            'form_action'         => 'pengguna/update',
+            'password_action'     => 'pengguna/update_password',
+            'userData'            => $userData,
+            'telegramBotUsername' => $botUsername,
+            'telegramError'       => $telegramError,
+            'isChatStarted'       => $isChatStarted,
         ]);
+
     }
 
     public function update(): void
     {
         $data    = User::findOrFail(ci_auth()->id);
         $newData = $this->validate($this->request);
+
         if ($data->email != $newData['email']) {
+            if (User::where('email', $newData['email'])->where('id', '!=', $data->id)->exists()) {
+                redirect_with('error', 'Email sudah digunakan oleh pengguna lain');
+            }
+
             $newData['email_verified_at'] = null;
         }
+
         if ($data->id_telegram != $newData['id_telegram']) {
             $newData['telegram_verified_at'] = null;
         }
@@ -80,15 +114,28 @@ class Pengguna extends Admin_Controller
         redirect_with('error', 'Gagal Ubah Data');
     }
 
-    private function validate($request = []): array
+    public function update_keamanan()
     {
-        return [
-            'nama'           => nama($request['nama']),
-            'email'          => email($request['email']),
-            'notif_telegram' => (int) $request['notif_telegram'],
-            'id_telegram'    => alfanumerik(empty($request['id_telegram']) ? 0 : $request['id_telegram']),
-            'foto'           => $this->user_model->urusFoto(Auth()->id),
-        ];
+        $user = Auth::user();
+
+        if (! $user->hasVerifiedEmail()) {
+            return redirect_with('error', 'Anda harus memverifikasi email sebelum mengaktifkan autentikasi dua faktor.', 'pengguna#2fa');
+        }
+
+        $password = $this->request['konfirmasi_password'] ?? '';
+
+        if (empty($password)) {
+            return redirect_with('error', 'Password harus diisi untuk mengubah pengaturan keamanan.', 'pengguna#2fa');
+        }
+
+        if (! Hash::check($password, $user->password)) {
+            return redirect_with('error', 'Password yang Anda masukkan tidak sesuai.', 'pengguna#2fa');
+        }
+
+        $user->two_factor_enabled = (int) $this->request['two_factor_enabled'];
+        $user->save();
+
+        return redirect_with('success', 'Pengaturan keamanan berhasil diperbarui.', 'pengguna#2fa');
     }
 
     public function update_password(): void
@@ -105,109 +152,38 @@ class Pengguna extends Admin_Controller
         redirect_with('error', $user['pesan']);
     }
 
-    private function validate_password($request = [])
+    public function kirim_verifikasi()
     {
-        $pass_lama  = $request['pass_lama'];
-        $pass_baru  = $request['pass_baru'];
-        $pass_baru1 = $request['pass_baru1'];
-        $pwMasihMD5 = (strlen(ci_auth()->password) == 32) && (stripos(ci_auth()->password, '$') === false);
+        $request = request();
 
-        switch (true) {
-            case empty($pass_lama) || empty($pass_baru) || empty($pass_baru1):
-                $respon = [
-                    'status' => false,
-                    'pesan'  => 'Sandi gagal diganti, <b>Sandi</b> tidak boleh kosong.',
-                ];
-                break;
-
-            case ! preg_match('/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])(?!.*\s).{8,20}$/', $pass_baru):
-                $respon = [
-                    'status' => false,
-                    'pesan'  => 'Sandi gagal diganti, <b>Sandi Baru</b> ' . SYARAT_SANDI . '.',
-                ];
-                break;
-
-            case $pwMasihMD5 && (md5($pass_lama) != ci_auth()->password):
-
-            case ! $pwMasihMD5 && (! password_verify($pass_lama, ci_auth()->password)):
-                $respon = [
-                    'status' => false,
-                    'pesan'  => 'Sandi gagal diganti, <b>Sandi Lama</b> yang anda masukkan tidak sesuai.',
-                ];
-                break;
-
-            case $pass_baru == $pass_lama:
-                $respon = [
-                    'status' => false,
-                    'pesan'  => '<b>Sandi</b> gagal diganti, Silahkan ganti <b>Sandi Lama</b> anda dengan <b>Sandi Baru</b>.',
-                ];
-                break;
-
-            case $pass_baru != $pass_baru1:
-                $respon = [
-                    'status' => false,
-                    'pesan'  => 'Sandi gagal diganti, <b>Sandi Baru</b> dan <b>Sandi Baru (Ulangi)</b> tidak sama.',
-                ];
-                break;
-
-            default:
-                $user           = User::findOrFail(ci_auth()->id);
-                $user->password = generatePasswordHash($pass_baru);
-
-                if ($user->update()) {
-                    $this->session->isAdmin = $user;
-                    $respon                 = [
-                        'status' => true,
-                        'pesan'  => 'Sandi berhasil diganti.',
-                    ];
-                } else {
-                    $respon = [
-                        'status' => false,
-                        'pesan'  => 'Sandi gagal diganti.',
-                    ];
-                }
-        }
-
-        return $respon;
-    }
-
-    public function kirim_verifikasi(): void
-    {
-        $user = $this->db->where('id', $this->session->user)->get('user')->row();
-
-        if ($user->email_verified_at !== null) {
-            redirect_with('success', 'Email berhasil terkirim');
+        if ($request->user()->hasVerifiedEmail()) {
+            return redirect('pengguna');
         }
 
         try {
-            $status = $this->password->driver('email')->sendVerifyLink([
-                'email' => $user->email,
-            ]);
+            $request->user()->sendEmailVerificationNotification();
         } catch (Exception $e) {
-            log_message('error', $e);
-            redirect_with('error', 'Tidak berhasil mengirim verifikasi email');
+            log_message('error', $e->getMessage());
+
+            return redirect_with('error', 'Tidak berhasil mengirim verifikasi email', 'pengguna');
         }
 
-        if ($status === 'verify') {
-            redirect_with('success', 'Silahkan Cek Pesan di Email Anda');
-        }
-
-        redirect_with('error', lang($status));
+        return redirect_with('success', 'Tautan verifikasi baru telah dikirim ke alamat email yang Anda berikan saat pendaftaran.', 'pengguna');
     }
 
     public function kirim_otp_telegram()
     {
         // cek telegram sudah pernah terpakai atau belum
-        $id_telegram = (int) $this->input->post('id_telegram');
-        if (User::where('id_telegram', '=', $id_telegram)->where('id', '!=', $this->session->user)->exists()) {
+        $id_telegram = (int) $this->input->get('id_telegram');
+        if (User::where('id_telegram', '=', $id_telegram)->where('id', '!=', ci_auth()->id)->exists()) {
             return json([
                 'status'  => false,
-                'message' => 'Id telegram harus unik',
+                'message' => 'ID telegram harus unik. ID telegram yang Anda masukkan sudah digunakan oleh pengguna lain',
             ]);
         }
 
         try {
-            $user  = User::find($this->session->user);
+            $user  = User::find(ci_auth()->id);
             $token = hash('sha256', $raw_token = random_int(100000, 999999));
 
             $user->id_telegram = $id_telegram;
@@ -215,7 +191,7 @@ class Pengguna extends Admin_Controller
             $user->token_exp   = date('Y-m-d H:i:s', strtotime(date('Y-m-d H:i:s') . ' +5 minutes'));
             $user->save();
 
-            $this->otp_library->driver('telegram')->kirim_otp($user->id_telegram, $raw_token);
+            $this->otp->driver('telegram')->kirimOtp($user->id_telegram, $raw_token);
 
             return json([
                 'status'  => true,
@@ -224,8 +200,8 @@ class Pengguna extends Admin_Controller
             ]);
         } catch (Exception $e) {
             return json([
-                'status'   => false,
-                'messages' => $e->getMessage(),
+                'status'  => false,
+                'message' => $e->getMessage(),
             ]);
         }
     }
@@ -241,7 +217,7 @@ class Pengguna extends Admin_Controller
             ]);
         }
 
-        $verifikasi_otp = User::where('id', '=', $this->session->user)
+        $verifikasi_otp = User::where('id', '=', ci_auth()->id)
             ->where('id_telegram', '=', $id_telegram)
             ->where('token_exp', '>', date('Y-m-d H:i:s'))
             ->where('token', '=', hash('sha256', $otp))
@@ -265,33 +241,115 @@ class Pengguna extends Admin_Controller
         ]);
     }
 
-    public function verifikasi(string $hash): void
+    public function verifikasi(string $hash)
     {
-        $user = $this->db->where('id', $this->session->user)->get('user')->row();
+        $request = request();
+        $user    = request()->user();
 
-        if ($user->email_verified_at !== null) {
-            redirect_with('success', 'Verifikasi berhasil');
+        if ($request->user()->hasVerifiedEmail()) {
+            return redirect_with('success', 'Verifikasi berhasil', 'pengguna');
         }
 
         // Check if hash equal with current user email.
         if (! hash_equals($hash, sha1($user->email))) {
-            redirect_with('error', lang('token'));
+            return redirect_with('error', 'Token pengaturan ulang kata sandi ini tidak valid.', 'pengguna');
         }
 
-        $signature = hash_hmac('sha256', $user->email, config_item('encryption_key'));
+        $signature = hash_hmac('sha256', $user->email, config('app.key'));
 
         // Check signature key
         if (! hash_equals($signature, $this->input->get('signature'))) {
-            redirect_with('error', lang('token'));
+            return redirect_with('error', 'Token pengaturan ulang kata sandi ini tidak valid.', 'pengguna');
         }
 
         // Check for token if expired
         if ($this->input->get('expires') < strtotime(date('Y-m-d H:i:s'))) {
-            redirect_with('error', lang('expired'));
+            return redirect_with('error', 'Token reset password ini sudah kadaluarsa.', 'pengguna');
         }
 
-        $this->db->where('id', $this->session->user)->update('user', ['email_verified_at' => date('Y-m-d H:i:s')]);
+        if ($request->user()->markEmailAsVerified()) {
+            event(new Verified($request->user()));
+        }
 
-        redirect_with('success', 'Verifikasi berhasil');
+        redirect_with('success', 'Verifikasi berhasil', 'pengguna');
+    }
+
+    private function validate($request = []): array
+    {
+        return [
+            'nama'               => nama($request['nama']),
+            'email'              => email($request['email']),
+            'two_factor_enabled' => (int) $request['two_factor_enabled'],
+            'notif_telegram'     => (int) $request['notif_telegram'],
+            'id_telegram'        => alfanumerik(empty($request['id_telegram']) ? 0 : $request['id_telegram']),
+            'foto'               => $this->urusFoto(auth()->id),
+        ];
+    }
+
+    private function validate_password($request = [])
+    {
+        if (config_item('demo_mode') && is_super_admin()) {
+            return [
+                'status' => false,
+                'pesan'  => 'Dalam mode demo, pengguna dengan grup Super Admin tidak dapat mengubah kata sandi.',
+            ];
+        }
+
+        $pass_lama  = $request['pass_lama'];
+        $pass_baru  = $request['pass_baru'];
+        $pass_baru1 = $request['pass_baru1'];
+        $pwMasihMD5 = (strlen(ci_auth()->password) == 32) && (stripos(ci_auth()->password, '$') === false);
+
+        if (empty($pass_lama) || empty($pass_baru) || empty($pass_baru1)) {
+            return [
+                'status' => false,
+                'pesan'  => 'Sandi gagal diganti, <b>Sandi</b> tidak boleh kosong.',
+            ];
+        }
+
+        if (! preg_match('/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])(?!.*\s).{8,20}$/', $pass_baru)) {
+            return [
+                'status' => false,
+                'pesan'  => 'Sandi gagal diganti, <b>Sandi Baru</b> ' . SYARAT_SANDI . '.',
+            ];
+        }
+
+        if (($pwMasihMD5 && md5($pass_lama) != ci_auth()->password) || (! $pwMasihMD5 && ! Hash::check($pass_lama, ci_auth()->password))) {
+            return [
+                'status' => false,
+                'pesan'  => 'Sandi gagal diganti, <b>Sandi Lama</b> yang Anda masukkan tidak sesuai.',
+            ];
+        }
+
+        if ($pass_baru == $pass_lama) {
+            return [
+                'status' => false,
+                'pesan'  => '<b>Sandi</b> gagal diganti, Silakan ganti <b>Sandi Lama</b> Anda dengan <b>Sandi Baru</b>.',
+            ];
+        }
+
+        if ($pass_baru != $pass_baru1) {
+            return [
+                'status' => false,
+                'pesan'  => 'Sandi gagal diganti, <b>Sandi Baru</b> dan <b>Sandi Baru (Ulangi)</b> tidak sama.',
+            ];
+        }
+
+        $user           = User::findOrFail(ci_auth()->id);
+        $user->password = Hash::make($pass_baru);
+
+        if ($user->update()) {
+            $this->session->isAdmin = $user;
+
+            return [
+                'status' => true,
+                'pesan'  => 'Sandi berhasil diganti.',
+            ];
+        }
+
+        return [
+            'status' => false,
+            'pesan'  => 'Sandi gagal diganti.',
+        ];
     }
 }

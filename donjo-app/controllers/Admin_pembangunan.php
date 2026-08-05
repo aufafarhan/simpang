@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,24 +29,30 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\SatuanWaktuEnum;
-use App\Enums\StatusEnum;
+use App\Enums\SumberDanaEnum;
 use App\Models\Area;
 use App\Models\Garis;
 use App\Models\Lokasi;
 use App\Models\Pembangunan;
 use App\Models\Wilayah;
+use App\Traits\Upload;
+use Illuminate\Support\Facades\View;
+use Spatie\Image\Image;
+use Spatie\Image\Manipulations;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Admin_pembangunan extends Admin_Controller
 {
+    use Upload;
+
     public $modul_ini           = 'pembangunan';
     public $kategori_pengaturan = 'Pembangunan';
 
@@ -73,26 +79,46 @@ class Admin_pembangunan extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('admin_pembangunan.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                        $aksi .= '<a href="' . ci_route('admin_pembangunan.maps') . '/' . $row->id . '" class="btn bg-olive btn-sm" title="Lokasi Pembangunan"><i class="fa fa-map"></i></a> ';
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'admin_pembangunan/form/' . $row->id,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'        => ci_route('admin_pembangunan.maps') . '/' . $row->id,
+                        'icon'       => 'fa fa-map',
+                        'judul'      => 'Lokasi Pembangunan',
+                        'type'       => 'bg-olive',
+                        'buttonOnly' => true,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.rincian', [
+                        'url'   => "pembangunan_dokumentasi/dokumentasi/{$row->id}",
+                        'judul' => 'Rincian Dokumentasi Kegiatan',
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => ci_route('admin_pembangunan.lock') . '/' . $row->id,
+                        'active' => $row->status,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('admin_pembangunan.delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.lihat', [
+                        'url'   => ci_route('pembangunan') . '/' . $row->slug,
+                        'blank' => true,
+                    ])->render();
+
+                    return $aksi;
+                })
+                ->editColumn('sumber_dana', static function ($row) {
+                    if (is_array($row->sumber_dana)) {
+                        return implode(', ', $row->sumber_dana);
                     }
 
-                    $aksi .= '<a href="' . ci_route('pembangunan_dokumentasi.dokumentasi') . '/' . $row->id . '" class="btn bg-purple btn-sm" title="Rincian Dokumentasi Kegiatan"><i class="fa fa-list-ol"></i></a> ';
-
-                    if (can('u')) {
-                        if ($row->status == StatusEnum::YA) {
-                            $aksi .= '<a href="' . ci_route('admin_pembangunan.lock') . '/' . $row->id . '" class="btn bg-navy btn-sm" title="Nonaktifkan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('admin_pembangunan.lock') . '/' . $row->id . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        }
-                    }
-
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('admin_pembangunan.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
-
-                    return $aksi . ('<a href="' . ci_route('pembangunan') . '/' . $row->slug . '" target="_blank" class="btn bg-blue btn-sm" title="Lihat Summary"><i class="fa fa-eye"></i></a> ');
+                    return $row->sumber_dana;
                 })
                 ->editColumn('foto', static function ($row): string {
                     if ($row->foto) {
@@ -128,7 +154,7 @@ class Admin_pembangunan extends Admin_Controller
         }
 
         $data['list_lokasi']  = Wilayah::rt()->orderBy('dusun')->get()->toArray();
-        $data['sumber_dana']  = $this->referensi_model->list_ref(SUMBER_DANA);
+        $data['sumber_dana']  = SumberDanaEnum::all();
         $data['satuan_waktu'] = SatuanWaktuEnum::all();
 
         return view('admin.pembangunan.form', $data);
@@ -174,86 +200,12 @@ class Admin_pembangunan extends Admin_Controller
         redirect_with('error', 'Gagal Hapus Data');
     }
 
-    private function validasi(array $post, $id = null, ?string $old_foto = null): array
-    {
-        return [
-            'sumber_dana'             => bersihkan_xss($post['sumber_dana']),
-            'judul'                   => judul($post['judul']),
-            'slug'                    => unique_slug('pembangunan', $post['judul'], $id),
-            'volume'                  => bersihkan_xss($post['volume']),
-            'waktu'                   => bilangan($post['waktu']),
-            'satuan_waktu'            => bilangan($post['satuan_waktu']),
-            'tahun_anggaran'          => bilangan($post['tahun_anggaran']),
-            'pelaksana_kegiatan'      => bersihkan_xss($post['pelaksana_kegiatan']),
-            'id_lokasi'               => $post['lokasi'] ? null : bilangan($post['id_lokasi']),
-            'lokasi'                  => $post['id_lokasi'] ? null : $this->security->xss_clean(bersihkan_xss($post['lokasi'])),
-            'keterangan'              => $this->security->xss_clean(bersihkan_xss($post['keterangan'])),
-            'foto'                    => $this->upload_gambar_pembangunan('foto', $old_foto),
-            'anggaran'                => bilangan($post['anggaran']),
-            'sumber_biaya_pemerintah' => bilangan($post['sumber_biaya_pemerintah']),
-            'sumber_biaya_provinsi'   => bilangan($post['sumber_biaya_provinsi']),
-            'sumber_biaya_kab_kota'   => bilangan($post['sumber_biaya_kab_kota']),
-            'sumber_biaya_swadaya'    => bilangan($post['sumber_biaya_swadaya']),
-            'sumber_biaya_jumlah'     => bilangan($post['sumber_biaya_pemerintah']) + bilangan($post['sumber_biaya_provinsi']) + bilangan($post['sumber_biaya_kab_kota']) + bilangan($post['sumber_biaya_swadaya']),
-            'manfaat'                 => $this->security->xss_clean(bersihkan_xss($post['manfaat'])),
-            'sifat_proyek'            => bersihkan_xss($post['sifat_proyek']),
-            'updated_at'              => date('Y-m-d H:i:s'),
-        ];
-    }
-
-    private function upload_gambar_pembangunan(string $jenis, ?string $old_foto = null)
-    {
-        // Inisialisasi library 'upload'
-        $this->load->library('MY_Upload', null, 'upload');
-        $this->uploadConfig = [
-            'upload_path'   => LOKASI_GALERI,
-            'allowed_types' => 'jpg|jpeg|png',
-            'max_size'      => 1024, // 1 MB
-        ];
-        $this->upload->initialize($this->uploadConfig);
-
-        $uploadData = null;
-        // Adakah berkas yang disertakan?
-        $adaBerkas = ! empty($_FILES[$jenis]['name']);
-        if (! $adaBerkas) {
-            // Jika hapus (ceklis)
-            if (isset($_POST['hapus_foto']) && $old_foto !== null) {
-                unlink(LOKASI_GALERI . $old_foto);
-
-                return null;
-            }
-
-            return $old_foto;
-        }
-
-        // Upload sukses
-        if ($this->upload->do_upload($jenis)) {
-            $uploadData = $this->upload->data();
-            // Buat nama file unik agar url file susah ditebak dari browser
-            $namaFileUnik = tambahSuffixUniqueKeNamaFile($uploadData['file_name']);
-            // Ganti nama file asli dengan nama unik untuk mencegah akses langsung dari browser
-            $fileRenamed = rename(
-                $this->uploadConfig['upload_path'] . $uploadData['file_name'],
-                $this->uploadConfig['upload_path'] . $namaFileUnik
-            );
-            // Ganti nama di array upload jika file berhasil di-rename --
-            // jika rename gagal, fallback ke nama asli
-            $uploadData['file_name'] = $fileRenamed ? $namaFileUnik : $uploadData['file_name'];
-        }
-        // Upload gagal
-        else {
-            redirect_with('error', $this->upload->display_errors(null, null));
-        }
-
-        return (empty($uploadData)) ? null : $uploadData['file_name'];
-    }
-
     public function maps($id): void
     {
         isCan('u');
 
-        $data['lokasi']                 = Pembangunan::findOrFail($id)->toArray();
-        $data['desa']                   = $this->header['desa'];
+        $data['lokasi'] = Pembangunan::findOrFail($id)->toArray();
+
         $data['wil_atas']               = $this->header['desa'];
         $data['dusun_gis']              = Wilayah::dusun()->get()->toArray();
         $data['rw_gis']                 = Wilayah::rw()->get()->toArray();
@@ -299,5 +251,63 @@ class Admin_pembangunan extends Admin_Controller
         }
 
         redirect_with('error', 'Gagal Ubah Status');
+    }
+
+    private function validasi(array $post, $id = null, ?string $oldFoto = null): array
+    {
+        return [
+            'sumber_dana'             => $post['sumber_dana'] ?? [],
+            'judul'                   => judul($post['judul']),
+            'slug'                    => unique_slug('pembangunan', $post['judul'], $id),
+            'volume'                  => bersihkan_xss($post['volume']),
+            'waktu'                   => bilangan($post['waktu']),
+            'satuan_waktu'            => bilangan($post['satuan_waktu']),
+            'tahun_anggaran'          => bilangan($post['tahun_anggaran']),
+            'pelaksana_kegiatan'      => bersihkan_xss($post['pelaksana_kegiatan']),
+            'id_lokasi'               => $post['lokasi'] ? null : bilangan($post['id_lokasi']),
+            'lokasi'                  => $post['id_lokasi'] ? null : $this->security->xss_clean(bersihkan_xss($post['lokasi'])),
+            'keterangan'              => $this->security->xss_clean(bersihkan_xss($post['keterangan'])),
+            'foto'                    => $this->upload_gambar_pembangunan('foto', $oldFoto),
+            'anggaran'                => bilangan($post['anggaran']),
+            'sumber_biaya_pemerintah' => bilangan($post['sumber_biaya_pemerintah']),
+            'sumber_biaya_provinsi'   => bilangan($post['sumber_biaya_provinsi']),
+            'sumber_biaya_kab_kota'   => bilangan($post['sumber_biaya_kab_kota']),
+            'sumber_biaya_swadaya'    => bilangan($post['sumber_biaya_swadaya']),
+            'sumber_biaya_jumlah'     => bilangan($post['sumber_biaya_pemerintah']) + bilangan($post['sumber_biaya_provinsi']) + bilangan($post['sumber_biaya_kab_kota']) + bilangan($post['sumber_biaya_swadaya']),
+            'manfaat'                 => $this->security->xss_clean(bersihkan_xss($post['manfaat'])),
+            'sifat_proyek'            => bersihkan_xss($post['sifat_proyek']),
+            'updated_at'              => date('Y-m-d H:i:s'),
+            'realisasi_anggaran'      => bilangan($post['realisasi_anggaran']),
+            'silpa'                   => bilangan($post['silpa']),
+        ];
+    }
+
+    private function upload_gambar_pembangunan(string $jenis, $oldFoto = null): ?string
+    {
+        $file = request()->file($jenis);
+
+        if (! $file || ! $file->isValid()) {
+            return $oldFoto;
+        }
+
+        return $this->upload(
+            file: $jenis,
+            config: [
+                'upload_path'   => LOKASI_GALERI,
+                'allowed_types' => 'jpg|jpeg|png|webp',
+                'max_size'      => 1024, // 1 MB,
+                'overwrite'     => true,
+            ],
+            callback: static function ($uploadData) {
+                Image::load($uploadData['full_path'])
+                    ->format(Manipulations::FORMAT_WEBP)
+                    ->save("{$uploadData['file_path']}{$uploadData['raw_name']}.webp");
+
+                // Hapus original file
+                unlink($uploadData['full_path']);
+
+                return "{$uploadData['raw_name']}.webp";
+            }
+        );
     }
 }

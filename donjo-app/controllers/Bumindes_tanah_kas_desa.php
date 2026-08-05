@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,18 +29,19 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Enums\AsalTanahKasEnum;
 use App\Enums\JenisPeraturan;
-use App\Models\RefAsalTanahKas;
+use App\Enums\PeruntukanTanahKasEnum;
 use App\Models\RefDokumen;
 use App\Models\RefPersilKelas;
-use App\Models\RefPeruntukanTanahKas;
 use App\Models\TanahKasDesa;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -77,8 +78,8 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
                 'main'            => $view_data,
                 'main_content'    => 'admin.dokumen.tanah_kas_desa.form',
                 'persil'          => RefPersilKelas::orderBy('kode')->get(),
-                'list_asal_tanah' => RefAsalTanahKas::all(),
-                'list_peruntukan' => RefPeruntukanTanahKas::all(),
+                'list_asal_tanah' => AsalTanahKasEnum::labels(),
+                'list_peruntukan' => PeruntukanTanahKasEnum::labels(),
                 'subtitle'        => 'Buku Tanah Kas Desa',
                 'selected_nav'    => 'tanah_kas',
                 'view_mark'       => 2,
@@ -90,8 +91,8 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
                 'main'            => null,
                 'main_content'    => 'admin.dokumen.tanah_kas_desa.form',
                 'persil'          => RefPersilKelas::orderBy('kode')->get(),
-                'list_asal_tanah' => RefAsalTanahKas::all(),
-                'list_peruntukan' => RefPeruntukanTanahKas::all(),
+                'list_asal_tanah' => AsalTanahKasEnum::labels(),
+                'list_peruntukan' => PeruntukanTanahKasEnum::labels(),
                 'subtitle'        => 'Buku Tanah Kas Desa',
                 'selected_nav'    => 'tanah_kas',
                 'view_mark'       => 0,
@@ -109,16 +110,19 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
             ->addIndexColumn()
             ->addColumn('aksi', static function ($row): string {
                 $aksi = '';
+                $aksi .= View::make('admin.layouts.components.buttons.lihat', [
+                    'url'   => route('bumindes_tanah_kas_desa.view_tanah_kas_desa', ['id' => $row->id]),
+                    'judul' => 'Lihat Data',
+                ])->render();
 
-                $aksi .= '<a href="' . route('bumindes_tanah_kas_desa.view_tanah_kas_desa', ['id' => $row->id]) . '" class="btn btn-info btn-sm"  title="Lihat Data"><i class="fa fa-eye"></i></a> ';
+                $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                    'url' => "bumindes_tanah_kas_desa/form/{$row->id}",
+                ])->render();
 
-                if (can('u')) {
-                        $aksi .= '<a href="' . route('bumindes_tanah_kas_desa.form', ['id' => $row->id]) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                }
-
-                if (can('h')) {
-                    $aksi .= '<a href="#" data-href="' . route('bumindes_tanah_kas_desa.delete_tanah_kas_desa', ['id' => $row->id]) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                }
+                $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                    'url'           => route('bumindes_tanah_kas_desa.delete_tanah_kas_desa', ['id' => $row->id]),
+                    'confirmDelete' => true,
+                ])->render();
 
                 return $aksi;
             })
@@ -137,8 +141,8 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
             'main'            => $view_data,
             'main_content'    => 'admin.dokumen.tanah_kas_desa.form',
             'persil'          => RefPersilKelas::orderBy('kode')->get(),
-            'list_asal_tanah' => RefAsalTanahKas::all(),
-            'list_peruntukan' => RefPeruntukanTanahKas::all(),
+            'list_asal_tanah' => AsalTanahKasEnum::labels(),
+            'list_peruntukan' => PeruntukanTanahKasEnum::labels(),
             'subtitle'        => 'Buku Tanah Kas Desa',
             'selected_nav'    => 'tanah_kas',
             'view_mark'       => 1,
@@ -168,6 +172,64 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
             redirect_with('success', 'Berhasil Tambah Data');
         }
         redirect_with('error', 'Gagal Tambah Data');
+    }
+
+    public function update_tanah_kas_desa($id): void
+    {
+        isCan('u');
+        $data           = $this->input->post();
+        $error_validasi = $this->validasi_data($data, $id);
+
+        if ($error_validasi !== []) {
+            foreach ($error_validasi as $error) {
+                $this->session->error_msg .= ': ' . $error . '\n';
+            }
+            $this->session->post    = $this->input->post();
+            $this->session->success = -1;
+
+            redirect_with('error', $this->session->error_msg, site_url('bumindes_tanah_kas_desa/form/' . $id));
+        }
+
+        if (TanahKasDesa::find($id)->update($data)) {
+            redirect_with('success', 'Berhasil Ubah Data');
+        }
+        redirect_with('error', 'Gagal Ubah Data');
+    }
+
+    public function delete_tanah_kas_desa($id): void
+    {
+        isCan('h');
+        $tanahkas = TanahKasDesa::where('id', $id);
+        if ($tanahkas->delete()) {
+            redirect_with('success', 'Berhasil Hapus Data');
+        }
+        redirect_with('error', 'Gagal Hapus Data');
+
+        redirect('bumindes_tanah_kas_desa');
+    }
+
+    public function dialog_cetak($aksi = 'cetak')
+    {
+        $data['aksi']       = $aksi;
+        $data['formAction'] = ci_route('bumindes_tanah_kas_desa.cetak', $aksi);
+
+        return view('admin.bumindes.umum.dialog', $data);
+    }
+
+    public function cetak($aksi = '')
+    {
+        $query = datatables($this->sumberData());
+
+        $data              = $this->modal_penandatangan();
+        $data['aksi']      = $aksi;
+        $data['main']      = $query->prepareQuery()->results();
+        $data['isi']       = 'admin.dokumen.tanah_kas_desa.cetak';
+        $data['letak_ttd'] = ['1', '1', '23'];
+        $data['bulan']     = date('m');
+        $data['tahun']     = date('Y');
+        $data['tgl_cetak'] = $this->request['tgl_cetak'];
+
+        return view('admin.layouts.components.format_cetak', $data);
     }
 
     private function validasi_data(array &$data, $id = 0): array
@@ -213,6 +275,7 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
         $data['peruntukan']           = strip_tags((string) $data['peruntukan']);
         $data['mutasi']               = strip_tags((string) $data['mutasi']);
         $data['keterangan']           = strip_tags((string) $data['keterangan']);
+        $data['tanggal_perolehan']    = rev_tgl($data['tanggal_perolehan']);
         $data['visible']              = 1;
 
         if ($valid !== []) {
@@ -222,66 +285,8 @@ class Bumindes_tanah_kas_desa extends Admin_Controller
         return $valid;
     }
 
-    public function update_tanah_kas_desa($id): void
-    {
-        isCan('u');
-        $data           = $this->input->post();
-        $error_validasi = $this->validasi_data($data, $id);
-
-        if ($error_validasi !== []) {
-            foreach ($error_validasi as $error) {
-                $this->session->error_msg .= ': ' . $error . '\n';
-            }
-            $this->session->post    = $this->input->post();
-            $this->session->success = -1;
-
-            redirect_with('error', $this->session->error_msg, site_url('bumindes_tanah_kas_desa/form/' . $id));
-        }
-
-        if (TanahKasDesa::find($id)->update($data)) {
-            redirect_with('success', 'Berhasil Ubah Data');
-        }
-        redirect_with('error', 'Gagal Ubah Data');
-    }
-
-    public function delete_tanah_kas_desa($id): void
-    {
-        isCan('h');
-        $tanahkas = TanahKasDesa::where('id', $id);
-        if ($tanahkas->delete()) {
-            redirect_with('success', 'Berhasil Hapus Data');
-        }
-        redirect_with('error', 'Gagal Hapus Data');
-
-        redirect('bumindes_tanah_kas_desa');
-    }
-
     private function sumberData()
     {
-            return TanahKasDesa::visible();
-    }
-
-    public function dialog_cetak($aksi = 'cetak')
-    {
-        $data['aksi']       = $aksi;
-        $data['formAction'] = ci_route('bumindes_tanah_kas_desa.cetak', $aksi);
-
-        return view('admin.bumindes.pembangunan.tanah_di_desa.dialog', $data);
-    }
-
-    public function cetak($aksi = '')
-    {
-        $query             = $this->sumberData();
-        $data              = $this->modal_penandatangan();
-        $data['aksi']      = $aksi;
-        $data['main']      = $query->get();
-        $data['config']    = $this->header['desa'];
-        $data['bulan']     = date('m');
-        $data['tahun']     = date('Y');
-        $data['tgl_cetak'] = $this->input->post('tgl_cetak');
-        $data['isi']       = 'admin.dokumen.tanah_kas_desa.cetak';
-        $data['letak_ttd'] = ['1', '1', '23'];
-
-        return view('admin.layouts.components.format_cetak', $data);
+        return TanahKasDesa::visible();
     }
 }

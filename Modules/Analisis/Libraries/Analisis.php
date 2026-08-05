@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,7 +37,6 @@
 
 namespace Modules\Analisis\Libraries;
 
-use App\Enums\AnalisisRefSubjekEnum;
 use App\Enums\JenisKelaminEnum;
 use App\Models\Config;
 use App\Models\Kelompok;
@@ -46,6 +45,7 @@ use App\Models\LogPenduduk;
 use App\Models\PendudukHidup;
 use App\Models\Rtm;
 use App\Models\Wilayah;
+use Modules\Analisis\Enums\AnalisisRefSubjekEnum;
 use Modules\Analisis\Models\AnalisisIndikator;
 use Modules\Analisis\Models\AnalisisParameter;
 use Modules\Analisis\Models\AnalisisRespon;
@@ -53,7 +53,7 @@ use Modules\Analisis\Models\AnalisisResponBukti;
 
 class Analisis
 {
-    public static function judul_subjek($subjek_tipe): ?array
+    public static function judulSubjek($subjek_tipe): ?array
     {
         switch ($subjek_tipe) {
             case AnalisisRefSubjekEnum::PENDUDUK:
@@ -187,6 +187,7 @@ class Analisis
             case AnalisisRefSubjekEnum::KELOMPOK:
                 $utama  = 'kelompok';
                 $sumber = Kelompok::leftJoin('penduduk_hidup', 'kelompok.id_ketua', '=', 'penduduk_hidup.id')
+                    ->tipe('kelompok')
                     ->join('tweb_wil_clusterdesa', 'penduduk_hidup.id_cluster', '=', 'tweb_wil_clusterdesa.id')
                     ->when($idCluster, static fn ($q) => $q->whereIn('penduduk_hidup.id_cluster', $idCluster))
                     ->selectRaw('kelompok.id, kelompok.kode AS nid, kelompok.nama, penduduk_hidup.sex, tweb_wil_clusterdesa.dusun, tweb_wil_clusterdesa.rw, tweb_wil_clusterdesa.rt');
@@ -362,6 +363,53 @@ class Analisis
         return $data;
     }
 
+    public function listBukti($analisisMaster, $periode, $id)
+    {
+        $per = $periode;
+
+        return AnalisisResponBukti::select(['pengesahan'])
+            ->where('id_subjek', $id)
+            ->where('id_master', $analisisMaster->id)
+            ->where('id_periode', $per)
+            ->orderBy('tgl_update', 'DESC')
+            ->get()
+            ->toArray();
+    }
+
+    public function listIndikatorLaporan($analisisMaster, $periode, $id = 0)
+    {
+        $data    = AnalisisIndikator::where('id_master', $analisisMaster->id)->orderBy('nomor')->get()->toArray();
+        $counter = count($data);
+
+        for ($i = 0; $i < $counter; $i++) {
+            $data[$i]['no']      = $i + 1;
+            $ret                 = $this->listJawabLaporan($periode, $id, $data[$i]['id']);
+            $data[$i]['jawaban'] = $ret['jawaban'];
+            $data[$i]['nilai']   = $ret['nilai'];
+            $data[$i]['poin']    = $data[$i]['bobot'] * $ret['nilai'];
+        }
+
+        return $data;
+    }
+
+    public function multiJawab($master)
+    {
+        $kf = session('jawab') ?? '7777777';
+
+        $data = AnalisisIndikator::selectRaw('analisis_indikator.pertanyaan,analisis_indikator.nomor,analisis_parameter.jawaban,analisis_parameter.id AS id_jawaban,analisis_parameter.kode_jawaban')
+            ->selectRaw("(SELECT count(id) FROM analisis_parameter WHERE id IN ({$kf}) AND id = analisis_parameter.id AND analisis_indikator.config_id = " . identitas('id') . ') AS cek')
+            ->where('id_master', $master)
+            ->join('analisis_parameter', 'analisis_parameter.id_indikator', '=', 'analisis_indikator.id')
+            ->orderBy('nomor')->orderBy('kode_jawaban')->get()->toArray();
+        $counter = count($data);
+
+        for ($i = 0; $i < $counter; $i++) {
+            $data[$i]['no'] = $i + 1;
+        }
+
+        return $data;
+    }
+
     private function listJawab2($id = 0, $in = 0, $per = 0)
     {
         $delik = session('delik');
@@ -386,19 +434,6 @@ class Analisis
             ->toArray();
     }
 
-    public function listBukti($analisisMaster, $periode, $id)
-    {
-        $per = $periode;
-
-        return AnalisisResponBukti::select(['pengesahan'])
-            ->where('id_subjek', $id)
-            ->where('id_master', $analisisMaster->id)
-            ->where('id_periode', $per)
-            ->orderBy('tgl_update', 'DESC')
-            ->get()
-            ->toArray();
-    }
-
     private function listJawabLaporan($periode, $idSubjek, $in)
     {
         $per = $periode;
@@ -411,40 +446,6 @@ class Analisis
 
         $data['jawaban'] = $obj->jawaban ?? '-';
         $data['nilai']   = $obj->nilai ?? '0';
-
-        return $data;
-    }
-
-    public function listIndikatorLaporan($analisisMaster, $periode, $id = 0)
-    {
-        $data    = AnalisisIndikator::where('id_master', $analisisMaster->id)->orderBy('nomor')->get()->toArray();
-        $counter = count($data);
-
-        for ($i = 0; $i < $counter; $i++) {
-            $data[$i]['no']      = $i + 1;
-            $ret                 = $this->listJawabLaporan($periode, $id, $data[$i]['id']);
-            $data[$i]['jawaban'] = $ret['jawaban'];
-            $data[$i]['nilai']   = $ret['nilai'];
-            $data[$i]['poin']    = $data[$i]['bobot'] * $ret['nilai'];
-        }
-
-        return $data;
-    }
-
-    public function multi_jawab($master)
-    {
-        $kf = session('jawab') ?? '7777777';
-
-        $data = AnalisisIndikator::selectRaw('analisis_indikator.pertanyaan,analisis_indikator.nomor,analisis_parameter.jawaban,analisis_parameter.id AS id_jawaban,analisis_parameter.kode_jawaban')
-            ->selectRaw("(SELECT count(id) FROM analisis_parameter WHERE id IN ({$kf}) AND id = analisis_parameter.id AND analisis_indikator.config_id = " . identitas('id') . ') AS cek')
-            ->where('id_master', $master)
-            ->join('analisis_parameter', 'analisis_parameter.id_indikator', '=', 'analisis_indikator.id')
-            ->orderBy('nomor')->orderBy('kode_jawaban')->get()->toArray();
-        $counter = count($data);
-
-        for ($i = 0; $i < $counter; $i++) {
-            $data[$i]['no'] = $i + 1;
-        }
 
         return $data;
     }

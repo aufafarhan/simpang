@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,8 @@
 
 namespace App\Models;
 
+use App\Enums\AsalTanahKasEnum;
+use App\Enums\PeruntukanTanahKasEnum;
 use App\Traits\Author;
 use App\Traits\ConfigId;
 
@@ -54,7 +56,7 @@ class TanahKasDesa extends BaseModel
      */
     protected $table = 'tanah_kas_desa';
 
-    protected $with = ['ref_asal_tanah_kas', 'ref_persil_kelas', 'ref_peruntukan_tanah_kas'];
+    protected $with = ['ref_persil_kelas'];
 
     /**
      * The guarded with the model.
@@ -62,6 +64,21 @@ class TanahKasDesa extends BaseModel
      * @var array
      */
     protected $guarded = ['id'];
+
+    protected $appends = [
+        'asal_tanah_kas_label',
+        'peruntukan_tanah_kas_label',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'nama_pemilik_asal' => AsalTanahKasEnum::class,
+        'peruntukan'        => PeruntukanTanahKasEnum::class,
+    ];
 
     public function scopeCheckLetterC($query, $letterC_persil)
     {
@@ -78,15 +95,14 @@ class TanahKasDesa extends BaseModel
         return $query->where('visible', $value);
     }
 
-    // relasi ke table ref_asal_tanah_kas
-    public function ref_asal_tanah_kas()
+    public function getAsalTanahKasLabelAttribute(): ?string
     {
-        return $this->belongsTo(RefAsalTanahKas::class, 'nama_pemilik_asal');
+        return $this->nama_pemilik_asal?->label();
     }
 
-    public function ref_peruntukan_tanah_kas()
+    public function getPeruntukanTanahKasLabelAttribute(): ?string
     {
-        return $this->belongsTo(RefPeruntukanTanahKas::class, 'peruntukan');
+        return $this->peruntukan?->label();
     }
 
     public function ref_persil_kelas()

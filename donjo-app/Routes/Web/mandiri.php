@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -103,7 +103,7 @@ Route::group('layanan-mandiri', ['namespace' => 'fmandiri'], static function ():
         Route::post('/kirim/{id?}', 'Surat@kirim')->name('layanan-mandiri.surat.kirim');
         Route::get('/proses/{id?}', 'Surat@proses')->name('layanan-mandiri.surat.proses');
         Route::get('/cetak_no_antrian/{no_antrian}', 'Surat@cetak_no_antrian')->name('layanan-mandiri.surat.cetak_no_antrian');
-        Route::get('/{id}', 'Surat@cetak')->name('layanan-mandiri.surat.cetak');
+        Route::get('cetak/{id}', 'Surat@cetak')->name('layanan-mandiri.surat.cetak');
     });
 
     Route::group('bantuan', static function (): void {
@@ -154,6 +154,7 @@ Route::group('layanan-mandiri', ['namespace' => 'fmandiri'], static function ():
             Route::post('/kirim-otp', 'Verifikasi@verifikasi_email')->name('layanan-mandiri.verifikasi.verifikasi_email');
         });
     });
+    Route::post('/nomor_surat_duplikat', 'Surat@nomor_surat_duplikat')->name('layanan-mandiri.nomor_surat_duplikat');
 });
 // harus define ulang karena di code ada yang memanggil fmandiri langsung bukan layanan-mandiri
 Route::group('fmandiri', ['namespace' => 'fmandiri'], static function (): void {

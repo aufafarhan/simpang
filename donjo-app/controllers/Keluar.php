@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,14 +29,15 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
-use App\Enums\FirebaseEnum;
+ use App\Enums\FirebaseEnum;
 use App\Enums\StatusEnum;
+use App\Events\Surat\PermohonanSuratVerified;
 use App\Libraries\TinyMCE;
 use App\Models\Dokumen;
 use App\Models\FcmToken;
@@ -50,9 +51,12 @@ use App\Models\Penduduk;
 use App\Models\PermohonanSurat;
 use App\Models\RefJabatan;
 use App\Models\SettingAplikasi;
+use App\Models\SuratKeluar;
 use App\Models\Urls;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
+use NotificationChannels\Telegram\Telegram;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -70,7 +74,6 @@ class Keluar extends Admin_Controller
         $this->tinymce = new TinyMCE();
         $this->load->helper('download');
         $this->isAdmin = $this->session->isAdmin->pamong;
-        $this->load->library('OTP/OTP_manager', null, 'otp_library');
     }
 
     public function index(): void
@@ -119,23 +122,6 @@ class Keluar extends Admin_Controller
         $this->show($data);
     }
 
-    private function show(array $dataView): void
-    {
-        if (setting('verifikasi_kades') || setting('verifikasi_sekdes')) {
-            $data['operator'] = ($this->isAdmin->jabatan_id == kades()->id || $this->isAdmin->jabatan_id == sekdes()->id) ? false : true;
-            $data['widgets']  = $this->widget();
-        }
-
-        $data['user_admin']  = config_item('user_admin') == ci_auth()->id;
-        $data['title']       = 'Arsip Layanan Surat';
-        $data['tahun_surat'] = LogSurat::withOnly([])->selectRaw(DB::raw('YEAR(tanggal) as tahun'))->groupBy(DB::raw('YEAR(tanggal)'))->orderBy(DB::raw('YEAR(tanggal)'), 'desc')->get();
-        $data['bulan_surat'] = [];
-        $data['jenis_surat'] = FormatSurat::whereHas('logSurat')->distinct()->select(['id', 'nama'])->get();
-        $data['redirect']    = 'index';
-
-        view('admin.surat.keluar.index', array_merge($data, $dataView));
-    }
-
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
@@ -168,7 +154,42 @@ class Keluar extends Admin_Controller
                 $operator = ! in_array($jabatanId, [$idJabatanKades, $idJabatanKades]);
             }
 
-            return datatables()->of(LogSurat::withOnly(['formatSuratArsip', 'penduduk', 'pamong', 'tolak', 'logPerubahanSurat'])->selectRaw('*')
+            return datatables()->of(LogSurat::withOnly([
+                'formatSuratArsip:id,nama,kode_surat,jenis,format_nomor_global,format_nomor',
+                'penduduk:id,nama',
+                'pamong:pamong_id,pamong_nama',
+                'tolak.user:id,nama',
+                'logPerubahanSurat:id,log_surat_id',
+                'arsipKeluar:id,arsip_id',
+                'user:id,nama',
+            ])->select([
+                'id',
+                'no_surat',
+                'id_format_surat',
+                'id_pend',
+                'nama_non_warga',
+                'nik_non_warga',
+                'input',
+                'keterangan as ket',
+                'nama_pamong',
+                'tanggal',
+                'id_user',
+                'status',
+                'verifikasi_operator',
+                'verifikasi_sekdes',
+                'verifikasi_kades',
+                'tte',
+                'lock',
+                'nama_surat',
+                'lampiran',
+                'urls_id',
+                'log_verifikasi',
+                'kecamatan',
+                'pemohon',
+                'tahun',
+                'config_id',
+                'deleted_at',
+            ])
                 ->when($tahun, static fn ($q) => $q->whereYear('tanggal', $tahun))
                 ->when($bulan, static fn ($q) => $q->whereMonth('tanggal', $bulan))
                 ->when($jenis, static fn ($q) => $q->where('id_format_surat', $jenis))
@@ -195,43 +216,74 @@ class Keluar extends Admin_Controller
                     return $q->masuk($isAdmin, $listJabatan);
                 })
                 ->when($state == 'tolak', static fn ($q) => $q->ditolak())
-                ->withOnly(['formatSurat', 'penduduk', 'pamong', 'user'])->whereNull('deleted_at'))
+                ->whereNull('deleted_at'))
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row) use ($state, $canUpdate, $canDelete, $operator, $jabatanId, $idJabatanKades, $idJabatanSekdes, $redirectDelete): string {
+                ->addColumn('aksi', static function ($row) use ($state, $canUpdate, $operator, $jabatanId, $idJabatanKades, $idJabatanSekdes, $redirectDelete): string {
                     $aksi          = '';
                     $statusPeriksa = $row->statusPeriksa($jabatanId, $idJabatanKades, $idJabatanSekdes);
                     if ($state == 'arsip' && $canUpdate) {
                         if (in_array($row->formatSuratArsip->jenis, FormatSurat::RTF)) {
-                            $aksi .= '<a href="' . ci_route('keluar.edit_keterangan', $row->id) . '" title="Ubah Data" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Keterangan" class="btn bg-orange btn-sm"><i class="fa fa-edit"></i></a> ';
+                            $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                'url'   => 'keluar/edit_keterangan/' . $row->id,
+                                'judul' => 'Ubah Keterangan',
+                                'modal' => true,
+                            ])->render();
                         }
                         if (! in_array($row->formatSuratArsip->jenis, FormatSurat::RTF) && $row->status == 0) {
-                            $aksi .= '<a href="' . ci_route('surat.cetak', $row->id) . '" class="btn bg-orange btn-sm" title="Ubah" target="_blank"><i class="fa  fa-pencil-square-o"></i></a> ';
-                            // hapus surat draft
-                            if ($canDelete) {
-                                $aksi .= '<a href="#" data-href="' . ci_route('keluar.delete', $row->id) . '?redirect=' . $redirectDelete . '" class="btn bg-maroon btn-sm" title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
-                            }
+                            $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                'url'   => 'surat/cetak/' . $row->id,
+                                'blank' => true,
+                            ])->render();
+
+                            $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                                'url'           => "/keluar/delete/{$row->id}?redirect={$redirectDelete}",
+                                'confirmDelete' => true,
+                            ])->render();
                         }
                         if (User::superAdmin() && ! setting('tte') && $row->status != 0) {
                             if ($row->lock !== StatusEnum::YA) {
-                                // redirect ke edit surat/pratinjau surat
-                                $aksi .= '<a href="' . ci_route('keluar.ajax_edit_surat', $row->id) . '" title="Ubah Surat" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Alasan Ubah Surat" class="btn bg-info btn-sm"><i class="fa fa-edit"></i></a> ';
-                                $aksi .= '<a href="#" onclick="lockSurat(' . $row->id . ')" title="Konfirmasi Surat" class="lock-surat btn bg-purple btn-sm"><i class="fa fa-lock"></i></a> ';
+                                $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                    'url'   => 'keluar/ajax_edit_surat/' . $row->id,
+                                    'color' => 'bg-info',
+                                    'judul' => 'Ubah Surat',
+                                    'modal' => true,
+                                ])->render();
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => '#',
+                                    'type'       => 'bg-purple',
+                                    'judul'      => 'Konfirmasi Surat',
+                                    'icon'       => 'fa fa-lock',
+                                    'buttonOnly' => true,
+                                    'attribut'   => 'onclick=lockSurat(' . $row->id . ')',
+                                ])->render();
                             }
                         }
                     }
-
                     // hanya untuk surat permohonan
                     if (in_array($state, ['masuk', 'tolak']) && $canUpdate) {
                         if (in_array($row->formatSuratArsip->jenis, FormatSurat::RTF) && $operator) {
-                            $aksi .= '<a href="' . ci_route('keluar.edit_keterangan', $row->id) . '" title="Ubah Data" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Keterangan" class="btn bg-orange btn-sm"><i class="fa fa-edit"></i></a> ';
+                            $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                'url'   => 'keluar/edit_keterangan/' . $row->id,
+                                'judul' => 'Ubah Keterangan',
+                                'modal' => true,
+                            ])->render();
                         } elseif ($row->status == 0 || $row->verifikasi == '-1') {
-                            $aksi .= '<a href="' . ci_route('surat.cetak', $row->id) . '" class="btn bg-orange btn-sm" title="Ubah" target="_blank"><i class="fa  fa-pencil-square-o"></i></a> ';
+                            $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                'url'   => 'surat/cetak/' . $row->id,
+                                'blank' => true,
+                            ])->render();
                         }
                         if ($row->verifikasi == '-1' && $row->mandiri == '1') {
                             $aksi .= '<button data-id="' . $row->id . '" type="button" class="btn bg-blue btn-sm kembalikan" title="Kembalikan"> <i class="fa fa-undo"></i></button> ';
                         }
                         if ($statusPeriksa == 0 && $row->status != 0) {
-                            $aksi .= '<a href="' . ci_route('keluar.periksa', $row->id) . '" class="btn bg-olive btn-sm" title="verifikasi"><i class="fa fa-check-square-o"></i></a> ';
+                            $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                'url'        => ci_route('keluar.periksa', $row->id),
+                                'judul'      => 'Verifikasi',
+                                'icon'       => 'fa fa-check-square-o',
+                                'type'       => 'bg-olive',
+                                'buttonOnly' => true,
+                            ])->render();
                         }
                         if ($statusPeriksa == 2) {
                             $aksi .= '<button data-id="' . $row->id . '" type="button" class="btn bg-blue btn-sm passphrase " title="passphrase"> <i class="fa fa-key"></i></button> ';
@@ -242,21 +294,62 @@ class Keluar extends Admin_Controller
                     if ($row->status == '1') {
                         if (in_array($row->formatSuratArsip->jenis, FormatSurat::RTF)) {
                             if (is_file($row->rtfFile())) {
-                                $aksi .= '<a href="' . ci_route('keluar.unduh.rtf', $row->id) . '" class="btn bg-purple btn-sm" title="Unduh Surat RTF" target="_blank"><i class="fa fa-file-word-o"></i></a> ';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => ci_route('keluar.unduh.rtf', $row->id),
+                                    'judul'      => 'Unduh Surat RTF',
+                                    'icon'       => 'fa fa-file-word-o',
+                                    'type'       => 'bg-purple',
+                                    'buttonOnly' => true,
+                                    'blank'      => true,
+                                ])->render();
                             }
                             if (is_file($row->pdfFile())) {
-                                $aksi .= '<a href="' . ci_route('keluar.unduh.pdf', $row->id) . '" class="btn bg-fuchsia btn-sm" title="Cetak Surat PDF" target="_blank"><i class="fa fa-file-pdf-o"></i></a> ';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => ci_route('keluar.unduh.pdf', $row->id),
+                                    'judul'      => 'Cetak Surat PDF',
+                                    'icon'       => 'fa fa-file-pdf-o',
+                                    'type'       => 'bg-fuchsia',
+                                    'buttonOnly' => true,
+                                    'blank'      => true,
+                                ])->render();
                             }
                             if (is_file($row->lampiranFile())) {
-                                $aksi .= '<a href="' . ci_route('keluar.unduh.lampiran', $row->id) . '" target="_blank" class="btn btn-social bg-olive btn-sm" title="Unduh Lampiran"><i class="fa fa-paperclip"></i> Lampiran</a> ';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'   => ci_route('keluar.unduh.lampiran', $row->id),
+                                    'judul' => 'Lampiran',
+                                    'icon'  => 'fa fa-paperclip',
+                                    'type'  => 'bg-olive',
+                                    'blank' => true,
+                                ])->render();
                             }
                         }
                         if ($row->urls_id) {
-                            $aksi .= '<a href="' . ci_route('keluar.qrcode', $row->urls_id) . '" title="QR Code" data-size="modal-sm" class="viewQR btn bg-aqua btn-sm" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="QR Code"><i class="fa fa-qrcode"></i></a> ';
+                            if (! $row->log_verifikasi) {
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => ci_route('keluar.qrcode', $row->urls_id),
+                                    'judul'      => 'QR Code',
+                                    'icon'       => 'fa fa-qrcode',
+                                    'type'       => 'bg-aqua',
+                                    'modal'      => true,
+                                    'buttonOnly' => true,
+                                    'attribut'   => 'class="viewQR" data-size="modal-sm"',
+                                ])->render();
+                            }
                         }
-                        if ($row->isi_surat && $row->verifikasi_operator != '-1') {
-                            $aksi .= '<a href="' . ci_route('keluar.unduh.tinymce', $row->id) . '" class="btn bg-fuchsia btn-sm" title="Cetak Surat PDF" target="_blank"><i class="fa fa-file-pdf-o"></i></a> ';
+                        if ($row->verifikasi == '1' && ! $row->log_verifikasi) {
+                            if (! in_array($row->formatSuratArsip->jenis, FormatSurat::RTF)) {
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => ci_route('keluar.unduh.tinymce', $row->id),
+                                    'judul'      => 'Cetak Surat PDF',
+                                    'icon'       => 'fa fa-file-pdf-o',
+                                    'type'       => 'bg-fuchsia',
+                                    'blank'      => true,
+                                    'buttonOnly' => true,
+                                ])->render();
+                            }
                         }
+
+                        // kecamatan = 2 adalah siap dikirim ke kecamatan, 3 sudah dikirim ke kecamatan
                         if ($row->tte && $row->kecamatan == 2) {
                             if (setting('sinkronisasi_opendk')) {
                                 $aksi .= '<a data-id="' . $row->id . '" class="btn btn-social bg-olive btn-sm kirim-kecamatan" title="Kirim ke Kecamatan"><i class="fa fa-send"></i> Kirim ke Kecamatan</a> ';
@@ -265,10 +358,21 @@ class Keluar extends Admin_Controller
                             }
                         }
 
-                        // hapus surat -->
-                        if ($canDelete) {
-                            $aksi .= '<a href="#" data-href="' . ci_route('keluar.delete', $row->id) . '?redirect=' . $redirectDelete . '" class="btn bg-maroon btn-sm" title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
+                        if ($row->lock == StatusEnum::YA && setting('tte') && ! $row->arsipKeluar) {
+                            $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                                'url'   => 'keluar/ajax_edit_keluar/' . $row->id,
+                                'judul' => 'Jadikan Surat Keluar',
+                                'color' => 'bg-aqua',
+                                'icon'  => 'fa fa-share',
+                                'modal' => true,
+                            ])->render();
                         }
+
+                        // hapus surat -->
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => ci_route('keluar.delete', $row->id) . '?redirect=' . $redirectDelete,
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;
@@ -276,7 +380,7 @@ class Keluar extends Admin_Controller
                 ->addColumn('kode_surat', static fn ($row) => $row->formatSuratArsip->kode_surat ?? '')
                 ->editColumn('id_format_surat', static fn ($row) => $row->formatSuratArsip->nama ?? '')
                 ->editColumn('id_user', static fn ($row) => $row->user->nama ?? '')
-                ->editColumn('keterangan', static fn ($row) => $row->keterangan ?? '-')
+                ->editColumn('keterangan', static fn ($row) => $row->ket ?? '-')
                 ->editColumn('tanggal', static fn ($row) => tgl_indo2($row->tanggal))
                 ->editColumn('penduduk_non_warga', static fn ($row) => $row->penduduk->nama ?? ($row->nama_non_warga ? '<strong>Non-warga: </strong>' . $row->nama_non_warga . '<br><strong>NIK: </strong>' . $row->nik_non_warga : ''))
                 ->addColumn('pemohon', static function ($row) {
@@ -323,16 +427,32 @@ class Keluar extends Admin_Controller
         return show_404();
     }
 
-    private function ttd($ttd = '', $pamong_id = null)
+    public function setKeluar($id): void
     {
-        if (preg_match('/a.n/i', (string) $ttd)) {
-            return Pamong::ttd('a.n')->first()->pamong_id;
-        }
-        if (preg_match('/u.b/i', (string) $ttd)) {
-            return $pamong_id;
-        }
+        isCan('u');
 
-        return Pamong::kepalaDesa()->first()->pamong_id;
+        $log   = LogSurat::withOnly(['formatSurat'])->find($id);
+        $input = json_decode($log->input, true);
+        $post  = $this->input->post();
+
+        $format_surat = substitusiNomorSurat($input['nomor'], format_penomoran_surat($log->formatSurat->format_nomor_global, setting('format_nomor_surat'), $log->formatSurat->format_nomor));
+        $format_surat = str_ireplace('[kode_surat]', $log->formatSurat->kode_surat, $format_surat);
+        $format_surat = str_ireplace('[kode_desa]', identitas()->kode_desa, $format_surat);
+        $format_surat = str_ireplace('[bulan_romawi]', bulan_romawi((int) (date('m'))), $format_surat);
+        $format_surat = str_ireplace('[tahun]', date('Y'), $format_surat);
+        $last_surat   = LogSurat::suratTerakhir('surat_keluar');
+
+        SuratKeluar::create([
+            'nomor_urut'    => $last_surat['no_surat'] + 1,
+            'nomor_surat'   => $format_surat,
+            'kode_surat'    => $log->formatSurat->kode_surat,
+            'tanggal_surat' => tgl_indo_in($post['tanggal_surat']),
+            'tujuan'        => $post['tujuan'],
+            'isi_singkat'   => $post['isi_singkat'],
+            'arsip_id'      => $log->id,
+        ]);
+
+        redirect_with('success', 'Surat berhasil diubah menjadi surat keluar');
     }
 
     public function editSurat($idLogSurat)
@@ -372,7 +492,7 @@ class Keluar extends Admin_Controller
 
             if (isset($input['id_pengikut_pindah'])) {
                 // buat test terkait surat pindah
-                $pengikut = Penduduk::with('pendudukHubungan')->whereIn('id', $input['id_pengikut_pindah'])->orderKeluarga()->get();
+                $pengikut = Penduduk::whereIn('id', $input['id_pengikut_pindah'])->orderKeluarga()->get();
                 $pindah   = [];
 
                 foreach ($pengikut as $anggota) {
@@ -421,7 +541,7 @@ class Keluar extends Admin_Controller
         $this->alihkan();
 
         $id                 = $this->input->post('id');
-        $surat              = LogSurat::find($id);
+        $surat              = LogSurat::withOnly(['formatSurat'])->find($id);
         $mandiri            = PermohonanSurat::where('id_surat', $surat->id_format_surat)->where('isian_form->nomor', $surat->no_surat)->first();
         $ref_jabatan_kades  = setting('sebutan_kepala_desa');
         $ref_jabatan_sekdes = setting('sebutan_sekretaris_desa');
@@ -471,7 +591,7 @@ class Keluar extends Admin_Controller
                 $this->kirim_notifikasi_penduduk($id_penduduk, $pesan, $judul);
             }
         } else {
-            $log_surat = LogSurat::where('id', '=', $id)->first();
+            $log_surat = LogSurat::with(['formatSurat'])->where('id', '=', $id)->first();
             $log_surat->update([$current => 1,  $next => 0, 'log_verifikasi' => $log]);
 
             // hapus surat pdf agar bisa digenerate ulang.
@@ -502,15 +622,6 @@ class Keluar extends Admin_Controller
             $judul      = 'Pengajuan Surat - ' . $pesan['[judul_surat]'];
             $payload    = '/permohonan/surat/periksa/' . $id . '/Periksa Surat';
 
-            $allToken = FcmToken::whereHas('user.pamong', static function ($query) use ($next) {
-                if ($next === 'verifikasi_sekdes') {
-                    return $query->where('jabatan_id', '=', sekdes()->id)->where('pamong_ttd', '=', '1');
-                }
-                if ($next === 'verifikasi_kades') {
-                    return $query->where('jabatan_id', '=', kades()->id);
-                }
-            })->get();
-
             // log ke notifikasi
             $isi_notifikasi = [
                 'judul'      => $judul,
@@ -521,45 +632,8 @@ class Keluar extends Admin_Controller
             ];
             $this->create_log_notifikasi_admin($next, $isi_notifikasi);
 
-            if (cek_koneksi_internet()) {
-                if ($kirim_telegram != null) {
-                    try {
-                        $telegram = new Telegram();
-
-                        // Data pesan telegram yang akan digantikan
-                        $kirimPesan = str_replace(array_keys($pesan), array_values($pesan), $kirimPesan);
-
-                        $telegram->sendMessage([
-                            'chat_id'      => $kirim_telegram->id_telegram,
-                            'text'         => $kirimPesan,
-                            'parse_mode'   => 'Markdown',
-                            'reply_markup' => json_encode([
-                                'inline_keyboard' => [[
-                                    ['text' => 'Lihat detail', 'url' => ci_route("keluar/periksa/{$id}")],
-                                ]],
-                            ]),
-                        ]);
-                    } catch (Exception $e) {
-                        log_message('error', $e->getMessage());
-                    }
-                }
-
-                // kirim ke aplikasi android admin.
-                try {
-                    $client       = new Fcm\FcmClient(FirebaseEnum::SERVER_KEY, FirebaseEnum::SENDER_ID);
-                    $notification = new Fcm\Push\Notification();
-
-                    $notification
-                        ->addRecipient($allToken->pluck('token')->all())
-                        ->setTitle($judul)
-                        ->setBody($kirimFCM)
-                        ->addData('payload', '/permohonan/surat/periksa/' . $id . '/Periksa Surat');
-                    $client->send($notification);
-                } catch (Exception $e) {
-                    log_message('error', $e->getMessage());
-                }
-                // bagian akhir kirim ke aplikasi android admin.
-            }
+            // Dispatch event to send notifications
+            event(new PermohonanSuratVerified($log_surat, $next, $pesan));
         }
     }
 
@@ -598,27 +672,28 @@ class Keluar extends Admin_Controller
             $kirim_telegram = User::whereHas('pamong', static fn ($query) => $query->where('pamong_ub', '=', '0')->where('pamong_ttd', '=', '0'))
                 ->where('notif_telegram', '=', '1')
                 ->get();
+            if (setting('telegram_notifikasi')) {
+                $telegram = new Telegram(setting('telegram_token'));
 
-            $telegram = new Telegram();
+                foreach ($kirim_telegram as $value) {
+                    $telegram->sendMessage([
+                        'chat_id' => $value->id_telegram,
+                        'text'    => <<<EOD
+                            Permohonan Surat telah ditolak,
+                            Nomor Surat : {$log_surat->formatpenomoransurat}
+                            Jenis Surat : {$jenis_surat}
+                            Alasan : {$alasan}
 
-            foreach ($kirim_telegram as $value) {
-                $telegram->sendMessage([
-                    'chat_id' => $value->id_telegram,
-                    'text'    => <<<EOD
-                        Permohonan Surat telah ditolak,
-                        Nomor Surat : {$log_surat->formatpenomoransurat}
-                        Jenis Surat : {$jenis_surat}
-                        Alasan : {$alasan}
-
-                        TERIMA KASIH.
-                        EOD,
-                    'parse_mode'   => 'Markdown',
-                    'reply_markup' => json_encode([
-                        'inline_keyboard' => [[
-                            ['text' => 'Lihat detail', 'url' => ci_route('keluar/ditolak')],
-                        ]],
-                    ]),
-                ]);
+                            TERIMA KASIH.
+                            EOD,
+                        'parse_mode'   => 'Markdown',
+                        'reply_markup' => json_encode([
+                            'inline_keyboard' => [[
+                                ['text' => 'Lihat detail', 'url' => ci_route('keluar/ditolak')],
+                            ]],
+                        ]),
+                    ]);
+                }
             }
 
             // log ke notifikasi
@@ -759,6 +834,13 @@ class Keluar extends Admin_Controller
         view('admin.surat.keluar.ajax_edit_keterangan', $data);
     }
 
+    public function ajaxEditKeluar(int $id): void
+    {
+        isCan('u');
+        $data['form_action'] = ci_route('keluar.set_keluar', $id);
+        view('admin.surat.keluar.ajax_edit_keluar', $data);
+    }
+
     public function ajaxEditSurat(int $id): void
     {
         isCan('u');
@@ -817,29 +899,55 @@ class Keluar extends Admin_Controller
             return datatables()->of(LogSurat::selectRaw('*')
                 ->withOnly(['formatSurat', 'penduduk', 'pamong', 'user'])->whereNull('deleted_at'))
                 ->addIndexColumn()
-                ->addColumn('aksi', static function ($row) use ($canUpdate, $canDelete): string {
+                ->addColumn('aksi', static function ($row) use ($canUpdate): string {
                     $aksi = '';
                     if (is_file($row->rtfFile())) {
-                        $aksi .= '<a href="' . ci_route($row->rtfFile()) . '" class="btn bg-purple btn-sm" title="Unduh Surat RTF" target="_blank"><i class="fa fa-file-word-o"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'buttonOnly' => true,
+                            'url'        => ci_route($row->rtfFile()),
+                            'type'       => 'bg-purple',
+                            'icon'       => 'fa fa-file-word-o',
+                            'blank'      => true,
+                            'judul'      => 'Unduh Surat RTF',
+                        ])->render();
                     }
                     if (is_file($row->pdfFile())) {
-                        $aksi .= '<a href="' . ci_route($row->pdfFile()) . '" class="btn bg-fuchsia btn-sm" title="Cetak Surat PDF" target="_blank"><i class="fa fa-file-pdf-o"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'buttonOnly' => true,
+                            'url'        => ci_route($row->pdfFile()),
+                            'type'       => 'bg-fuchsia',
+                            'icon'       => 'fa fa-file-pdf-o',
+                            'blank'      => true,
+                            'judul'      => 'Cetak Surat PDF',
+                        ])->render();
                     }
 
                     // if (is_file($row->qrFile())):
-                    //     $aksi .= '<a href="'. ci_route("dokumen_web.check_surat2",$row->id).'" onclick="return confirm(\'Apakah anda yakin?\'));" class="btn bg-green btn-sm" title="Lihat Verifikasi" target="_blank"><i class="fa fa-check"></i></a> ';
+                    //     $aksi .= '<a href="'. ci_route("dokumen_web.check_surat2",$row->id).'" onclick="return confirm(\'Apakah Anda yakin?\'));" class="btn bg-green btn-sm" title="Lihat Verifikasi" target="_blank"><i class="fa fa-check"></i></a> ';
                     //     $aksi .= '<a href="#myModal" data-fileqr="'.ci_route($row->qrFile()).'" title="Lihat QR Code" class="viewQR btn bg-aqua btn-sm"><i class="fa fa-qrcode"></i></a> ';
                     // endif;
 
                     if (is_file($row->lampiranFile())) {
-                        $aksi .= '<a href="' . ci_route($row->lampiranFile()) . '" target="_blank" class="btn btn-social bg-olive btn-sm" title="Unduh Lampiran"><i class="fa fa-paperclip"></i> Lampiran</a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'   => ci_route($row->lampiranFile()),
+                            'type'  => 'bg-olive',
+                            'icon'  => 'fa fa-paperclip',
+                            'blank' => true,
+                            'judul' => 'Lampiran',
+                            'title' => 'Unduh Lampiran',
+                        ])->render();
                     }
                     if ($canUpdate) {
-                        $aksi .= '<a href="' . ci_route('keluar.edit_keterangan', $row->id) . '" title="Ubah Data" data-remote="false" data-toggle="modal" data-target="#modalBox" data-title="Ubah Keterangan" class="btn bg-orange btn-sm"><i class="fa fa-edit"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                            'url'   => 'keluar/edit_keterangan/' . $row->id,
+                            'judul' => 'Ubah Keterangan',
+                            'modal' => true,
+                        ])->render();
                     }
-                    if ($canDelete) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('keluar.delete', $row->id) . '?redirect=perorangan" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('keluar.delete', $row->id) . '?redirect=perorangan',
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -893,10 +1001,8 @@ class Keluar extends Admin_Controller
         ];
         $data['aksi']           = $aksi;
         $data['input']          = $this->input->post();
-        $data['config']         = $this->header['desa'];
         $data['pamong_ttd']     = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong_ttd')])->first()->toArray();
         $data['pamong_ketahui'] = Pamong::selectData()->where(['pamong_id' => $this->input->post('pamong_ketahui')])->first()->toArray();
-        $data['desa']           = $this->header['desa'];
         $data['main']           = LogSurat::withOnly(['formatSurat', 'penduduk', 'pamong', 'user'])->whereNull('deleted_at')->arsip($this->isAdmin, $listJabatan)->orderBy('tanggal', 'desc')->get();
 
         //pengaturan data untuk format cetak/ unduh
@@ -943,13 +1049,6 @@ class Keluar extends Admin_Controller
         ];
     }
 
-    private function alihkan(): void
-    {
-        if (null === $this->widget()) {
-            redirect('keluar');
-        }
-    }
-
     // TODO: OpenKab - Cek ORM ini
     public function perbaiki(): void
     {
@@ -986,48 +1085,15 @@ class Keluar extends Admin_Controller
         view('admin.surat.keluar.kecamatan', $data);
     }
 
-    private function data_kecamatan()
-    {
-        if (empty($this->setting->sinkronisasi_opendk)) {
-            return null;
-        }
-        $desa = kode_wilayah($this->header['desa']['kode_desa']);
-
-        try {
-            $client = new GuzzleHttp\Client([
-                'base_uri' => "{$this->setting->api_opendk_server}/api/v1/surat?desa_id={$desa}",
-            ]);
-
-            $response = $client->get('', [
-                'headers' => [
-                    'Accept'        => 'application/json',
-                    'Authorization' => "Bearer {$this->setting->api_opendk_key}",
-                ],
-            ]);
-        } catch (GuzzleHttp\Exception\ClientException $e) {
-            log_message('error', $e);
-
-            return null;
-        } catch (Exception $exception) {
-            log_message('error', $exception);
-
-            return null;
-        }
-
-        $surat = json_decode($response->getBody()->getContents(), null);
-
-        return $surat->data;
-    }
-
     public function dataPenduduk(int $id): void
     {
-        $penduduk = Penduduk::withOnly(['wilayah', 'agama', 'pendidikanKK', 'wargaNegara'])->findOrFail($id);
+        $penduduk = Penduduk::withOnly(['wilayah'])->findOrFail($id);
         $data     = [
             'ttl'         => $penduduk->tempatlahir . ' / ' . tgl_indo($penduduk->tanggallahir) . ' (' . $penduduk->usia . ')',
             'alamat'      => $penduduk->alamat_wilayah,
-            'pendidikan'  => $penduduk->pendidikanKK->nama ?? '',
-            'warganegara' => $penduduk->wargaNegara->nama ?? '',
-            'agama'       => $penduduk->agama->nama ?? '',
+            'pendidikan'  => $penduduk->pendidikan_kk,
+            'warganegara' => $penduduk->warganegara,
+            'agama'       => $penduduk->agama,
         ];
         $this->output->set_content_type('application/json')->set_output(json_encode($data, JSON_THROW_ON_ERROR));
     }
@@ -1044,5 +1110,74 @@ class Keluar extends Admin_Controller
         ];
 
         return json($data);
+    }
+
+    private function show(array $dataView): void
+    {
+        if (setting('verifikasi_kades') || setting('verifikasi_sekdes')) {
+            $data['operator'] = ($this->isAdmin->jabatan_id == kades()->id || $this->isAdmin->jabatan_id == sekdes()->id) ? false : true;
+            $data['widgets']  = $this->widget();
+        }
+
+        $data['user_admin']  = config_item('user_admin') == ci_auth()->id;
+        $data['title']       = 'Arsip Layanan Surat';
+        $data['tahun_surat'] = LogSurat::withOnly([])->selectRaw(DB::raw('YEAR(tanggal) as tahun'))->groupBy(DB::raw('YEAR(tanggal)'))->orderBy(DB::raw('YEAR(tanggal)'), 'desc')->get();
+        $data['bulan_surat'] = [];
+        $data['jenis_surat'] = FormatSurat::whereHas('logSurat')->distinct()->select(['id', 'nama'])->get();
+        $data['redirect']    = 'index';
+
+        view('admin.surat.keluar.index', array_merge($data, $dataView));
+    }
+
+    private function ttd($ttd = '', $pamong_id = null)
+    {
+        if (preg_match('/a.n/i', (string) $ttd)) {
+            return Pamong::ttd('a.n')->first()->pamong_id;
+        }
+        if (preg_match('/u.b/i', (string) $ttd)) {
+            return $pamong_id;
+        }
+
+        return Pamong::kepalaDesa()->first()->pamong_id;
+    }
+
+    private function alihkan(): void
+    {
+        if (null === $this->widget()) {
+            redirect('keluar');
+        }
+    }
+
+    private function data_kecamatan()
+    {
+        if (empty(setting('sinkronisasi_opendk'))) {
+            return null;
+        }
+        $desa = kode_wilayah($this->header['desa']['kode_desa']);
+
+        try {
+            $client = new GuzzleHttp\Client([
+                'base_uri' => setting('api_opendk_server') . "/api/v1/surat?desa_id={$desa}",
+            ]);
+
+            $response = $client->get('', [
+                'headers' => [
+                    'Accept'        => 'application/json',
+                    'Authorization' => 'Bearer ' . setting('api_opendk_key'),
+                ],
+            ]);
+        } catch (GuzzleHttp\Exception\ClientException $e) {
+            log_message('error', $e);
+
+            return null;
+        } catch (Exception $exception) {
+            log_message('error', $exception);
+
+            return null;
+        }
+
+        $surat = json_decode($response->getBody()->getContents(), null);
+
+        return $surat->data;
     }
 }

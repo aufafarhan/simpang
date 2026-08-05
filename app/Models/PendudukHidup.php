@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,8 +37,14 @@
 
 namespace App\Models;
 
+use App\Enums\BahasaEnum;
+use App\Enums\JenisKelaminEnum;
+use App\Enums\PekerjaanEnum;
+use App\Enums\SakitMenahunEnum;
 use App\Enums\SHDKEnum;
+use App\Enums\StatusDasarEnum;
 use App\Enums\StatusKawinEnum;
+use App\Enums\StatusKTPEnum;
 use App\Traits\ConfigId;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Wilayah;
@@ -52,12 +58,12 @@ class PendudukHidup extends BaseModel
     /**
      * {@inheritDoc}
      */
-    protected $table = 'penduduk_hidup';
+    public $incrementing = false;
 
     /**
      * {@inheritDoc}
      */
-    public $incrementing = false;
+    protected $table = 'penduduk_hidup';
 
     /**
      * {@inheritDoc}
@@ -73,7 +79,8 @@ class PendudukHidup extends BaseModel
         'namaAsuransi',
         'umur',
         'tanggalLahirId',
-        'urlFoto',
+        'sakit_menahun',
+        'status_rekam_ktp',
     ];
 
     /**
@@ -98,185 +105,12 @@ class PendudukHidup extends BaseModel
         return $this->belongsTo(PendudukMap::class, 'id', 'id');
     }
 
-    protected function scopeLepas($query, $shdk = false)
-    {
-        $query->whereNull('id_kk')->where('status', 1);
-
-        if ($shdk) {
-            $query->where(static fn ($q) => $q->where('kk_level', '!=', SHDKEnum::KEPALA_KELUARGA)->orWhereNull('kk_level'));
-        } else {
-            $query->where(static fn ($q) => $q->where('kk_level', SHDKEnum::KEPALA_KELUARGA)->orWhereNull('kk_level'));
-        }
-
-        return $query;
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function jenisKelamin()
-    {
-        return $this->belongsTo(Sex::class, 'sex')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function agama()
-    {
-        return $this->belongsTo(Agama::class, 'agama_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function bahasa()
-    {
-        return $this->belongsTo(Bahasa::class, 'bahasa_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function pendidikan()
-    {
-        return $this->belongsTo(Pendidikan::class, 'pendidikan_sedang_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function pendidikanKK()
-    {
-        return $this->belongsTo(PendidikanKK::class, 'pendidikan_kk_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function pekerjaan()
-    {
-        return $this->belongsTo(Pekerjaan::class, 'pekerjaan_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function wargaNegara()
-    {
-        return $this->belongsTo(WargaNegara::class, 'warganegara_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function golonganDarah()
-    {
-        return $this->belongsTo(GolonganDarah::class, 'golongan_darah_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function cacat()
-    {
-        return $this->belongsTo(Cacat::class, 'cacat_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function sakitMenahun()
-    {
-        return $this->belongsTo(SakitMenahun::class, 'sakit_menahun_id')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function kb()
-    {
-        return $this->belongsTo(KB::class, 'cara_kb_id')->withDefault();
-    }
-
     /**
      * Get the phone associated with the config.
      */
     public function config()
     {
         return $this->hasOne(Config::class, 'id', 'config_id');
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function statusKawin()
-    {
-        return $this->belongsTo(StatusKawin::class, 'status_kawin')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function statusRekamKtp()
-    {
-        return $this->belongsTo(StatusKtp::class, 'status_rekam')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function pendudukHubungan()
-    {
-        return $this->belongsTo(PendudukHubungan::class, 'kk_level')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function pendudukStatus()
-    {
-        return $this->belongsTo(PendudukStatus::class, 'status')->withDefault();
-    }
-
-    /**
-     * Define an inverse one-to-one or many relationship.
-     *
-     * @return BelongsTo
-     */
-    public function pendudukStatusDasar()
-    {
-        return $this->belongsTo(StatusDasar::class, 'status_dasar')->withDefault();
     }
 
     /**
@@ -353,6 +187,11 @@ class PendudukHidup extends BaseModel
         };
     }
 
+    public function getSakitMenahunAttribute()
+    {
+        return SakitMenahunEnum::valueOf($this->sakit_menahun_id);
+    }
+
     /**
      * Getter tempat dilahirkan attribute.
      */
@@ -395,7 +234,7 @@ class PendudukHidup extends BaseModel
     public function getStatusPerkawinanAttribute()
     {
         return ! empty($this->status_kawin) && $this->status_kawin != StatusKawinEnum::KAWIN
-            ? $this->statusKawin->nama
+            ? StatusKawinEnum::valueToUpper($this->status_kawin)
             : (
                 empty($this->akta_perkawinan) && empty($this->tanggalperkawinan)
                     ? 'KAWIN BELUM TERCATAT'
@@ -441,6 +280,31 @@ class PendudukHidup extends BaseModel
     public function getTanggalLahirIdAttribute()
     {
         return $this->tanggallahir?->format('d F Y');
+    }
+
+    public function getPekerjaanAttribute(): string
+    {
+        return PekerjaanEnum::valueOf($this->pekerjaan_id) ?: '';
+    }
+
+    public function getStatusRekamKtpAttribute()
+    {
+        return StatusKTPEnum::valueOf($this->status_rekam) ?: '';
+    }
+
+    public function getJenisKelaminAttribute(): string
+    {
+        return JenisKelaminEnum::valueOf($this->sex) ?: '';
+    }
+
+    public function getBahasaAttribute(): string
+    {
+        return BahasaEnum::valueOf($this->bahasa_id) ?: '';
+    }
+
+    public function getPendudukStatusDasarAttribute(): string
+    {
+        return StatusDasarEnum::valueOf($this->status_dasar) ?: '';
     }
 
     /**
@@ -503,23 +367,7 @@ class PendudukHidup extends BaseModel
     public function scopeWithRef(mixed $query)
     {
         return $query->with([
-            'jenisKelamin',
-            'agama',
-            'bahasa',
             'config',
-            'pendidikan',
-            'pendidikanKK',
-            'pekerjaan',
-            'wargaNegara',
-            'golonganDarah',
-            'cacat',
-            'sakitMenahun',
-            'kb',
-            'statusKawin',
-            'statusRekamKtp',
-            'pendudukHubungan',
-            'pendudukStatus',
-            'pendudukStatusDasar',
             'keluarga',
             'rtm',
             'clusterDesa',
@@ -528,10 +376,16 @@ class PendudukHidup extends BaseModel
         ]);
     }
 
-    /**
-     * Getter url foto attribute.
-     */
-    public function getUrlFotoAttribute(): void
+    protected function scopeLepas($query, $shdk = false)
     {
+        $query->whereNull('id_kk')->where('status', 1);
+
+        if ($shdk) {
+            $query->where(static fn ($q) => $q->where('kk_level', '!=', SHDKEnum::KEPALA_KELUARGA)->orWhereNull('kk_level'));
+        } else {
+            $query->where(static fn ($q) => $q->where('kk_level', SHDKEnum::KEPALA_KELUARGA)->orWhereNull('kk_level'));
+        }
+
+        return $query;
     }
 }

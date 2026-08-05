@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,15 +39,15 @@ namespace App\Traits;
 
 trait GenerateRtf
 {
-    private function buat_berkas_kk($data = ''): ?string
+    private function buat_berkas_kk($data = [], $format = null): ?string
     {
         $path_arsip = LOKASI_ARSIP;
-        $file       = DEFAULT_LOKASI_EKSPOR . 'kk.rtf';
+        $file       = DEFAULT_LOKASI_EKSPOR . ($format === 'F1.09' ? 'kk-f1.09.rtf' : 'kk.rtf');
         if (! is_file($file)) {
             return null;
         }
-        $nama = '';
 
+        $nama   = '';
         $handle = fopen($file, 'rb');
         $buffer = stream_get_contents($handle);
         $i      = 0;
@@ -56,23 +56,23 @@ trait GenerateRtf
             $i++;
             $nama              .= $ranggota['nama'] . '\\line ';
             $no                .= $i . '\\line ';
-            $hubungan          .= \App\Enums\SHDKEnum::valueOf($ranggota['kk_level']) . '\\line ';
+            $hubungan          .= $ranggota['penduduk_hubungan'] . '\\line ';
             $nik               .= $ranggota['nik'] . '\\line ';
-            $sex               .= ($ranggota['jenisKelamin']['nama'] ?? '') . '\\line ';
+            $sex               .= ($ranggota['jenis_kelamin']) . '\\line ';
             $tempatlahir       .= $ranggota['tempatlahir'] . '\\line ';
-            $tanggallahir      .= tgl_indo($ranggota['tanggallahir']) . '\\line ';
-            $agama             .= ($ranggota['agama']['nama'] ?? '') . '\\line ';
-            $pendidikan        .= ($ranggota['pendidikanKK']['nama'] ?? '') . '\\line ';
-            $pekerjaan         .= ($ranggota['pekerjaan']['nama'] ?? '') . '\\line ';
+            $tanggallahir      .= tgl_indo(tgl: $ranggota['tanggallahir'], format: 'd-m-Y') . '\\line ';
+            $agama             .= ($ranggota['agama']) . '\\line ';
+            $pendidikan        .= ($ranggota['pendidikan_kk'] ?? '') . '\\line ';
+            $pekerjaan         .= ($ranggota['pekerjaan'] ?? '') . '\\line ';
             $status_kawin      .= ($ranggota['status_perkawinan'] ?? '') . '\\line ';
-            $warganegara       .= ($ranggota['wargaNegara']['nama'] ?? '') . '\\line ';
+            $warganegara       .= ($ranggota['warganegara']) . '\\line ';
             $dokumen_pasport   .= $ranggota['dokumen_pasport'] . '\\line ';
             $dokumen_kitas     .= $ranggota['dokumen_kitas'] . '\\line ';
             $nama_ayah         .= $ranggota['nama_ayah'] . '\\line ';
             $nama_ibu          .= $ranggota['nama_ibu'] . '\\line ';
-            $golongan_darah    .= ($ranggota['golonganDarah']['nama'] ?? '') . '\\line ';
-            $tanggalperkawinan .= isset($ranggota['tanggalperkawinan']) ? tgl_indo($ranggota['tanggalperkawinan']) . '\\line ' : '- \\line ';
-            $tanggalperceraian .= isset($ranggota['tanggalperceraian']) ? tgl_indo($ranggota['tanggalperceraian']) . '\\line ' : '- \\line ';
+            $golongan_darah    .= ($ranggota['golongan_darah']) . '\\line ';
+            $tanggalperkawinan .= isset($ranggota['tanggalperkawinan']) ? tgl_indo(tgl: $ranggota['tanggalperkawinan'], format: 'd-m-Y') . '\\line ' : '- \\line ';
+            $tanggalperceraian .= isset($ranggota['tanggalperceraian']) ? tgl_indo(tgl: $ranggota['tanggalperceraian'], format: 'd-m-Y') . '\\line ' : '- \\line ';
         }
 
         $buffer = str_replace('[no]', "{$no}", $buffer);

@@ -1,9 +1,9 @@
 @extends('admin.auth.index')
 
 @php
-    preg_match('/(\d+)/', $errors->first('email'), $matches);
-
+    preg_match('/(\d+)/', $errors?->first('email'), $matches);
     $second = $matches[0] ?? 0;
+    $isProduction = app()->isProduction();
 @endphp
 
 @section('content')
@@ -31,9 +31,28 @@
                 maxlength="100"
             >
         </div>
-        @if (setting('google_recaptcha'))
+
+        @if ($isProduction && setting('google_recaptcha'))
             {!! app('captcha')->display() !!}
+        @elseif ($isProduction)
+            <div class="form-group">
+                <a href="#" id="b-captcha" onclick="event.preventDefault(); document.getElementById('captcha').src = '{{ site_url('captcha') }}?' + Math.random();" style="color: #000000;">
+                    <img id="captcha" src="{{ site_url('captcha') }}" alt="CAPTCHA Image" />
+                </a>
+            </div>
+            <div class="form-group captcha">
+                <input
+                    name="captcha_code"
+                    type="text"
+                    class="form-control required"
+                    maxlength="6"
+                    placeholder="Masukkan kode di atas"
+                    @disabled($second)
+                    autocomplete="off"
+                />
+            </div>
         @endif
+
         <div class="form-group">
             <input @disabled($second) type="checkbox" id="checkbox" class="form-checkbox">
             <label for="checkbox" style="font-weight: unset">Tampilkan kata sandi</label>
@@ -42,17 +61,23 @@
         <div class="form-group">
             <button type="submit" class="btn" @disabled($second)>Masuk</button>
         </div>
+
+        @if (setting('login_otp'))
+            <div class="form-group text-center">
+                <a href="{{ ci_route('siteman.otp.form_login_otp') }}" class="btn" role="button" aria-pressed="true">Masuk dengan OTP</a>
+            </div>
+        @endif
     </form>
 @endsection
 
 @push('js')
-    @if (setting('google_recaptcha'))
+    @if ($isProduction && setting('google_recaptcha'))
         {!! app('captcha')->renderJs('id', true, 'recaptchaCallback') !!}
 
         <script>
             var recaptchaCallback = function() {
                 grecaptcha.render(document.querySelector('.g-recaptcha'), {
-                    'sitekey': '{{ setting('google_recaptcha_site_key') }}',
+                    'sitekey': '{{ $list_setting->firstWhere('key', 'google_recaptcha_site_key')?->value }}',
                     'error-callback': function() {
                         $.ajax({
                             url: '{{ site_url('siteman/matikan-captcha') }}',
@@ -83,7 +108,7 @@
                     clearInterval(timer);
                     location.reload();
                 } else {
-                    document.getElementById("countdown").innerHTML = `Terlalu banyak upaya masuk. Silahkan coba lagi dalam ${minutes} menit ${seconds} detik.`;
+                    document.getElementById("countdown").innerHTML = `Terlalu banyak upaya masuk. Silakan coba lagi dalam ${minutes} menit ${seconds} detik.`;
                     totalSeconds--;
                 }
             }, 1000);
@@ -101,6 +126,11 @@
             if ($('#countdown').length) {
                 start_countdown();
             }
+
+            // Hapus localStorage untuk timer OTP login setiap kali halaman login utama dimuat.
+            // Ini untuk memastikan timer direset jika pengguna kembali ke halaman ini
+            // setelah gagal OTP atau membatalkan proses.
+            localStorage.removeItem('otpLoginExpiry');
         });
     </script>
 @endpush

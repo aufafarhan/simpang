@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,16 +29,16 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\SistemEnum;
-use App\Enums\StatusEnum;
 use App\Models\Artikel;
 use App\Models\TeksBerjalan;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -71,9 +71,10 @@ class Teks_berjalan extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
-            $order = $this->input->get('order') ?? false;
+            $status = $this->input->get('status') ?? null;
+            $query  = TeksBerjalan::with('artikel')->status($status);
 
-            return datatables()->of(TeksBerjalan::with('artikel')->when(! $order, static fn ($q) => $q->orderBy('urut')))
+            return datatables()->of($query)
                 ->addColumn('drag-handle', static fn (): string => '<i class="fa fa-sort-alpha-desc"></i>')
                 ->addColumn('ceklist', static function ($row) {
                     if (can('h')) {
@@ -84,19 +85,19 @@ class Teks_berjalan extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('teks_berjalan.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'teks_berjalan/form/' . $row->id,
+                    ])->render();
 
-                        if ($row->status == StatusEnum::YA) {
-                            $aksi .= '<a href="' . ci_route('teks_berjalan.lock') . '/' . $row->id . '/' . StatusEnum::TIDAK . '" class="btn bg-navy btn-sm" title="Aktifkan Anjungan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('teks_berjalan.lock') . '/' . $row->id . '/' . StatusEnum::YA . '" class="btn bg-navy btn-sm" title="Nonaktifkan Anjungan"><i class="fa fa-lock"></i></a> ';
-                        }
-                    }
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => site_url("teks_berjalan/lock/{$row->id}"),
+                        'active' => $row->status,
+                    ])->render();
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('teks_berjalan.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('teks_berjalan.delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -117,7 +118,7 @@ class Teks_berjalan extends Admin_Controller
 
                     return '<a href="' . $tautan . '" target="_blank">' . $tampil . '</a>';
                 })
-                ->rawColumns(['drag-handle', 'ceklist', 'aksi', 'teks', 'judul_tautan'])
+                ->rawColumns(['drag-handle', 'ceklist', 'aksi', 'teks', 'judul_tautan', 'status_label'])
                 ->orderColumn('teks', static function ($query, $order): void {
                     $query->orderBy('teks', $order);
                 })
@@ -149,19 +150,19 @@ class Teks_berjalan extends Admin_Controller
         isCan('u');
 
         if (TeksBerjalan::create($this->validate($this->request))) {
-            redirect_with('success', 'Berhasil Tambah Data');
+            redirect_with('success', __('notification.created.success'));
         }
 
-        redirect_with('error', 'Gagal Tambah Data');
+        redirect_with('error', __('notification.created.error'));
     }
 
     public function update($id = ''): void
     {
         isCan('u');
         if (TeksBerjalan::findOrFail($id)->update($this->validate($this->request, $id))) {
-            redirect_with('success', 'Berhasil Ubah Data');
+            redirect_with('success', __('notification.updated.success'));
         }
-        redirect_with('error', 'Gagal Ubah Data');
+        redirect_with('error', __('notification.updated.error'));
     }
 
     public function delete($id = null): void
@@ -169,19 +170,19 @@ class Teks_berjalan extends Admin_Controller
         isCan('h');
 
         if (TeksBerjalan::destroy($this->request['id_cb'] ?? $id) !== 0) {
-            redirect_with('success', 'Berhasil Hapus Data');
+            redirect_with('success', __('notification.deleted.success'));
         }
 
-        redirect_with('error', 'Gagal Hapus Data');
+        redirect_with('error', __('notification.deleted.error'));
     }
 
-    public function lock($id = 0, $val = 1): void
+    public function lock($id = 0): void
     {
         isCan('u');
-        if (TeksBerjalan::findOrFail($id)->update(['status' => $val])) {
-            redirect_with('success', 'Berhasil Ubah Status');
+        if (TeksBerjalan::gantiStatus($id)) {
+            redirect_with('success', __('notification.status.success'));
         }
-        redirect_with('error', 'Gagal Ubah Status');
+        redirect_with('error', __('notification.status.error'));
     }
 
     protected function validate($request = [], $id = null)
@@ -193,7 +194,7 @@ class Teks_berjalan extends Admin_Controller
             'status'       => (int) $request['status'],
         ];
 
-        $data['tautan'] = $data['title'] === '' ? $request['tautan_internal'] : $request['tautan_eksternal'];
+        $data['tautan'] = $request['tipe'] == '1' ? $request['tautan_internal'] : $request['tautan_eksternal'];
 
         if ($id === null) {
             $data['urut'] = TeksBerjalan::UrutMax();

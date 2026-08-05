@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -131,25 +131,6 @@ class Statistik extends Admin_Controller
         return (new LaporanPenduduk())->listData($lap, $filter, $paramCetak);
     }
 
-    private function tautan_data(?string $lap = '0')
-    {
-        $sasaran = null;
-
-        if ((int) $lap > 50) {
-            $program_id = preg_replace('/^50/', '', $lap);
-            $sasaran    = Bantuan::find($program_id)?->sasaran;
-        }
-
-        return match (true) {
-            in_array($lap, [21, 22, 23, 24, 25, 26, 27, 'kelas_sosial', 'bantuan_keluarga']) || ((int) $lap > 50 && (int) $sasaran == 2) => site_url("keluarga/statistik/{$lap}/"),
-            $lap == 'bdt'                                                                    || ((int) $lap > 50 && (int) $sasaran == 3) => site_url("rtm/statistik/{$lap}/"),
-            $lap == 'akta-kematian'                                                                                                      => site_url("penduduk_log/statistik/{$lap}/"),
-            (int) $lap < 50 || $lap == 'kia' || ((int) $lap > 50 && (int) $sasaran == 1)                                                 => site_url("penduduk/statistik/{$lap}/"),
-            (int) $lap > 50 && (int) $sasaran == 4                                                                                       => site_url("kelompok/statistik/{$lap}/"),
-            default                                                                                                                      => null,
-        };
-    }
-
     public function get_data_stat(&$data, $lap): void
     {
         $config       = $this->header['desa'];
@@ -218,5 +199,24 @@ class Statistik extends Admin_Controller
         $data['letak_ttd']  = ['2', '2', '9'];
 
         return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    private function tautan_data(?string $lap = '0')
+    {
+        $sasaran = null;
+
+        if ((int) $lap > 50) {
+            $program_id = preg_replace('/^50/', '', $lap);
+            $sasaran    = Bantuan::find($program_id)?->sasaran;
+        }
+
+        return match (true) {
+            in_array($lap, [21, 22, 23, 24, 25, 26, 27, 'kelas_sosial', 'bantuan_keluarga']) || ((int) $lap > 50 && (int) $sasaran == 2)                    => site_url("keluarga/statistik/{$lap}/"),
+            $lap == 'bdt'                                                                    || $lap == 'dtsen' || ((int) $lap > 50 && (int) $sasaran == 3) => site_url("rtm/statistik/{$lap}/"),
+            $lap == 'akta-kematian'                                                                                                                         => site_url("penduduk_log/statistik/{$lap}/"),
+            (int) $lap < 50 || $lap == 'kia' || ((int) $lap > 50 && (int) $sasaran == 1)                                                                    => site_url("penduduk/statistik/{$lap}/"),
+            (int) $lap > 50 && (int) $sasaran == 4                                                                                                          => site_url("kelompok/statistik/{$lap}/"),
+            default                                                                                                                                         => null,
+        };
     }
 }

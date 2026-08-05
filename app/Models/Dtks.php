@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,7 +39,6 @@ namespace App\Models;
 
 use App\Enums\Dtks\DtksEnum;
 use App\Traits\ConfigId;
-use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -121,16 +120,6 @@ class Dtks extends BaseModel
             'rtm.anggota' => static function ($builder): void {
                 // override all items within the $with property in Penduduk
                 $builder->without([
-                    'jenisKelamin',
-                    'agama',
-                    'pendidikan',
-                    'pendidikanKK',
-                    'pekerjaan',
-                    'wargaNegara',
-                    'golonganDarah',
-                    'cacat',
-                    'statusKawin',
-                    'pendudukStatus',
                     'wilayah',
                 ]);
                 // hanya ambil data anggota yg masih hidup (tweb_penduduk)
@@ -235,17 +224,5 @@ class Dtks extends BaseModel
     public function lampiran()
     {
         return $this->belongsToMany(DtksLampiran::class, 'dtks_ref_lampiran', 'id_dtks', 'id_lampiran')->withoutGlobalScope(\App\Scopes\ConfigIdScope::class);
-    }
-
-    public static function boot(): void
-    {
-        parent::boot();
-
-        static::deleting(static function ($model): void {
-            $id_lampiran = DB::table('dtks_ref_lampiran')->where('id_dtks', $model->id)->pluck('id_lampiran')->toArray();
-            if (count($id_lampiran) > 0) {
-                DtksLampiran::destroy($id_lampiran);
-            }
-        });
     }
 }

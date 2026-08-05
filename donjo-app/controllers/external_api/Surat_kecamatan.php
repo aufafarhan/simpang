@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,13 +29,14 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
 use App\Enums\StatusSuratKecamatanEnum;
+use App\Models\FormatSurat;
 use App\Models\LogSurat;
 use GuzzleHttp\Psr7;
 use Illuminate\Support\Facades\DB;
@@ -55,9 +56,9 @@ class Surat_kecamatan extends Tte_Controller
     {
         parent::__construct();
 
-        if (! empty($this->setting->sinkronisasi_opendk)) {
+        if (! empty(setting('sinkronisasi_opendk'))) {
             $this->client = new GuzzleHttp\Client([
-                'base_uri' => "{$this->setting->api_opendk_server}/api/v1/surat/",
+                'base_uri' => setting('api_opendk_server') . '/api/v1/surat/',
             ]);
         }
         $this->kode_desa = kode_wilayah(identitas()->kode_desa);
@@ -72,14 +73,13 @@ class Surat_kecamatan extends Tte_Controller
         try {
             $surat = LogSurat::where('id', '=', $request['id'])->first();
 
-            $this->load->model('keluar_model');
-            $data = $this->keluar_model->verifikasi_data_surat($surat->id, $this->kode_desa);
+            $data = $this->verifikasiDataSurat($surat->id, $this->kode_desa);
 
             if ($this->client) {
                 $this->client->post('kirim', [
                     'headers' => [
                         'Accept'        => 'application/json',
-                        'Authorization' => "Bearer {$this->setting->api_opendk_key}",
+                        'Authorization' => 'Bearer ' . setting('api_opendk_key'),
                     ],
                     'multipart' => [
                         ['name' => 'file', 'contents' => Psr7\Utils::tryFopen(FCPATH . LOKASI_ARSIP . $surat->nama_surat, 'r')],
@@ -114,21 +114,30 @@ class Surat_kecamatan extends Tte_Controller
         }
     }
 
-    public function download($jenis, $nomor, $desa, $bulan, $tahun)
+    public function download($nomor)
     {
+        $nomor      = urldecode($nomor); // decode URL
+        $noFileName = str_replace(' ', '', $nomor);
+        $nomor      = str_replace('-', '/', $nomor);
+
         if ($this->client) {
             try {
-                $response = $this->client->get("download?desa_id={$this->kode_desa}&nomor={$jenis}/{$nomor}/{$desa}/{$bulan}/{$tahun}", [
+                $response = $this->client->get("download?desa_id={$this->kode_desa}&nomor={$nomor}", [
                     'headers' => [
                         'Accept'        => 'application/pdf',
-                        'Authorization' => "Bearer {$this->setting->api_opendk_key}",
+                        'Authorization' => 'Bearer ' . setting('api_opendk_key'),
                     ],
                 ]);
 
-                $filename = "kecamatan_{$jenis}_{$nomor}_{$bulan}_{$tahun}.pdf";
+                // $filename = "kecamatan_{$jenis}_{$nomor}_{$bulan}_{$tahun}.pdf";
+                $noFileName = str_replace(['/', ' '], ['-', '_'], $nomor);
+                $filename   = "kecamatan_{$noFileName}.pdf";
 
                 if ($response->getStatusCode() == 200) {
                     $file = fopen(FCPATH . LOKASI_ARSIP . $filename, 'wb');
+                    if ($file === false) {
+                        throw new Exception('Gagal membuat file: ' . FCPATH . LOKASI_ARSIP . $filename);
+                    }
                     fwrite($file, $response->getBody()->getContents());
                     fclose($file);
                 }
@@ -145,8 +154,42 @@ class Surat_kecamatan extends Tte_Controller
         }
 
         $_SESSION['success']   = -99;
-        $_SESSION['error_msg'] = 'Tidak bisa mengambil surat dari kecamatan, apikey opendk belum disetting';
+        $_SESSION['error_msg'] = 'Tidak bisa mengambil surat dari kecamatan, apikey OpenDK belum diatur.';
 
         return redirect('keluar/kecamatan');
+    }
+
+    private function verifikasiDataSurat($id, $kode_desa)
+    {
+
+        $data = LogSurat::withOnly(['formatSurat', 'pendudukSaja', 'pamong'])->find($id);
+        if (! $data) {
+            return false;
+        }
+
+        $format['config']['kode_desa'] = $kode_desa;
+        $format['input']['nomor']      = $data->no_surat;
+        $format['surat']               = [
+            'format_nomor_global' => $data->formatSurat->format_nomor_global,
+            'format_nomor'        => $data->formatSurat->format_nomor,
+            'cek_thn'             => $data->tahun,
+            'cek_bln'             => $data->bulan,
+            'nomor'               => $data->no_surat,
+            'kode_surat'          => $data->kode_surat,
+        ];
+
+        $data->nomor_surat = FormatSurat::format_penomoran_surat($format);
+
+        // Filter Output
+        $output = [
+            'nomor_surat'    => $data->nomor_surat,
+            'tanggal'        => $data->tanggal,
+            'perihal'        => $data->perihal,
+            'nama_penduduk'  => $data->pendudukSaja?->nama ?? $data->nama_non_warga,
+            'pamong_nama'    => $data->pamong?->pamong_nama ?? '',
+            'pamong_jabatan' => $data->pamong?->jabatan->nama ?? '',
+        ];
+
+        return (object) $output;
     }
 }

@@ -16,16 +16,21 @@
     @include('admin.layouts.components.notifikasi')
     <div class="box box-info">
         <div class="box-header with-border">
-            @if (can('u'))
-                <a href="{{ ci_route('gawai_layanan.form') }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
-            @endif
-            @if (can('h'))
-                <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform', '{{ ci_route('gawai_layanan.delete') }}')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
-                        class='fa fa-trash-o'></i> Hapus</a>
-            @endif
+            <x-tambah-button 
+                :url="'gawai_layanan/form'"
+            />
+            <x-hapus-button 
+                confirmDelete="true" 
+                selectData="true"
+                :url="'gawai_layanan/delete'" 
+            />
         </div>
         <div class="box-body">
             {!! form_open(null, 'id="mainform" name="mainform"') !!}
+            <div class="row mepet">
+                @include('admin.layouts.components.select_status')
+            </div>
+            <hr class="batas">
             <div class="table-responsive">
                 <table class="table table-bordered table-hover" id="tabeldata">
                     <thead>
@@ -53,11 +58,17 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+            $('#status').val('1').trigger('change');
             var TableData = $('#tabeldata').DataTable({
                 responsive: true,
                 processing: true,
                 serverSide: true,
-                ajax: "{{ ci_route('gawai_layanan.datatables') }}",
+                ajax: {
+                    url: "{{ ci_route('gawai_layanan.datatables') }}",
+                    data: function(req) {
+                        req.status = $('#status').val();
+                    }
+                },
                 columns: [{
                         data: 'ceklist',
                         class: 'padat',
@@ -122,6 +133,10 @@
                     [3, 'asc']
                 ]
             });
+
+            $('#status').change(function() {
+                TableData.draw();
+            })
 
             if (hapus == 0) {
                 TableData.column(0).visible(false);

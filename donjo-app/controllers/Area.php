@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,24 +29,28 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
-use App\Libraries\Checker;
+use App\Enums\AktifEnum;
 use App\Models\Area as AreaModel;
 use App\Models\Garis;
 use App\Models\Lokasi;
 use App\Models\Pembangunan;
 use App\Models\Polygon;
 use App\Models\Wilayah;
+use App\Traits\Upload;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Area extends Admin_Controller
 {
+    use Upload;
+
     public $modul_ini     = 'pemetaan';
     public $sub_modul_ini = 'pengaturan-peta';
     private int $tip      = 4;
@@ -60,7 +64,6 @@ class Area extends Admin_Controller
     public function index($parent = 0): void
     {
         $data            = ['tip' => $this->tip, 'parent' => $parent];
-        $data['status']  = [Polygon::UNLOCK => 'Aktif', Polygon::LOCK => 'Tidak Aktif'];
         $data['polygon'] = Polygon::root()->with(['children' => static fn ($q) => $q->select(['id', 'parrent', 'nama'])])->get();
 
         view('admin.peta.area.index', $data);
@@ -69,12 +72,12 @@ class Area extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
-            $status     = $this->input->get('status') ?? null;
+            $status     = $this->input->get('status');
             $subpolygon = $this->input->get('subpolygon') ?? null;
             $polygon    = $this->input->get('polygon') ?? null;
             $parent     = $this->input->get('parent') ?? 0;
 
-            return datatables()->of(AreaModel::when($status, static fn ($q) => $q->whereEnabled($status))
+            return datatables()->of(AreaModel::status($status)
                 ->when($polygon, static fn ($q) => $q->whereIn('ref_polygon', static fn ($q) => $q->select('id')->from('polygon')->whereParrent($polygon)))
                 ->when($subpolygon, static fn ($q) => $q->whereRefPolygon($subpolygon))
                 ->with([
@@ -88,24 +91,32 @@ class Area extends Admin_Controller
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row) use ($parent): string {
                     $aksi = '';
-                    if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('area.form', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])) . '" class="btn btn-warning btn-sm"  title="Ubah"><i class="fa fa-edit"></i></a> ';
-                    }
-                    $aksi .= '<a href="' . ci_route('area.ajax_area_maps', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])) . '" class="btn bg-olive btn-sm" title="Lokasi ' . $row->nama . '"><i class="fa fa-map"></i></a> ';
-                    if (can('u')) {
-                        if ($row->isLock()) {
-                            $aksi .= '<a href="' . ci_route('area.unlock', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('area.lock', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])) . '" class="btn bg-navy btn-sm" title="Non Aktifkan"><i class="fa fa-unlock">&nbsp;</i></a> ';
-                        }
-                    }
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('area.delete', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])) . '" class="btn bg-maroon btn-sm"  title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a> ';
-                    }
+
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'area/form/' . implode('/', [$row->polygon->parent->id ?? $parent, $row->id]),
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                        'url'        => ci_route('area.ajax_area_maps', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])),
+                        'icon'       => 'fa fa-map',
+                        'judul'      => 'Lokasi ' . $row->nama,
+                        'type'       => 'bg-olive',
+                        'buttonOnly' => true,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => ci_route('area.lock', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])),
+                        'active' => $row->enabled,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('area.delete', implode('/', [$row->polygon->parent->id ?? $parent, $row->id])),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
-                ->editColumn('enabled', static fn ($row): string => $row->isLock() ? 'Tidak' : 'Ya')
+                ->editColumn('enabled', static fn ($row): string => $row->enabled == AktifEnum::AKTIF ? 'Ya' : 'Tidak')
                 ->editColumn('ref_polygon', static fn ($row) => $row->polygon->parent->nama ?? '')
                 ->editColumn('kategori', static fn ($row) => $row->polygon->nama ?? '')
                 ->rawColumns(['aksi', 'ceklist'])
@@ -118,29 +129,78 @@ class Area extends Admin_Controller
     public function form($parent = 0, $id = '')
     {
         isCan('u');
+
         $data['area']        = null;
         $data['form_action'] = ci_route('area.insert', $parent);
         $data['foto_area']   = null;
         $data['parent']      = $parent;
 
         if ($id) {
-            $data['area']        = AreaModel::find($id);
+            $data['area']        = AreaModel::findOrFail($id);
             $data['form_action'] = ci_route('area.update', implode('/', [$parent, $id]));
+
+            // Ambil parent dari ref_polygon saat edit
+            if ($data['area']->ref_polygon) {
+                $currentPolygon = Polygon::find($data['area']->ref_polygon);
+                if ($currentPolygon && $currentPolygon->parrent) {
+                    $data['parent'] = $currentPolygon->parrent;
+                }
+            }
         }
 
-        $data['list_polygon'] = empty($parent) ? Polygon::subPolygon()->whereHas('parent')->get() : Polygon::child($parent)->whereHas('parent')->get();
-        $data['tip']          = $this->tip;
+        // Ambil semua data Root/Jenis untuk dropdown pertama
+        $data['list_jenis'] = Polygon::root()->get();
+
+        // Ambil data Child/Kategori untuk dropdown kedua
+        if ($data['parent'] > 0) {
+            $data['list_kategori'] = Polygon::child($data['parent'])->get();
+        } else {
+            $data['list_kategori'] = collect([]);
+        }
+
+        $data['tip'] = $this->tip;
 
         return view('admin.peta.area.form', $data);
+    }
+
+    /**
+     * AJAX untuk mengambil kategori berdasarkan jenis yang dipilih
+     */
+    public function ajax_get_kategori()
+    {
+        if ($this->input->is_ajax_request()) {
+            $jenis_id = $this->input->get('jenis_id');
+
+            if ($jenis_id) {
+                $kategori = Polygon::child($jenis_id)->get()->map(static function ($item) {
+                    return [
+                        'id'   => $item->id,
+                        'nama' => $item->nama,
+                    ];
+                });
+
+                return json([
+                    'success' => true,
+                    'data'    => $kategori,
+                ]);
+            }
+
+            return json([
+                'success' => false,
+                'data'    => [],
+            ]);
+        }
+
+        return show_404();
     }
 
     public function ajax_area_maps($parent, int $id)
     {
         isCan('u');
 
-        $data['area']                   = AreaModel::find($id)->toArray();
-        $data['parent']                 = $parent;
-        $data['desa']                   = $this->header['desa'];
+        $data['area']   = AreaModel::find($id)->toArray();
+        $data['parent'] = $parent;
+
         $data['wil_atas']               = $this->header['desa'];
         $data['dusun_gis']              = Wilayah::dusun()->get()->toArray();
         $data['rw_gis']                 = Wilayah::rw()->get()->toArray();
@@ -232,29 +292,25 @@ class Area extends Admin_Controller
         }
     }
 
-    public function lock($parent, $id): void
+    public function lock($parent, $id)
     {
-        isCan('h');
+        isCan('u');
 
         try {
-            AreaModel::where(['id' => $id])->update(['enabled' => AreaModel::LOCK]);
-            redirect_with('success', 'Area berhasil dinonaktifkan', ci_route('area.index', $parent));
+            $status  = AreaModel::gantiStatus($id, 'enabled');
+            $success = (bool) $status;
+
+            return json([
+                'success' => $success,
+                'message' => $success ? __('notification.status.success') : __('notification.status.error'),
+            ]);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Area gagal dinonaktifkan', ci_route('area.index', $parent));
-        }
-    }
 
-    public function unlock($parent, $id): void
-    {
-        isCan('h');
-
-        try {
-            AreaModel::where(['id' => $id])->update(['enabled' => AreaModel::UNLOCK]);
-            redirect_with('success', 'Area berhasil diaktifkan', ci_route('area.index', $parent));
-        } catch (Exception $e) {
-            log_message('error', $e->getMessage());
-            redirect_with('error', 'Area gagal diaktifkan', ci_route('area.index', $parent));
+            return json([
+                'success' => false,
+                'message' => __('notification.status.error'),
+            ]);
         }
     }
 
@@ -275,12 +331,8 @@ class Area extends Admin_Controller
         $data['desk']        = htmlentities((string) $post['desk']);
         $data['enabled']     = bilangan($post['enabled']);
 
-        $area_file = $_FILES['foto']['tmp_name'];
-        $nama_file = $_FILES['foto']['name'];
-        $nama_file = time() . '-' . str_replace(' ', '-', $nama_file);      // normalkan nama file
-        if (! empty($area_file)) {
-            $nama_file    = (new Checker(get_app_key(), $nama_file))->encrypt();
-            $data['foto'] = UploadPeta($nama_file, LOKASI_FOTO_AREA);
+        if ($_FILES['foto']['name']) {
+            $data['foto'] = $this->uploadGambar('foto', LOKASI_FOTO_AREA);
         } else {
             unset($data['foto']);
         }

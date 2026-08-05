@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -44,7 +44,9 @@ use App\Models\Bantuan;
 use App\Models\BantuanPeserta;
 use App\Models\Kelompok;
 use App\Models\Penduduk;
+use App\Traits\Upload;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Color;
@@ -53,29 +55,37 @@ use OpenSpout\Writer\XLSX\Writer;
 
 class Program_bantuan extends Admin_Controller
 {
-    public $modul_ini        = 'bantuan';
-    public $akses_modul      = 'program-bantuan';
-    private array $_set_page = ['20', '50', '100'];
+    use Upload;
+
+    public $modul_ini     = 'bantuan';
+    public $akses_modul   = 'program-bantuan';
+    private $filterColumn = [];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b', 'program-bantuan');
-        $this->load->model(['program_bantuan_model']);
     }
 
     public function clear(): void
     {
-        $this->session->per_page = $this->_set_page[0];
-        $this->session->unset_userdata('sasaran');
-        redirect('program_bantuan');
+        $this->index();
     }
 
     public function index(): void
     {
+        if ($this->input->get('sasaran')) {
+            $this->filterColumn['sasaran'] = $this->input->get('sasaran');
+        }
+        if ($this->input->get('status')) {
+            $this->filterColumn['status'] = $this->input->get('status');
+        }
+
+        $data['list_status']  = AktifEnum::all();
         $data['list_sasaran'] = SasaranEnum::all();
         $data['func']         = 'index';
         $data['formatImpor']  = ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-program-bantuan.xlsx'));
+        $data['filterColumn'] = $this->filterColumn;
 
         view('admin.program_bantuan.program', $data);
     }
@@ -83,38 +93,47 @@ class Program_bantuan extends Admin_Controller
     public function datatables()
     {
         if ($this->input->is_ajax_request()) {
+            $status     = $this->input->get('status') ?? null;
             $sasaran    = $this->input->get('sasaran') ?? null;
             $program_id = $this->input->get('program_id') ?? null;
 
-            return datatables()->of(Bantuan::getProgram($program_id)->when($sasaran, static fn ($q) => $q->where('sasaran', $sasaran)))
+            $query = Bantuan::getProgram($program_id)
+                ->status($status)
+                ->when($sasaran, static fn ($q) => $q->where('sasaran', $sasaran));
+
+            return datatables()->of($query)
                 ->addIndexColumn()
                 ->addColumn('aksi', static function ($row): string {
                     $openKab = null === $row->config_id ? 'disabled' : '';
 
-                    $aksi = '<a href="' . site_url("peserta_bantuan/detail_clear/{$row->id}") . '" class="btn bg-purple btn-sm" title="Rincian"><i class="fa fa-list"></i></a>';
+                    $aksi = View::make('admin.layouts.components.buttons.rincian', [
+                        'url' => "../peserta_bantuan/detail_clear/{$row->id}",
+                    ])->render();
 
-                    if (can('u')) {
-                        $aksi .= '<a href="' . site_url("program_bantuan/edit/{$row->id}") . '" class="btn bg-orange btn-sm ' . $openKab . '" title="Ubah"><i class="fa fa-edit"></i></a>';
-                    }
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => "program_bantuan/edit/{$row->id}",
+                    ])->render();
 
                     if ($row->peserta_count != 0) {
-                        $aksi .= '<a href="' . site_url("program_bantuan/expor/{$row->id}") . '" class="btn bg-navy btn-sm ' . $openKab . '" title="Expor"><i class="fa fa-download"></i></a>';
+                        $aksi .= View::make('admin.layouts.components.buttons.ekspor', [
+                            'url'     => "program_bantuan/expor/{$row->id}",
+                            'openkab' => $openKab,
+                        ])->render();
                     }
 
-                    if (can('h')) {
-                        if ($row->peserta_count != 0 || null === $row->config_id) {
-                            $aksi .= '<a class="btn bg-maroon btn-sm disabled" title="Hapus"><i class="fa fa-trash-o"></i></a>';
-                        } else {
-                            $aksi .= '<a href="#" data-href="' . site_url("program_bantuan/hapus/{$row->id}") . '" class="btn bg-maroon btn-sm ' . $openKab . '" title="Hapus" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash-o"></i></a>';
-                        }
+                    if (! $openKab) {
+                        $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                            'url'           => site_url("program_bantuan/hapus/{$row->id}"),
+                            'confirmDelete' => true,
+                        ])->render();
                     }
 
                     return $aksi;
                 })
-                ->editColumn('tampil_tanggal', static fn ($row): string => fTampilTgl($row->sdate, $row->edate))
-                ->editColumn('sasaran', static fn ($row): string => SasaranEnum::valueOf($row->sasaran))
-                ->editColumn('status', static fn ($row): string => AktifEnum::valueOf($row->status))
-                ->rawColumns(['aksi'])
+                ->editColumn('tampil_tanggal', static fn ($row): string|null => fTampilTgl($row->sdate, $row->edate))
+                ->editColumn('sasaran', static fn ($row): string|null => SasaranEnum::valueOf($row->sasaran))
+                ->editColumn('status_masa_aktif', static fn ($row): string => $row->status_masa_aktif === 'Aktif' ? '<span class="label label-success">' . $row->status_masa_aktif . '</span>' : '<span class="label label-danger">' . $row->status_masa_aktif . '</span>')
+                ->rawColumns(['aksi', 'status_masa_aktif'])
                 ->make();
         }
 
@@ -154,6 +173,245 @@ class Program_bantuan extends Admin_Controller
         return show_404();
     }
 
+    public function panduan(): void
+    {
+        view('admin.program_bantuan.panduan');
+    }
+
+    public function create(): void
+    {
+        isCan('u', 'program-bantuan');
+
+        $this->validasi_form();
+
+        $data['asaldana'] = unserialize(ASALDANA);
+        $data['kk_level'] = DB::table('tweb_penduduk_hubungan')->pluck('nama', 'id')->toArray();
+
+        if ($this->form_validation->run() === false) {
+            $data['sasaran'] = SasaranEnum::all();
+            view('admin.program_bantuan.create', $data);
+        } else {
+            $post = $this->input->post();
+            $this->insert($post);
+        }
+    }
+
+    public function insert($post): void
+    {
+        if (Bantuan::create($this->validasi_bantuan($post))) {
+            redirect_with('success', 'Berhasil Tambah Data');
+        }
+        redirect_with('error', 'Gagal Tambah Data');
+    }
+
+    public function edit($id = 0): void
+    {
+        isCan('u', 'program-bantuan');
+
+        $this->validasi_form();
+
+        $bantuan              = Bantuan::getProgram($id)->first();
+        $data['program']      = $bantuan ? $bantuan->toArray() : show_404();
+        $data['asaldana']     = unserialize(ASALDANA);
+        $data['jml']          = BantuanPeserta::where('program_id', $id)->count();
+        $data['nama_excerpt'] = Str::limit($data['program']['nama'], 25);
+        $data['kk_level']     = DB::table('tweb_penduduk_hubungan')->pluck('nama', 'id')->toArray();
+        $data['sasaran']      = SasaranEnum::all();
+        if ($this->form_validation->run() === false) {
+            view('admin.program_bantuan.edit', $data);
+        } else {
+            $post = $this->input->post();
+            $this->update($post, $id);
+        }
+    }
+
+    public function update($post, $id): void
+    {
+        isCan('u', 'program-bantuan');
+        if ($id !== 0 && Bantuan::findOrFail($id)->update($this->validasi_bantuan($post))) {
+            redirect_with('success', 'Berhasil Ubah Data');
+        }
+        redirect_with('error', 'Gagal Ubah Data');
+    }
+
+    public function hapus($id): void
+    {
+        isCan('h', 'program-bantuan');
+        $bantuan = Bantuan::findOrFail($id);
+
+        if ($bantuan->peserta()->exists()) {
+            redirect_with('information', 'Program bantuan tidak dapat dihapus karena masih memiliki peserta');
+        }
+
+        if ($bantuan->delete()) {
+            redirect_with('success', 'Berhasil Hapus Data');
+        }
+        redirect_with('error', 'Gagal Hapus Data');
+    }
+
+    public function impor(): void
+    {
+        isCan('u', 'program-bantuan');
+
+        $config['upload_path']   = sys_get_temp_dir();
+        $config['allowed_types'] = 'xls|xlsx|xlsm';
+        $config['file_name']     = namafile('Impor Peserta Program Bantuan');
+
+        $pathFile = $this->upload('userfile', $config);
+
+        $uploadFile = $config['upload_path'] . '/' . $pathFile;
+
+        $ganti_program      = $this->input->post('ganti_program');
+        $kosongkan_peserta  = $this->input->post('kosongkan_peserta');
+        $ganti_peserta      = $this->input->post('ganti_peserta');
+        $rand_kartu_peserta = $this->input->post('rand_kartu_peserta');
+
+        $result = (new BantuanImports($uploadFile, $ganti_program, $kosongkan_peserta, $ganti_peserta, $rand_kartu_peserta))->import();
+        if (! $result['status']) {
+            redirect_with('error', 'Program Bantuan gagal diimpor (' . $result['message'] . ')');
+        }
+
+        redirect_with('success', 'Data berhasil disimpan', ci_route('peserta_bantuan.detail_clear', ['program_id' => $result['notif']['program_id']]));
+    }
+
+    // TODO: function ini terlalu panjang dan sebaiknya dipecah menjadi beberapa method
+    public function expor($program_id = ''): void
+    {
+        if (BantuanPeserta::where('program_id', $program_id)->count() == 0) {
+            $this->session->success = -1;
+            redirect($this->controller);
+        }
+
+        // Data Program Bantuan
+        $temp                    = $this->session->per_page;
+        $this->session->per_page = 1_000_000_000;
+        $data                    = Bantuan::getProgramPeserta($program_id);
+        $tbl_program             = $data['detail'];
+        $tbl_peserta             = $data['peserta'];
+
+        //Nama File
+        $fileName = namafile('program_bantuan_' . $tbl_program['nama']) . '.xlsx';
+        $writer   = new Writer();
+        $writer->openToBrowser($fileName);
+
+        // Sheet Program
+        $writer->getCurrentSheet()->setName('Program');
+        $data_program = [
+            ['id', $tbl_program['id']],
+            ['config_id', identitas('id')],
+            ['Nama Program', $tbl_program['nama']],
+            ['Sasaran Program', $tbl_program['sasaran']],
+            ['Keterangan', $tbl_program['ndesc']],
+            ['Asal Dana', $tbl_program['asaldana']],
+            ['Rentang Waktu (Awal)', $tbl_program['sdate']],
+            ['Rentang Waktu (Akhir)', $tbl_program['edate']],
+        ];
+
+        foreach ($data_program as $row) {
+            $expor_program = [$row[0], $row[1]];
+            $rowFromValues = Row::fromValues($expor_program);
+            $writer->addRow($rowFromValues);
+        }
+
+        // Sheet Peserta
+        $writer->addNewSheetAndMakeItCurrent()->setName('Peserta');
+        $judul_peserta = ['Peserta', 'No. Peserta', 'NIK', 'Nama', 'Tempat Lahir', 'Tanggal Lahir', 'Alamat'];
+        $style         = (new Style())
+            ->setFontBold()
+            ->setFontSize(12)
+            ->setBackgroundColor(Color::YELLOW);
+
+        $header = Row::fromValues($judul_peserta, $style);
+        $writer->addRow($header);
+
+        //Isi Tabel
+        foreach ($tbl_peserta as $row) {
+            $peserta = $row->peserta;
+            // Ubah id menjadi kode untuk data kelompok
+            // Berkaitan dgn issue #3417
+            // Cari data kelompok berdasarkan id
+            if ($tbl_program['sasaran'] == 4) {
+                $kelompok = Kelompok::with(['ketua', 'kelompokMaster'])->find($peserta)->toArray();
+                $peserta  = $kelompok['kode'];
+            }
+
+            $data_peserta = [
+                $peserta,
+                $row->no_id_kartu,
+                $row->kartu_nik,
+                $row->kartu_nama,
+                $row->kartu_tempat_lahir,
+                $row->kartu_tanggal_lahir,
+                $row->kartu_alamat,
+            ];
+            $rowFromValues = Row::fromValues($data_peserta);
+            $writer->addRow($rowFromValues);
+        }
+        $writer->close();
+
+        $this->session->per_page = $temp;
+    }
+
+    /**
+     * Unduh kartu peserta berdasarkan kolom program_peserta.kartu_peserta
+     *
+     * @param int $id_peserta Id peserta program bantuan
+     */
+    public function unduh_kartu_peserta($id_peserta = 0): void
+    {
+        // Ambil nama berkas dari database
+        $kartu_peserta = DB::table('program_peserta')
+            ->select('kartu_peserta')
+            ->where('id', $id_peserta)
+            ->where('config_id', identitas('id'))
+            ->value('kartu_peserta');
+
+        ambilBerkas($kartu_peserta, $this->controller . '/detail/' . $id_peserta, null, LOKASI_DOKUMEN);
+    }
+
+    // Hapus peserta bantuan yg sudah dihapus
+    // TODO: ubah peserta menggunakan id untuk semua sasaran dan gunakan relasi database delete cascade
+    public function bersihkan_data(): void
+    {
+        isCan('h', 'program-bantuan');
+
+        $invalid      = [];
+        $list_sasaran = array_keys(unserialize(SASARAN));
+
+        foreach ($list_sasaran as $sasaran) {
+            $invalid = Bantuan::peserta_tidak_valid($sasaran);
+        }
+
+        $duplikat     = [];
+        $list_program = Bantuan::listProgram();
+
+        foreach ($list_program as $program) {
+            $duplikat = array_merge($duplikat, Bantuan::peserta_duplikat($program));
+        }
+
+        $data['ref_sasaran'] = unserialize(SASARAN);
+        $data['invalid']     = $invalid;
+        $data['duplikat']    = $duplikat;
+
+        view('admin.program_bantuan.hasil_pembersihan', $data);
+    }
+
+    public function bersihkan_data_peserta(): void
+    {
+        isCan('h', 'program-bantuan');
+
+        BantuanPeserta::whereIn('id', $this->input->post('id_cb'))->delete();
+
+        $this->session->success = 1;
+
+        redirect('program_bantuan/bersihkan_data');
+    }
+
+    protected function cek_is_date($cells)
+    {
+        return $cells->isDate() ? $cells->getValue()->format('Y-m-d') : (string) $cells;
+    }
+
     private function get_pilihan_penduduk($cari, $peserta)
     {
         $penduduk = Penduduk::select(['id', 'nik', 'nama', 'id_cluster'])
@@ -185,8 +443,7 @@ class Program_bantuan extends Admin_Controller
             $kk_level = ['1', '2', '3', '4'];
         }
 
-        $penduduk = Penduduk::with('pendudukHubungan')
-            ->select(['tweb_penduduk.id', 'tweb_penduduk.nik', 'keluarga_aktif.no_kk', 'tweb_penduduk.kk_level', 'tweb_penduduk.nama', 'tweb_penduduk.id_cluster'])
+        $penduduk = Penduduk::select(['tweb_penduduk.id', 'tweb_penduduk.nik', 'keluarga_aktif.no_kk', 'tweb_penduduk.kk_level', 'tweb_penduduk.nama', 'tweb_penduduk.id_cluster'])
             ->leftJoin('tweb_penduduk_hubungan', static function ($join): void {
                 $join->on('tweb_penduduk.kk_level', '=', 'tweb_penduduk_hubungan.id');
             })
@@ -209,7 +466,7 @@ class Program_bantuan extends Admin_Controller
             'results' => collect($penduduk->items())
                 ->map(static fn ($item): array => [
                     'id'   => $item->id,
-                    'text' => 'No KK : ' . $item->no_kk . ' - ' . $item->pendudukHubungan->nama . '- NIK : ' . $item->nik . ' - ' . $item->nama . ' RT-' . $item->wilayah->rt . ', RW-' . $item->wilayah->rw . ', ' . strtoupper((string) setting('sebutan_dusun')) . ' ' . $item->wilayah->dusun,
+                    'text' => 'No KK : ' . $item->no_kk . ' - ' . $item->penduduk_hubungan . '- NIK : ' . $item->nik . ' - ' . $item->nama . ' RT-' . $item->wilayah->rt . ', RW-' . $item->wilayah->rw . ', ' . strtoupper((string) setting('sebutan_dusun')) . ' ' . $item->wilayah->dusun,
                 ]),
             'pagination' => [
                 'more' => $penduduk->currentPage() < $penduduk->lastPage(),
@@ -271,11 +528,6 @@ class Program_bantuan extends Admin_Controller
         ]);
     }
 
-    public function panduan(): void
-    {
-        view('admin.program_bantuan.panduan');
-    }
-
     private function validasi_form(): void
     {
         $this->form_validation->set_rules('cid', 'Sasaran', 'required');
@@ -301,242 +553,6 @@ class Program_bantuan extends Admin_Controller
             'sdate'    => date('Y-m-d', strtotime((string) $post['sdate'])),
             'edate'    => date('Y-m-d', strtotime((string) $post['edate'])),
             'kk_level' => $kk_level,
-            'status'   => 1,
         ];
-    }
-
-    public function create(): void
-    {
-        isCan('u', 'program-bantuan');
-
-        $this->validasi_form();
-
-        $data['asaldana'] = unserialize(ASALDANA);
-        $data['kk_level'] = DB::table('tweb_penduduk_hubungan')->pluck('nama', 'id')->toArray();
-
-        if ($this->form_validation->run() === false) {
-            $data['sasaran'] = SasaranEnum::all();
-            view('admin.program_bantuan.create', $data);
-        } else {
-            $post = $this->input->post();
-            $this->insert($post);
-        }
-    }
-
-    public function insert($post): void
-    {
-        if (Bantuan::create($this->validasi_bantuan($post))) {
-            redirect_with('success', 'Berhasil Tambah Data');
-        }
-        redirect_with('error', 'Gagal Tambah Data');
-    }
-
-    public function edit($id = 0): void
-    {
-        isCan('u', 'program-bantuan');
-
-        $this->validasi_form();
-
-        $bantuan              = Bantuan::getProgram($id)->first();
-        $data['program']      = $bantuan ? $bantuan->toArray() : show_404();
-        $data['asaldana']     = unserialize(ASALDANA);
-        $data['jml']          = $this->program_bantuan_model->jml_peserta_program($id);
-        $data['nama_excerpt'] = Str::limit($data['program']['nama'], 25);
-        $data['kk_level']     = DB::table('tweb_penduduk_hubungan')->pluck('nama', 'id')->toArray();
-        $data['sasaran']      = SasaranEnum::all();
-        if ($this->form_validation->run() === false) {
-            view('admin.program_bantuan.edit', $data);
-        } else {
-            $post = $this->input->post();
-            $this->update($post, $id);
-        }
-    }
-
-    public function update($post, $id): void
-    {
-        isCan('u', 'program-bantuan');
-        if ($id !== 0 && Bantuan::findOrFail($id)->update($this->validasi_bantuan($post))) {
-            redirect_with('success', 'Berhasil Ubah Data');
-        }
-        redirect_with('error', 'Gagal Ubah Data');
-    }
-
-    public function hapus($id): void
-    {
-        isCan('h', 'program-bantuan');
-        $bantuan = Bantuan::findOrFail($id);
-        if ($bantuan->delete()) {
-            redirect_with('success', 'Berhasil Hapus Data');
-        }
-        redirect_with('error', 'Gagal Hapus Data');
-    }
-
-    public function impor(): void
-    {
-        isCan('u', 'program-bantuan');
-
-        $this->load->library('MY_Upload', null, 'upload');
-        $this->upload->initialize([
-            'upload_path'   => sys_get_temp_dir(),
-            'allowed_types' => 'xls|xlsx|xlsm',
-            'file_name'     => namafile('Impor Peserta Program Bantuan'),
-        ]);
-
-        if ($this->upload->do_upload('userfile')) {
-            $upload = $this->upload->data();
-
-            $ganti_program      = $this->input->post('ganti_program');
-            $kosongkan_peserta  = $this->input->post('kosongkan_peserta');
-            $ganti_peserta      = $this->input->post('ganti_peserta');
-            $rand_kartu_peserta = $this->input->post('rand_kartu_peserta');
-
-            $result = (new BantuanImports($upload['full_path'], $ganti_program, $kosongkan_peserta, $ganti_peserta, $rand_kartu_peserta))->import();
-            if (! $result) {
-                redirect_with('error', 'Program Bantuan gagal diimport');
-            }
-        }
-
-        session_error($this->upload->display_errors());
-        redirect($this->controller);
-    }
-
-    // TODO: function ini terlalu panjang dan sebaiknya dipecah menjadi beberapa method
-    public function expor($program_id = ''): void
-    {
-        if ($this->program_bantuan_model->jml_peserta_program($program_id) == 0) {
-            $this->session->success = -1;
-            redirect($this->controller);
-        }
-
-        // Data Program Bantuan
-        $temp                    = $this->session->per_page;
-        $this->session->per_page = 1_000_000_000;
-        $data                    = $this->program_bantuan_model->get_program(1, $program_id);
-        $tbl_program             = $data[0];
-        $tbl_peserta             = $data[1];
-
-        //Nama File
-        $fileName = namafile('program_bantuan_' . $tbl_program['nama']) . '.xlsx';
-        $writer   = new Writer();
-        $writer->openToBrowser($fileName);
-
-        // Sheet Program
-        $writer->getCurrentSheet()->setName('Program');
-        $data_program = [
-            ['id', $tbl_program['id']],
-            ['config_id', identitas('id')],
-            ['Nama Program', $tbl_program['nama']],
-            ['Sasaran Program', $tbl_program['sasaran']],
-            ['Keterangan', $tbl_program['ndesc']],
-            ['Asal Dana', $tbl_program['asaldana']],
-            ['Rentang Waktu (Awal)', $tbl_program['sdate']],
-            ['Rentang Waktu (Akhir)', $tbl_program['edate']],
-        ];
-
-        foreach ($data_program as $row) {
-            $expor_program = [$row[0], $row[1]];
-            $rowFromValues = Row::fromValues($expor_program);
-            $writer->addRow($rowFromValues);
-        }
-
-        // Sheet Peserta
-        $writer->addNewSheetAndMakeItCurrent()->setName('Peserta');
-        $judul_peserta = ['Peserta', 'No. Peserta', 'NIK', 'Nama', 'Tempat Lahir', 'Tanggal Lahir', 'Alamat'];
-        $style         = (new Style())
-            ->setFontBold()
-            ->setFontSize(12)
-            ->setBackgroundColor(Color::YELLOW);
-
-        $header = Row::fromValues($judul_peserta, $style);
-        $writer->addRow($header);
-
-        //Isi Tabel
-        foreach ($tbl_peserta as $row) {
-            $peserta = $row['peserta'];
-            // Ubah id menjadi kode untuk data kelompok
-            // Berkaitan dgn issue #3417
-            // Cari data kelompok berdasarkan id
-            if ($tbl_program['sasaran'] == 4) {
-                $this->load->model('kelompok_model');
-                $kelompok = $this->kelompok_model->get_kelompok($peserta);
-                $peserta  = $kelompok['kode'];
-            }
-
-            $data_peserta = [
-                $peserta,
-                $row['no_id_kartu'],
-                $row['kartu_nik'],
-                $row['kartu_nama'],
-                $row['kartu_tempat_lahir'],
-                $row['kartu_tanggal_lahir'],
-                $row['kartu_alamat'],
-            ];
-            $rowFromValues = Row::fromValues($data_peserta);
-            $writer->addRow($rowFromValues);
-        }
-        $writer->close();
-
-        $this->session->per_page = $temp;
-    }
-
-    /**
-     * Unduh kartu peserta berdasarkan kolom program_peserta.kartu_peserta
-     *
-     * @param int $id_peserta Id peserta program bantuan
-     */
-    public function unduh_kartu_peserta($id_peserta = 0): void
-    {
-        // Ambil nama berkas dari database
-        $kartu_peserta = $this->db
-            ->select('kartu_peserta')
-            ->where('id', $id_peserta)
-            ->where('config_id', identitas('id'))
-            ->get('program_peserta')
-            ->row()
-            ->kartu_peserta;
-        ambilBerkas($kartu_peserta, $this->controller . '/detail/' . $id_peserta, null, LOKASI_DOKUMEN);
-    }
-
-    // Hapus peserta bantuan yg sudah dihapus
-    // TODO: ubah peserta menggunakan id untuk semua sasaran dan gunakan relasi database delete cascade
-    public function bersihkan_data(): void
-    {
-        isCan('h', 'program-bantuan');
-
-        $invalid      = [];
-        $list_sasaran = array_keys($this->referensi_model->list_ref(SASARAN));
-
-        foreach ($list_sasaran as $sasaran) {
-            $invalid = Bantuan::peserta_tidak_valid($sasaran);
-        }
-
-        $duplikat     = [];
-        $list_program = Bantuan::listProgram();
-
-        foreach ($list_program as $program) {
-            $duplikat = array_merge($duplikat, Bantuan::peserta_duplikat($program));
-        }
-
-        $data['ref_sasaran'] = $this->referensi_model->list_ref(SASARAN);
-        $data['invalid']     = $invalid;
-        $data['duplikat']    = $duplikat;
-
-        view('admin.program_bantuan.hasil_pembersihan', $data);
-    }
-
-    public function bersihkan_data_peserta(): void
-    {
-        isCan('h', 'program-bantuan');
-
-        BantuanPeserta::whereIn('id', $this->input->post('id_cb'))->delete();
-
-        $this->session->success = 1;
-
-        redirect('program_bantuan/bersihkan_data');
-    }
-
-    protected function cek_is_date($cells)
-    {
-        return $cells->isDate() ? $cells->getValue()->format('Y-m-d') : (string) $cells;
     }
 }

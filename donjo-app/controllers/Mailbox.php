@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,6 +37,7 @@
 
 use App\Models\Penduduk;
 use App\Models\PesanMandiri;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -91,16 +92,45 @@ class Mailbox extends Admin_Controller
                 ->addColumn('aksi', static function ($row) use ($canUpdate, $canDelete): string {
                     $aksi = '';
                     if ($canDelete && ! $row->isArchive()) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('mailbox.delete.' . $row->tipe, $row->uuid) . '" class="btn bg-maroon btn-sm"  title="Arsipkan pesan" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-file-archive-o"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'         => '#',
+                            'dataHref'    => ci_route('mailbox.delete.' . $row->tipe, $row->uuid),
+                            'judul'       => 'Arsipkan pesan',
+                            'icon'        => 'fa fa-file-archive-o',
+                            'type'        => 'bg-maroon',
+                            'buttonOnly'  => true,
+                            'modal'       => true,
+                            'modalTarget' => 'confirm-delete',
+                            'tooltip'     => 'Arsipkan pesan',
+                        ])->render();
                     }
 
                     if ($canUpdate) {
-                        $aksi .= '<a href="' . ci_route('mailbox.detail.' . $row->tipe, $row->uuid) . '" class="btn bg-navy btn-sm"  title="Lihat detail pesan"><i class="fa fa-list"></i></a> ';
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'        => 'detail/' . $row->tipe . '/' . $row->uuid,
+                            'judul'      => 'Lihat detail pesan',
+                            'icon'       => 'fa fa-list',
+                            'type'       => 'bg-navy',
+                            'buttonOnly' => true,
+                        ])->render();
+
                         if ($row->tipe == 1) {
                             if ($row->isRead()) {
-                                $aksi .= '<a href="' . ci_route('mailbox.read.' . $row->tipe, $row->uuid) . '" class="btn bg-navy btn-sm" title="Nonaktifkan"><i class="fa fa-envelope-open-o"></i></a> ';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => 'read/' . $row->tipe . '/' . $row->uuid,
+                                    'judul'      => 'Nonaktifkan',
+                                    'icon'       => 'fa fa-envelope-open-o',
+                                    'type'       => 'bg-navy',
+                                    'buttonOnly' => true,
+                                ])->render();
                             } else {
-                                $aksi .= '<a href="' . ci_route('mailbox.read.' . $row->tipe, $row->uuid) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-envelope-o"></i></a> ';
+                                $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                                    'url'        => 'read/' . $row->tipe . '/' . $row->uuid,
+                                    'judul'      => 'Aktifkan',
+                                    'icon'       => 'fa fa-envelope-o',
+                                    'type'       => 'bg-navy',
+                                    'buttonOnly' => true,
+                                ])->render();
                             }
                         }
                     }

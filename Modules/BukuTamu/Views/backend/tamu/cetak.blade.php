@@ -47,6 +47,7 @@
                                 <th nowrap>INSTANSI</th>
                                 <th nowrap>JENIS KELAMIN</th>
                                 <th nowrap>ALAMAT</th>
+                                <th nowrap>BETEMU</th>
                                 <th nowrap>KEPERLUAN</th>
                                 <th nowrap>FOTO</th>
                             </tr>
@@ -61,9 +62,9 @@
                                     <td width="20%">{{ $tamu->nama }}</td>
                                     <td width="15%">{{ $tamu->telepon }}</td>
                                     <td>{{ $tamu->instansi }}</td>
-                                    <td width="5%">
-                                        {{ \App\Enums\JenisKelaminEnum::all()[$tamu->jenis_kelamin] }}</td>
+                                    <td width="5%">{{ $tamu->jenis_kelamin }}</td>
                                     <td>{{ $tamu->alamat }}</td>
+                                    <td>{{ $tamu->bidang }}</td>
                                     <td>{{ $tamu->keperluan }}</td>
                                     <td width="1%"class="text-center"><img src="{{ $tamu->url_foto }}" alt="foto" width="50px"></td>
                                 </tr>

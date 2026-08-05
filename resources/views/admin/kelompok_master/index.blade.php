@@ -21,15 +21,20 @@
 
     <div class="box box-info">
         <div class="box-header with-border">
-            @if (can('u'))
-                <a href="<?= site_url("{$ci->controller}/form") ?>" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah</a>
-            @endif
-            @if (can('h'))
-                <a href="#confirm-delete" title="Hapus Data" onclick="deleteAllBox('mainform','<?= site_url("{$ci->controller}/delete_all") ?>')" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih"><i
-                        class='fa fa-trash-o'
-                    ></i> Hapus</a>
-            @endif
-            <a href="<?= site_url($tipe) ?>" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar <?= ucfirst($tipe) ?></a>
+            <x-tambah-button 
+                :url="$ci->controller . '/form'" 
+            />
+
+            <x-hapus-button 
+                :url="$ci->controller . '/delete_all'"
+                :confirmDelete="true"
+                :selectData="true"
+            />
+
+            <x-kembali-button 
+                :url="$tipe"
+                :judul="'Kembali Ke Daftar ' . ucfirst($tipe)"
+            />
         </div>
         <div class="box-body">
             {!! form_open(null, 'id="mainform" name="mainform"') !!}

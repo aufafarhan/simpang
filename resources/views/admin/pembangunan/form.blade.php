@@ -20,7 +20,7 @@
         <div class="col-md-9">
             <div class="box box-info">
                 <div class="box-header with-border">
-                    <a href="{{ ci_route('admin_pembangunan') }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Pembangunan</a>
+                    <x-kembali-button judul="Kembali Ke Daftar Pembangunan" url="admin_pembangunan" />
                 </div>
                 <div class="box-body">
                     <div class="form-group">
@@ -77,9 +77,17 @@
                     <div class="form-group">
                         <label class="col-sm-3 control-label" for="sumber_dana">Sumber Dana</label>
                         <div class="col-sm-9">
-                            <select class="form-control input-sm select2" id="sumber_dana" name="sumber_dana" style="width:100%;">
+                            <select class="form-control input-sm select2"
+                                    id="sumber_dana"
+                                    name="sumber_dana[]"
+                                    style="width:100%;"
+                                    multiple="multiple" required>
+
                                 @foreach ($sumber_dana as $value)
-                                    <option @selected($value === $main->sumber_dana) value="{{ $value }}">{{ $value }}</option>
+                                    <option value="{{ $value }}"
+                                        {{ in_array($value, $main->sumber_dana ?? []) ? 'selected' : '' }}>
+                                        {{ $value }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
@@ -87,19 +95,27 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label class="col-sm-12 control-label">Tahun Anggaran</label>
+                                <label class="col-sm-12 control-label">Tahun Pagu Anggaran</label>
                                 <div class="col-sm-12">
                                     <select class="form-control input-sm select2" id="tahun_anggaran" name="tahun_anggaran" style="width:100%;">
-                                        @foreach (tahun(1999) as $value)
-                                            <option value="{{ $value }}" @selected($value == $main->tahun_anggaran)>{{ $value }}</option>
-                                        @endforeach
+                                        @foreach (tahun(awal: 1999, tambah: 8) as $value)
+                                        <option value="{{ $value }}"
+                                            @selected(
+                                                $action === 'Tambah'
+                                                    ? $value == date('Y')
+                                                    : $value == $main->tahun_anggaran 
+                                            )
+                                        >
+                                            {{ $value }}
+                                        </option>
+                                    @endforeach
                                     </select>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label class="col-sm-12 control-label">Anggaran</label>
+                                <label class="col-sm-12 control-label">Pagu Anggaran</label>
                                 <div class="col-sm-12">
                                     <input
                                         class="form-control input-sm required bilangan"
@@ -186,6 +202,42 @@
                             </div>
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="col-sm-12 control-label">Realisasi Anggaran</label>
+                                <div class="col-sm-12">
+                                    <input
+                                        id="realisasi_anggaran"
+                                        name="realisasi_anggaran"
+                                        class="form-control input-sm bilangan"
+                                        maxlength="12"
+                                        onkeyup="cek()"
+                                        type="text"
+                                        placeholder="Realisasi Anggaran"
+                                        value="{{ $main->realisasi_anggaran }}"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="col-sm-12 control-label">SILPA (Sisa Lebih Pembiayaan Anggaran)</label>
+                                <div class="col-sm-12">
+                                    <input
+                                        id="silpa"
+                                        name="silpa"
+                                        class="form-control input-sm required bilangan"
+                                        maxlength="12"
+                                        type="text"
+                                        onkeyup="cek()"
+                                        placeholder="SILPA (Sisa Lebih Pembiayaan Anggaran)"
+                                        value="{{ $main->silpa }}"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label class="col-sm-3 control-label" for="sifat_proyek">Sifat Proyek</label>
                         <div class="col-sm-9">
@@ -216,10 +268,10 @@
                             <div class="row">
                                 <div class="btn-group col-sm-6" data-toggle="buttons">
                                     <label class="btn btn-info btn-sm form-check-label col-sm-6 {{ $main->lokasi ? null : 'active' }}">
-                                        <input type="radio" name="jenis_lokasi" class="form-check-input" value="1" autocomplete="off" onchange="pilih_lokasi(this.value);"> Pilih Lokasi
+                                        <input type="radio" name="jenis_lokasi" class="form-check-input" value="1" @checked($main->lokasi ? false : true) autocomplete="off"> Pilih Lokasi
                                     </label>
                                     <label class="btn btn-info btn-sm form-check-label col-sm-6 {{ $main->lokasi ? 'active' : null }}">
-                                        <input type="radio" name="jenis_lokasi" class="form-check-input" value="2" autocomplete="off" onchange="pilih_lokasi(this.value);"> Tulis Manual
+                                        <input type="radio" name="jenis_lokasi" class="form-check-input" value="2" @checked($main->lokasi ? true : false)> Tulis Manual
                                     </label>
                                 </div>
                             </div>
@@ -251,7 +303,7 @@
                     </div>
                 </div>
                 <div class="box-footer">
-                    <button type="reset" class="btn btn-social btn-danger btn-sm" onclick="reset_form($(this).val());"><i class="fa fa-times"></i> Batal</button>
+                    <button type="reset" class="btn btn-social btn-danger btn-sm"><i class="fa fa-times"></i> Batal</button>
                     <button type="submit" class="btn btn-social btn-info btn-sm pull-right"><i class="fa fa-check"></i> Simpan</button>
                 </div>
             </div>
@@ -272,12 +324,9 @@
                     @endif
                     <div class="input-group input-group-sm">
                         <input type="text" class="form-control" id="file_path">
-                        <input type="file" class="hidden" id="file" name="foto" accept=".jpg,.jpeg,.png">
+                        <input type="file" class="hidden" id="file" name="foto" accept=".jpg,.jpeg,.png,.webp">
                         <span class="input-group-btn">
                             <button type="button" class="btn btn-info btn-flat" id="file_browser"><i class="fa fa-search"></i></button>
-                        </span>
-                        <span class="input-group-addon" style="background-color: red; border: 1px solid #ccc;">
-                            <input type="checkbox" title="Centang Untuk Hapus Gambar" name="hapus_foto" value="hapus">
                         </span>
                     </div>
                 </div>
@@ -336,7 +385,16 @@
         }
 
         $(document).ready(function() {
-            pilih_lokasi({{ null === $main->id_lokasi && $main ? 2 : 1 }});
+            var pilih = $('input[name="jenis_lokasi"]:checked').val();
+            pilih_lokasi(pilih);
+        });
+
+        $('input[name="jenis_lokasi"]').change(function() {
+            var pilih = $(this).filter(':checked').val();
+            if (pilih == undefined) {
+                pilih = 1;
+            }
+            pilih_lokasi(pilih);
         });
 
         document.getElementById('file').onchange = function(e) {

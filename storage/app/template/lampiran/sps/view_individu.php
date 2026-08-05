@@ -1,7 +1,7 @@
-<page orientation="portrait" format="210x330" style="font-size: 10pt">
-    <p style="margin: 0; text-align: center;" class="title"><u>SURAT PERNYATAAN STATUS</u></p>
+<page orientation="portrait" format="F4" style="font-size: 11pt">
+    <p style="margin: 0; text-align: center;" class="title-nikah"><u>SURAT PERNYATAAN STATUS</u></p>
 
-    <p>Yang bertanda tangan dibawah ini : </p>
+    <p>Yang bertanda tangan di bawah ini : </p>
     <table id="kop" class="disdukcapil">
         <col span="48" style="width: 2.0833%;">
         <tr>
@@ -63,7 +63,7 @@
 
     <p>Dengan ini menyatakan bahwa, Saya betul-betul pada saat ini berstatus [Form_status_kawiN], dan surat pernyataan ini dibuat guna persyaratan Pernikahan.</p>
 
-    <p>Demikianlah surat pernyataan ini saya buat dengan sebenarnya, dalam keadaan sehat jasmani dan rohani tanpa ada paksaan dari pihak manapun. Apabila di kemudian hari menyalahi surat pernyataan ini, saya bersedia dituntut sesuai Perundang-undangan/Hukum yang berlaku dan tidak akan melibatkan aparat setempat ( Resiko Sendiri).</p>
+    <p>Demikianlah surat pernyataan ini saya buat dengan sebenarnya, dalam keadaan sehat jasmani dan rohani tanpa ada paksaan dari pihak manapun. Apabila di kemudian hari menyalahi surat pernyataan ini, saya bersedia dituntut sesuai Perundang-undangan/Hukum yang berlaku dan tidak akan melibatkan aparat setempat ( Risiko Sendiri).</p>
 
     <!-- Penandatangan -->
     <br><br><br>

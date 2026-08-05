@@ -2,14 +2,14 @@
 
 @section('title')
     <h1>
-        Salinan Kartu Keluarga
+        Salinan Kartu {{ $module_name }}
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li><a href="{{ ci_route('keluarga') }}"> Daftar Keluarga</a></li>
-    <li><a href="{{ ci_route('keluarga.anggota', $id_kk) }}"> Daftar Anggota Keluarga</a></li>
-    <li class="active">Kartu Keluarga</li>
+    <li><a href="{{ ci_route('keluarga') }}"> Data {{ $module_name }}</a></li>
+    <li><a href="{{ ci_route('keluarga.anggota', $id_kk) }}"> Data Anggota {{ $module_name }}</a></li>
+    <li class="active">Kartu {{ $module_name }}</li>
 @endsection
 
 @section('content')
@@ -21,12 +21,11 @@
                     <div class="box-header with-border">
                         <a href="{{ ci_route('keluarga.cetak_kk', $id_kk) }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" target="_blank"><i class="fa fa-print "></i> Cetak</a>
                         <a href="{{ ci_route('keluarga.doc_kk', $id_kk) }}" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" target="_blank"><i class="fa fa-download"></i> Unduh</a>
-                        <a href="{{ ci_route('keluarga.anggota', $id_kk) }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Rincian Anggota Keluarga">
-                            <i class="fa fa-arrow-circle-left"></i>Kembali Ke Daftar Anggota Keluarga
-                        </a>
-                        <a href="{{ ci_route('keluarga') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Daftar Anggota Keluarga">
-                            <i class="fa fa-arrow-circle-left"></i>Kembali Ke Daftar Keluarga
-                        </a>
+                        <a href="{{ site_url("keluarga/doc_kk/{$id_kk}?format=F1.09") }}" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" target="_blank"><i class="fa fa-download"></i> Unduh F1.09</a>
+                        @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('keluarga.anggota', $id_kk), 'label' => 'Daftar Anggota Keluarga'])
+
+                        @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('keluarga'), 'label' => 'Daftar Keluarga'])
+
                     </div>
                     <div class="box-header">
                         <h3 class="text-center"><strong>SALINAN KARTU KELUARGA</strong></h3>
@@ -111,13 +110,13 @@
                                                     <td class="text-center">{{ $key + 1 }}</td>
                                                     <td>{{ strtoupper($data['nama']) }}</td>
                                                     <td>{{ get_nik($data['nik']) }}</td>
-                                                    <td>{{ $data['jenis_kelamin']['nama'] ?? '' }}</td>
+                                                    <td>{{ $data['jenis_kelamin'] }}</td>
                                                     <td>{{ $data['tempatlahir'] }}</td>
                                                     <td>{{ tgl_indo_out($data['tanggallahir']) }}</td>
-                                                    <td>{{ $data['agama']['nama'] ?? '' }}</td>
-                                                    <td>{{ $data['pendidikan_k_k']['nama'] ?? '' }}</td>
-                                                    <td>{{ $data['pekerjaan']['nama'] ?? '' }}</td>
-                                                    <td>{{ $data['golongan_darah']['nama'] ?? '' }}</td>
+                                                    <td>{{ $data['agama'] }}</td>
+                                                    <td>{{ $data['pendidikan_kk'] }}</td>
+                                                    <td>{{ $data['pekerjaan'] }}</td>
+                                                    <td>{{ $data['golongan_darah'] }}</td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -133,7 +132,7 @@
                                             <tr>
                                                 <th class="text-center">No</th>
                                                 <th class="text-center">Status Perkawinan</th>
-                                                <th class="text-center">Tanggal Perkawinan</th>
+                                                <th class="text-center">{{ \Illuminate\Support\Str::headerKawinCerai(collect($main['anggota'])->pluck('status_perkawinan')) }}</th>
                                                 <th class="text-center">Status Hubungan Dalam Keluarga</th>
                                                 <th class="text-center">Kewarganegaraan</th>
                                                 <th class="text-center">No. Paspor</th>
@@ -147,9 +146,9 @@
                                                 <tr>
                                                     <td class="text-center">{{ $key + 1 }}</td>
                                                     <td>{{ $data['status_perkawinan'] ?? '' }}</td>
-                                                    <td class="text-center">{{ tgl_indo_out($data['tanggalperkawinan']) }}</td>
-                                                    <td>{{ App\Enums\SHDKEnum::valueOf($data['kk_level']) }}</td>
-                                                    <td>{{ $data['warga_negara']['nama'] ?? '' }}</td>
+                                                    <td class="text-center">{{ str_contains($data['status_perkawinan'], 'KAWIN') ? tgl_indo_out($data['tanggalperkawinan']) : tgl_indo_out($data['tanggalperceraian']) }}</td>
+                                                    <td>{{ $data['penduduk_hubungan'] }}</td>
+                                                    <td>{{ $data['warganegara'] }}</td>
                                                     <td>{{ $data['dokumen_pasport'] }}</td>
                                                     <td>{{ $data['dokumen_kitas'] }}</td>
                                                     <td>{{ strtoupper($data['nama_ayah']) }}</td>

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,7 +39,7 @@ namespace Modules\Analisis\Models;
 
 use App\Models\BaseModel;
 use App\Traits\ConfigId;
-use Modules\Analisis\Enums\TahapPedataanEnum;
+use Modules\Analisis\Enums\AnalisisRefStateEnum;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -47,8 +47,10 @@ class AnalisisPeriode extends BaseModel
 {
     use ConfigId;
 
-    public const UNLOCK = 0;
-    public const LOCK   = 1;
+    public const UNLOCK = 1;
+    public const LOCK   = 0;
+
+    public $timestamps = false;
 
     /**
      * {@inheritDoc}
@@ -56,14 +58,13 @@ class AnalisisPeriode extends BaseModel
     protected $table = 'analisis_periode';
 
     protected $guarded = [];
-    public $timestamps = false;
     protected $appends = [
         'tahapan',
     ];
 
     public function getTahapanAttribute()
     {
-        return TahapPedataanEnum::all()[$this->id_state];
+        return AnalisisRefStateEnum::all()[$this->id_state];
     }
 
     public function isLock(): bool

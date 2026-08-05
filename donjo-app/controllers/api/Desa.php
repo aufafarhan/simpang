@@ -16,7 +16,8 @@ class Desa extends MY_Controller
         parent::__construct();
         // theme_helper tidak ikut di-autoload; media_sosial() didefinisikan di sana.
         $this->load->helper('theme');
-        $this->load->model('first_menu_m');
+        // menu_atas_api() — pengganti First_menu_m yang dihapus di OpenSID 2607.
+        $this->load->helper('api_v1');
 
         if (strtolower($this->input->method()) === 'options') {
             $this->cors();
@@ -57,7 +58,7 @@ class Desa extends MY_Controller
             'sosial_media' => media_sosial(),
 
             // Menu navigasi asli dari OpenSID (Pemerintahan, Potensi Desa, dst.)
-            'menu_atas'    => $this->first_menu_m->list_menu_atas(),
+            'menu_atas'    => menu_atas_api(),
 
             // Menu ringkas milik frontend baru (halaman yang sudah tersedia di JS)
             'menu'         => [

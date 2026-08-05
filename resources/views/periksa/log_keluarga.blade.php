@@ -1,25 +1,28 @@
 <div class="col-md-12">
     <div class="row" style="margin-top: 5px">
-        <table class="table table-bordered table-striped">
-            <thead>
-                <tr>
-                    <th>Id</th>
-                    <th>Peristiwa</th>
-                    <th>Tgl Peristiwa</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($logs as $log)
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Peristiwa</th>
+                        <th>Tgl Peristiwa</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($logs as $log)
                     <tr>
                         <td>{{ $log['id'] }}</td>
-                        <td>{{ \App\Models\LogKeluarga::kodePeristiwaAll($log['id_peristiwa']) }}</td>
+                        <td>{{ \App\Enums\PeristiwaKeluargaEnum::tryFrom($log['id_peristiwa'])?->label() ?? '-' }}</td>
                         <td>{{ $log['tgl_peristiwa'] }}</td>
-                        <td><button type="button" data-log='{{ $log['id'] }}' onclick="hapusLogKeluarga(this)" class="btn btn-sm btn-danger">Hapus Log</button></td>
+                        <td><button type="button" data-log='{{ $log[' id'] }}' onclick="hapusLogKeluarga(this)"
+                                class="btn btn-sm btn-danger">Hapus Log</button></td>
                     </tr>
-                @endforeach
-            </tbody>
-        </table>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -27,7 +30,7 @@
     function hapusLogKeluarga(elm) {
         $.post('periksaLogKeluarga/hapusLog', {
             id: $(elm).data('log'),
-            {{ $ci->security->get_csrf_token_name() }}: '{{ $ci->security->get_csrf_hash() }}'
+            {{ $token_name }}: '{{ $token_value }}'
         }, function(data) {
             let _message = 'Data keluarga dengan nomer KK {{ $nik }} gagal diperbaiki'
             let _messageClass = 'danger'
@@ -45,7 +48,7 @@
     function updateStatusPenduduk(elm) {
         $.post('periksaLogPenduduk/updateStatusDasar', {
             id: $(elm).data('log'),
-            {{ $ci->security->get_csrf_token_name() }}: '{{ $ci->security->get_csrf_hash() }}'
+            {{ $token_name }}: '{{ $token_value }}'
         }, function(data) {
             let _message = 'Data penduduk dengan nik {{ $nik }} gagal diperbaiki'
             let _messageClass = 'danger'

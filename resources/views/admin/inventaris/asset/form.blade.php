@@ -5,12 +5,12 @@
 
 @section('title')
     <h1>
-        {{ $action }} Inventaris Asset
+        {{ $action }} {{ $header }}
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="active">{{ $action }} Inventaris Asset</li>
+    <li class="active">{{ $action }} {{ $header }}</li>
 @endsection
 
 @section('content')
@@ -23,7 +23,7 @@
             <form class="form-horizontal" id="validasi" name="form_jalan" method="post" action="{{ $form_action }}">
                 <div class="box box-info">
                     <div class="box-header with-border">
-                        <a href="{{ site_url('inventaris_asset') }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-arrow-circle-left"></i> Kembali Ke Daftar Inventaris Asset</a>
+                        <x-kembali-button judul="Kembali Ke Daftar {{ $header }}" url="inventaris_asset" />
                     </div>
                     <div class="box-body">
                         <div class="row">
@@ -82,10 +82,10 @@
                                 </div>
                                 <div class="form-group">
                                     <label class="col-sm-3 control-label" style="text-align:left;" for="jenis_asset">Jenis
-                                        Asset</label>
+                                        Aset</label>
                                     <div class="col-sm-4">
                                         <select name="jenis_asset" @disabled($view_mark) id="jenis_asset" class="form-control input-sm  required">
-                                            <option value="">-- Pilih Jenis Asset --</option>
+                                            <option value="">-- Pilih Jenis Aset --</option>
                                             <option value="Buku" @selected('Buku' == $main->jenis)>Buku</option>
                                             <option value="Barang Kesenian" @selected('Barang Kesenian' == $main->jenis)>Barang Kesenian</option>
                                             <option value="Hewan Ternak" @selected('Hewan Ternak' == $main->jenis)>Hewan
@@ -172,7 +172,7 @@
                                     <label class="col-sm-3 control-label" style="text-align:left;" for="tahun_pengadaan">Tahun Pembelian</label>
                                     <div class="col-sm-4">
                                         <select name="tahun_pengadaan" id="tahun_pengadaan" class="form-control input-sm required" @disabled($view_mark)>
-                                            @for ($i = date('Y'); $i >= 1900; $i--)
+                                            @for ($i = date('Y'); $i >= 1945; $i--)
                                                 <option value="{{ $i }}" @selected(date('Y', strtotime($main->tahun_pengadaan ?? date('Y'))) == $i)>{{ $i }}</option>
                                             @endfor
                                         </select>

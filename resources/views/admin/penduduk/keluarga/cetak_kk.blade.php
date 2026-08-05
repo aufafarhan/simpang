@@ -56,13 +56,13 @@
                       <td class="text-center" width="2">{{ $key + 1 }}</td>
                       <td>{{ strtoupper($data['nama']) }}</td>
                       <td>{{ get_nik($data['nik']) }}</td>
-                      <td>{{ $data->jenisKelamin->nama ?? '' }}</td>
+                      <td>{{ $data->jenis_kelamin }}</td>
                       <td>{{ $data['tempatlahir'] }}</td>
                       <td>{{ tgl_indo_out($data['tanggallahir']) }}</td>
-                      <td>{{ $data->agama->nama ?? '' }}</td>
-                      <td>{{ $data->pendidikanKK->nama ?? '' }}</td>
-                      <td>{{ $data->pekerjaan->nama ?? '' }}</td>
-                      <td align="center">{{ $data->golonganDarah->nama ?? '' }}</td>
+                      <td>{{ $data->agama }}</td>
+                      <td>{{ $data->pendidikan_kk }}</td>
+                      <td>{{ $data->pekerjaan }}</td>
+                      <td align="center">{{ $data->golongan_darah }}</td>
                   </tr>
               @endforeach
           </tbody>
@@ -75,8 +75,7 @@
               <tr class="border thick">
                   <th class="text-center" width="7">No</th>
                   <th class="text-center" width='150'>Status Perkawinan</th>
-                  <th class="text-center" width='150'>Tanggal Perkawinan</th>
-                  <th class="text-center" width="130">Tanggal Perceraian</th>
+                  <th class="text-center" width='150'>{{ \Illuminate\Support\Str::headerKawinCerai($main->pluck('status_perkawinan')) }}</th>
                   <th class="text-center" width='240'>Status Hubungan dalam Keluarga</th>
                   <th class="text-center" width='140'>Kewarganegaraan</th>
                   <th class="text-center" width='100'>No. Paspor</th>
@@ -90,10 +89,9 @@
                   <tr class="data">
                       <td class="text-center" width="2">{{ $key + 1 }}</td>
                       <td>{{ $data->statusPerkawinan ?? '' }}</td>
-                      <td class="text-center">{{ tgl_indo_out($data['tanggalperkawinan']) }}</td>
-                      <td class="text-center">{{ tgl_indo_out($data['tanggalperceraian']) }}</td>
-                      <td>{{ App\Enums\SHDKEnum::valueOf($data['kk_level']) }}</td>
-                      <td>{{ $data->wargaNegara->nama ?? '' }}</td>
+                      <td class="text-center">{{ str_contains($data['status_perkawinan'], 'KAWIN') ? tgl_indo_out($data['tanggalperkawinan']) : tgl_indo_out($data['tanggalperceraian']) }}</td>
+                      <td>{{ $data->penduduk_hubungan ?? '' }}</td>
+                      <td>{{ $data->wargaNegara ?? '' }}</td>
                       <td>{{ $data['dokumen_pasport'] }}</td>
                       <td>{{ $data['dokumen_kitas'] }}</td>
                       <td>{{ strtoupper($data['nama_ayah']) }}</td>

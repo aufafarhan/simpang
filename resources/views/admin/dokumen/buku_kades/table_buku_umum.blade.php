@@ -1,47 +1,31 @@
 <div class="box box-info">
     <div class="box-header with-border">
-        @if (can('u'))
-            <a href="{{ site_url("{$controller}/form/{$kat}") }}" class="btn btn-social btn-success btn-sm btn-sm
-			visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Tambah"><i class="fa fa-plus"></i>Tambah</a>
-        @endif
-        @if (can('h'))
-            <a href="#confirm-delete" class="btn btn-social btn-danger btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block hapus-terpilih" title="Hapus Data"
-                onclick="deleteAllBox('mainform', '{{ route('buku-umum.dokumen_sekretariat.delete_all', ['kat' => $kat]) }}')"
-            ><i class='fa fa-trash-o'></i> Hapus</a>
-        @endif
-        <a
-            href="{{ route('buku-umum.dokumen_sekretariat.dialog_cetak', ['kat' => $kat, 'aksi' => 'cetak']) }}"
-            class="btn btn-social bg-purple btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Cetak Dokumen"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Cetak Laporan"
-        >
-            <i class="fa fa-print"></i>Cetak
-        </a>
-        <a
-            href="{{ site_url("{$controller}/dialog_cetak/{$kat}/unduh") }}"
-            class="btn btn-social bg-navy btn-sm
-			btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-            title="Unduh Dokumen"
-            data-remote="false"
-            data-toggle="modal"
-            data-target="#modalBox"
-            data-title="Unduh
-			Laporan"
-        ><i class="fa fa-download"></i>Unduh</a>
-        @if ($kat == 1)
-            <a
-                href="{{ site_url('informasi_publik/ekspor') }}"
-                class="btn btn-social bg-blue btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
-                title="Ekspor Data"
-                data-remote="false"
-                data-toggle="modal"
-                data-target="#modalBox"
-                data-title="Ekspor Data Informasi Publik"
-            ><i class="fa fa-download"></i>Ekspor</a>
-        @endif
+        <x-tambah-button :url="$controller . '/form/' . $kat" />
+        <x-hapus-button confirmDelete="true" selectData="true" :url="'dokumen_sekretariat/delete_all/'.$kat" />
+        @php
+            $listCetakUnduh = [
+                [
+                    'url' => "{$controller}/dialog_cetak/{$kat}/cetak",
+                    'judul' => 'Cetak',
+                    'icon' => 'fa fa-print',
+                    'modal' => true,
+                ],
+                [
+                    'url' => "{$controller}/dialog_cetak/{$kat}/unduh",
+                    'judul' => 'Unduh',
+                    'icon' => 'fa fa-download',
+                    'modal' => true,
+                ]
+            ];
+        @endphp
+
+        <x-split-button
+            judul="Cetak/Unduh"
+            :list="$listCetakUnduh"
+            :icon="'fa fa-arrow-circle-down'"
+            :type="'bg-purple'"
+            :target="true"
+        />
     </div>
     <div class="box-body">
         <form id="mainform" name="mainform" method="post">
@@ -50,8 +34,8 @@
                 <div class="col-sm-2">
                     <select class="form-control input-sm select2" name="filter" id="filter">
                         <option value="">Pilih Status</option>
-                        <option value="1">Berlaku</option>
-                        <option value="2">Dicabut/Tidak Berlaku</option>
+                        <option value="1" @selected($active == 1)>Berlaku</option>
+                        <option value="2" @selected($active == 2)>Dicabut/Tidak Berlaku</option>
                     </select>
                 </div>
                 @if ($kat == 3)
@@ -99,8 +83,8 @@
                                         <th>No./Tgl Ditetapkan</th>
                                         <th>Uraian Singkat</th>
                                     @endif
-                                    <th nowrap>Aktif <i class='fa fa-sort fa-sm'></i></th>
-                                    <th nowrap>Dimuat Pada <i class='fa fa-sort fa-sm'></i></th>
+                                    <th nowrap>Aktif</th>
+                                    <th nowrap>Dimuat Pada</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -228,18 +212,32 @@
             }
 
             $('#filter').change(function() {
+                if ($(this).attr("data-reset")) {
+                    return;
+                }
+
                 TableData.column(colFilter).search($(this).val()).draw()
             })
 
             $('#tahun').change(function() {
-                if (kategori == 3) {
+                if ($(this).attr("data-reset")) {
+                    return;
+                }
+
+                if (kategori == 2 || kategori == 3) {
+                    // Untuk SK Kades dan Perdes, filter di server-side
                     TableData.draw()
                 } else {
+                    // Untuk kategori lain, filter di client-side
                     TableData.column(colTahun).search($(this).val()).draw()
                 }
             })
 
             $('#jenis_peraturan').change(function() {
+                if ($(this).attr("data-reset")) {
+                    return;
+                }
+
                 TableData.column(4).search($(this).val()).draw()
             })
 
@@ -250,6 +248,9 @@
             if (ubah == 0) {
                 TableData.column(2).visible(false);
             }
+            @if ($active)
+                $('#filter').trigger('change')
+            @endif
         });
     </script>
 @endpush

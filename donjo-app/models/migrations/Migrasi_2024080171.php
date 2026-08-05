@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,46 +37,39 @@
 
 use App\Imports\SuratDinasImports;
 use App\Models\SettingAplikasi;
+use App\Traits\Migrator;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
-class Migrasi_2024080171 extends MY_Model
+class Migrasi_2024080171
 {
+    use Migrator;
+
     public function up()
     {
-        $hasil = true;
-
-        $hasil = $hasil && $this->migrasi_2024071051($hasil);
-        $hasil = $hasil && $this->migrasi_2024122271($hasil);
-        $hasil = $hasil && $this->migrasi_2024072751($hasil);
-        $hasil = $hasil && $this->migrasi_2024072752($hasil);
-        $hasil = $hasil && $this->migrasi_2024072753($hasil);
-        $hasil = $hasil && $this->migrasi_2024072754($hasil);
-        $hasil = $hasil && $this->migrasi_2024072755($hasil);
-        $hasil = $hasil && $this->migrasi_2024072756($hasil);
-        $hasil = $hasil && $this->migrasi_2024072651($hasil);
-        $hasil = $hasil && $this->migrasi_2024040271($hasil);
-        $hasil = $hasil && $this->migrasi_2024042171($hasil);
-        $hasil = $hasil && $this->migrasi_2024072951($hasil);
-
-        // Migrasi berdasarkan config_id
-        $config_id = DB::table('config')->pluck('id')->toArray();
-
-        foreach ($config_id as $id) {
-            $hasil = $hasil && $this->migrasi_2024051253($hasil, $id);
-            $hasil = $hasil && $this->migrasi_2024073071($hasil, $id);
-        }
-
-        return $hasil && true;
+        $this->migrasi_2024071051();
+        $this->migrasi_2024122271();
+        $this->migrasi_2024072751();
+        $this->migrasi_2024072752();
+        $this->migrasi_2024072753();
+        $this->migrasi_2024072754();
+        $this->migrasi_2024072755();
+        $this->migrasi_2024072756();
+        $this->migrasi_2024072651();
+        $this->migrasi_2024040271();
+        $this->migrasi_2024042171();
+        $this->migrasi_2024072951();
+        $this->migrasi_2024051253();
+        $this->migrasi_2024073071();
     }
 
-    protected function migrasi_2024051253($hasil, $id)
+    public function migrasi_2024051253()
     {
         $rws = DB::table('tweb_wil_clusterdesa')
-            ->where('config_id', $id)
+            ->where('config_id', identitas('id'))
             ->whereNull('id_kepala')
             ->whereNotIn('rw', ['0', '-'])
             ->where('rt', '-')
@@ -84,7 +77,7 @@ class Migrasi_2024080171 extends MY_Model
 
         foreach ($rws as $value) {
             $id_kepala = DB::table('tweb_wil_clusterdesa')
-                ->where('config_id', $id)
+                ->where('config_id', identitas('id'))
                 ->where('dusun', $value->dusun)
                 ->where('rw', $value->rw)
                 ->where('rt', '0')
@@ -94,30 +87,24 @@ class Migrasi_2024080171 extends MY_Model
                 ->where('id', $value->id)
                 ->update(['id_kepala' => $id_kepala]);
         }
-
-        return $hasil;
     }
 
-    protected function migrasi_2024071051($hasil)
+    public function migrasi_2024071051()
     {
         Schema::table('artikel', static function ($table) {
             $table->longText('isi')->change();
         });
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072651($hasil)
+    public function migrasi_2024072651()
     {
         DB::table('gambar_gallery')
             ->where('parrent', 0)
             ->where('tipe', 0)
             ->update(['tipe' => 1]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072751($hasil)
+    public function migrasi_2024072751()
     {
         DB::table('setting_aplikasi')
             ->where('key', 'tampilkan_lapak_web')
@@ -170,11 +157,9 @@ class Migrasi_2024080171 extends MY_Model
                     'step'  => 1,
                 ]),
             ]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072752($hasil)
+    public function migrasi_2024072752()
     {
         DB::table('setting_aplikasi')
             ->where('key', 'ukuran_lebar_bagan')
@@ -206,11 +191,9 @@ class Migrasi_2024080171 extends MY_Model
                     'class' => 'required',
                 ],
             ]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072753($hasil)
+    public function migrasi_2024072753()
     {
         DB::table('setting_aplikasi')
             ->where('key', 'jumlah_gambar_galeri')
@@ -231,11 +214,9 @@ class Migrasi_2024080171 extends MY_Model
                     'class' => 'required',
                 ],
             ]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072754($hasil)
+    public function migrasi_2024072754()
     {
         DB::table('setting_aplikasi')
             ->where('key', 'tampilkan_kehadiran')
@@ -288,11 +269,9 @@ class Migrasi_2024080171 extends MY_Model
                     'placeholder' => '10',
                 ],
             ]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072755($hasil)
+    public function migrasi_2024072755()
     {
         DB::table('setting_aplikasi')
             ->where('key', 'rentang_waktu_notifikasi_rilis')
@@ -352,11 +331,9 @@ class Migrasi_2024080171 extends MY_Model
             ->update([
                 'kategori' => 'Kehadiran',
             ]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072756($hasil)
+    public function migrasi_2024072756()
     {
         DB::table('setting_aplikasi')
             ->where('kategori', 'peta')
@@ -461,11 +438,9 @@ class Migrasi_2024080171 extends MY_Model
                     'class' => 'required',
                 ],
             ]);
-
-        return $hasil;
     }
 
-    protected function migrasi_2024122271($hasil)
+    public function migrasi_2024122271()
     {
         if (! Schema::hasTable('log_perubahan_surat')) {
             Schema::create('log_perubahan_surat', static function (Blueprint $table) {
@@ -485,18 +460,14 @@ class Migrasi_2024080171 extends MY_Model
 
             DB::table('log_surat')->update(['lock' => 1]);
         }
-
-        return $hasil;
     }
 
-    protected function migrasi_2024073071($hasil, $id)
+    public function migrasi_2024073071()
     {
-        (new SuratDinasImports(null, ['config_id' => $id, 'url_surat' => 'surat-pernyataan']))->import();
-
-        return $hasil;
+        (new SuratDinasImports(null, ['config_id' => identitas('id'), 'url_surat' => 'surat-pernyataan']))->import();
     }
 
-    protected function migrasi_2024040271($hasil)
+    public function migrasi_2024040271()
     {
         $penduduk_luar = SettingAplikasi::withoutGlobalScope(App\Scopes\ConfigIdScope::class)->where('key', '=', 'form_penduduk_luar')->first();
         if ($penduduk_luar) {
@@ -504,11 +475,9 @@ class Migrasi_2024080171 extends MY_Model
             $value[3]['input'] = 'nama,no_ktp,tempat_lahir,tanggal_lahir,jenis_kelamin,agama,pendidikan_kk,pekerjaan,warga_negara,alamat,golongan_darah,status_perkawinan,tanggal_perkawinan,shdk,no_paspor,no_kitas,nama_ayah,nama_ibu,no_kk,kepala_kk';
             $penduduk_luar->update(['value' => json_encode($value)]);
         }
-
-        return $hasil;
     }
 
-    protected function migrasi_2024042171($hasil)
+    public function migrasi_2024042171()
     {
         Schema::table('kelompok', static function (Blueprint $table) {
             if (! Schema::hasColumn('kelompok', 'logo')) {
@@ -518,17 +487,12 @@ class Migrasi_2024080171 extends MY_Model
                 $table->string('no_sk_pendirian', 255)->nullable()->after('logo');
             }
         });
-
-        return $hasil;
     }
 
-    protected function migrasi_2024072951($hasil)
+    public function migrasi_2024072951()
     {
-        return $hasil && $this->dbforge->modify_column('log_surat', [
-            'keterangan' => [
-                'type' => 'TEXT',
-                'null' => true,
-            ],
-        ]);
+        Schema::table('log_surat', static function (Blueprint $table) {
+            $table->text('keterangan')->nullable()->change();
+        });
     }
 }

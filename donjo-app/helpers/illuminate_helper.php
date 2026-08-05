@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -289,6 +289,20 @@ if (! function_exists('dispatch')) {
             }
 
             /**
+             * Handle the object's destruction.
+             *
+             * @return void
+             */
+            public function __destruct()
+            {
+                if (! $this->shouldDispatch()) {
+                    return;
+                }
+
+                app(Illuminate\Contracts\Bus\Dispatcher::class)->dispatch($this->job);
+            }
+
+            /**
              * Determine if the job should be dispatched.
              */
             protected function shouldDispatch(): bool
@@ -309,20 +323,6 @@ if (! function_exists('dispatch')) {
                     $key = 'laravel_unique_job:' . get_class($this->job) . $uniqueId,
                     $this->job->uniqueFor ?? 0
                 )->get();
-            }
-
-            /**
-             * Handle the object's destruction.
-             *
-             * @return void
-             */
-            public function __destruct()
-            {
-                if (! $this->shouldDispatch()) {
-                    return;
-                }
-
-                app(Illuminate\Contracts\Bus\Dispatcher::class)->dispatch($this->job);
             }
         };
     }
@@ -444,6 +444,20 @@ if (! function_exists('fake') && class_exists(Faker\Factory::class)) {
         }
 
         return app()->make($abstract);
+    }
+}
+
+if (! function_exists('public_path')) {
+    /**
+     * Get the path to the public folder.
+     *
+     * @param string $path
+     *
+     * @return string
+     */
+    function public_path($path = '')
+    {
+        return app()->basePath($path);
     }
 }
 
@@ -579,6 +593,28 @@ if (! function_exists('trans_choice')) {
     function trans_choice($id, $number, array $replace = [], $locale = null)
     {
         return app('translator')->choice($id, $number, $replace, $locale);
+    }
+}
+
+if (! function_exists('url')) {
+    /**
+     * Generate a url for the application.
+     *
+     * @param string    $path
+     * @param mixed     $parameters
+     * @param bool|null $secure
+     *
+     * @return Illuminate\Routing\UrlGenerator|string
+     */
+    function url($path = null, $parameters = [], $secure = null)
+    {
+        $factory = app('url');
+
+        if (func_num_args() === 0) {
+            return $factory;
+        }
+
+        return app('url')->to($path, $parameters, $secure);
     }
 }
 

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -55,7 +55,9 @@ class KodeIsianAnggotaKeluarga
     public function kodeIsian(): array
     {
         $id_kk   = Penduduk::where('kk_level', SHDKEnum::KEPALA_KELUARGA)->find($this->idPenduduk)->id_kk;
-        $anggota = Keluarga::find($id_kk)->anggota;
+        $anggota = Keluarga::with([
+            'anggota',
+        ])->find($id_kk)->anggota;
 
         return [
             [
@@ -80,7 +82,9 @@ class KodeIsianAnggotaKeluarga
             [
                 'judul' => 'Jenis Kelamin',
                 'isian' => 'klgx_jenis_kelamin',
-                'data'  => $anggota ? $anggota->pluck('jenisKelamin.nama')->toArray() : '',
+                'data'  => $anggota
+    ? $anggota->map(static fn ($a) => $a->jenis_kelamin)->toArray()
+    : '',
             ],
             [
                 'judul' => 'Tempat Lahir',
@@ -116,22 +120,24 @@ class KodeIsianAnggotaKeluarga
             [
                 'judul' => 'Agama',
                 'isian' => 'klgx_agama',
-                'data'  => $anggota ? $anggota->pluck('agama.nama')->toArray() : '',
+                'data'  => $anggota ? $anggota->map(static fn ($a) => $a->agama)->toArray() : '',
             ],
             [
                 'judul' => 'Pendidikan Sedang',
                 'isian' => 'klgx_pendidikan_sedang',
-                'data'  => $anggota ? $anggota->pluck('pendidikan.nama')->toArray() : '',
+                'data'  => $anggota ? $anggota->map(static fn ($a) => $a->pendidikan_sedang)->toArray() : '',
             ],
             [
                 'judul' => 'Pendidikan Dalam KK',
                 'isian' => 'klgx_pendidikan_kk',
-                'data'  => $anggota ? $anggota->pluck('pendidikanKk.nama')->toArray() : '',
+                'data'  => $anggota ? $anggota->map(static fn ($a) => $a->pendidikan_kk)->toArray() : '',
             ],
             [
                 'judul' => 'Pekerjaan',
                 'isian' => 'klgx_pekerjaan',
-                'data'  => $anggota ? $anggota->pluck('pekerjaan.nama')->toArray() : '',
+                'data'  => $anggota
+    ? $anggota->map(static fn ($a) => $a->pekerjaan)->toArray()
+    : '',
             ],
             [
                 'judul' => 'Status Perkawinan',
@@ -141,12 +147,12 @@ class KodeIsianAnggotaKeluarga
             [
                 'judul' => 'Hubungan Dalam KK',
                 'isian' => 'klgx_hubungan_kk',
-                'data'  => $anggota ? $anggota->pluck('pendudukHubungan.nama')->toArray() : '',
+                'data'  => $anggota ? $anggota->map(static fn ($a) => $a->penduduk_hubungan)->toArray() : '',
             ],
             [
                 'judul' => 'Warga Negara',
                 'isian' => 'klgx_warga_negara',
-                'data'  => $anggota ? $anggota->pluck('warganegara.nama')->toArray() : '',
+                'data'  => $anggota ? $anggota->map(static fn ($a) => $a->warganegara)->toArray() : '',
             ],
             [
                 'judul' => 'Alamat',
@@ -156,7 +162,7 @@ class KodeIsianAnggotaKeluarga
             [
                 'judul' => 'Golongan Darah',
                 'isian' => 'klgx_golongan_darah',
-                'data'  => $anggota ? $anggota->pluck('golonganDarah.nama')->toArray() : '',
+                'data'  => $anggota ? $anggota->map(static fn ($a) => $a->golongan_darah)->toArray() : '',
             ],
             [
                 'judul' => 'Dokumen Pasport',

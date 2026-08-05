@@ -314,20 +314,28 @@
 		</tr>
 
 		<tr>
-			<td rowspan="1">10.</td>
-			<td rowspan="1">Anggota Keluarga Yang Tidak Pindah</td>
-			<td rowspan="1" class="kotak satu"><?= $input['status_kk_bagi_yang_tidak_pindah']; ?></td>
-			<td colspan=8 class="padat">1. Numpang KK</td>
-			<td colspan=8 class="padat">2. Membuat KK Baru</td>
+			<td rowspan="2">10.</td>
+			<td rowspan="2">Anggota Keluarga Yang Tidak Pindah</td>
+			<td rowspan="2" class="kotak satu"><?= trim($input['status_kk_bagi_yang_tidak_pindah'], "'"); ?></td>
+			<td colspan=11 class="padat">1. Numpang KK</td>
+			<td colspan=10 class="padat">3. Tidak Ada Angg. Keluarga Yang Ditinggal</td>
+		</tr>
+		<tr>
+			<td colspan=11 class="padat">2. Membuat KK Baru</td>
+			<td colspan=10 class="padat">4. Nomor KK Tetap</td>
 		</tr>
 
 		<tr>
-			<td>11.</td>
-			<td>Anggota Keluarga Yang Pindah</td>
-			<td class="kotak satu"><?= $input['status_kk_bagi_yang_pindah']; ?></td>
-			<td colspan=8 class="padat">1. Numpang KK</td>
-			<td colspan=8 class="padat">2. Membuat KK Baru</td>
+			<td rowspan="2">11.</td>
+			<td rowspan="2">Anggota Keluarga Yang Pindah</td>
+			<td rowspan="2" class="kotak satu"><?= trim($input['status_kk_bagi_yang_pindah'], "'"); ?></td>
+			<td colspan=11 class="padat">1. Numpang KK</td>
+			<td colspan=10 class="padat">3. Nomor KK Tetap</td>
 		</tr>
+		<tr>
+			<td colspan=11 class="padat">2. Membuat KK Baru</td>
+		</tr>
+
 		<tr>
 			<td>12.</td>
 			<td colspan=22>Daftar Anggota Keluarga Yang Pindah</td>
@@ -351,7 +359,8 @@
             $nomor = $i + 1;
             if ($i < count($input['id_pengikut_pindah'] ?? [])) :
                 $id       = trim($input['id_pengikut_pindah'][$i], "'");
-                $penduduk = $this->penduduk_model->get_penduduk($id, true); ?>
+                $penduduk = App\Models\PendudukSaja::find($id); 
+			?>
 				<tr>
 					<?php $nourut = str_pad($nomor, 2, '0', STR_PAD_LEFT); ?>
 					<?php for ($j = 0; $j < 2; $j++) : ?>
@@ -532,10 +541,12 @@
 		<tr>
 			<td>20.</td>
 			<td>Rencana Pindah Tanggal</td>
-			<?php $tgl    = date('dd', strtotime($input['tanggal_pindah']));
-            $bln = date('mm', strtotime($input['tanggal_pindah']));
-            $thn = date('Y', strtotime($input['tanggal_pindah']));
-            ?>
+			<?php
+				$tanggal_pindah = ! empty($input['tanggal_pindah']) ? $input['tanggal_pindah'] : date('Y-m-d');
+				$tgl = date('d', strtotime($tanggal_pindah));
+				$bln = date('m', strtotime($tanggal_pindah));
+				$thn = date('Y', strtotime($tanggal_pindah));
+			?>
 			<td>Tgl</td>
 			<?php for ($j = 0; $j < 2; $j++) : ?>
 				<td class="kotak tengah">
@@ -589,7 +600,7 @@
 		</tr>
 		<tr class="pendek">
 			<td>Kependudukan dan Pencatatan Sipil</td>
-			<td>.............,&nbsp;............. &nbsp;20...............</td>
+			<td><?= identitas('nama_desa'); ?>, <?= isset($data['tanggal']) && $data['tanggal'] ? $data['tanggal']->format('d F Y') : '' ?></td>
 		</tr>
 		<tr class="pendek">
 			<td>Kabupaten <?= $config['nama_kabupaten']; ?></td>
@@ -607,7 +618,7 @@
 		</tr>
 		<tr>
 			<td>(.........................................................)</td>
-			<td><strong>(<?= padded_string_center(strtoupper($individu['kepala_kk']), 30) ?>)</strong></td>
+			<td><strong>(<?= padded_string_center(strtoupper($individu['nama']), 30) ?>)</strong></td>
 		</tr>
 	</table>
 

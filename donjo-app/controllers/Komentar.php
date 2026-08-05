@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,15 +29,15 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
-use App\Enums\StatusEnum;
 use App\Models\Kategori;
 use App\Models\Komentar as ModelsKomentar;
+use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -75,20 +75,29 @@ class Komentar extends Admin_Controller
                 ->addColumn('aksi', static function ($row): string {
                     $aksi = '';
 
+                    $aksi .= View::make('admin.layouts.components.buttons.edit', [
+                        'url' => 'komentar/form/' . $row->id,
+                    ])->render();
+
                     if (can('u')) {
-                        $aksi .= '<a href="' . ci_route('komentar.form', $row->id) . '" class="btn btn-warning btn-sm"  title="Ubah Data"><i class="fa fa-edit"></i></a> ';
-                        $aksi .= '<a href="' . ci_route('komentar.detail', $row->id) . '" class="btn btn-info btn-sm"  title="Balas Komentar"><i class="fa fa-mail-forward"></i></a> ';
-
-                        if ($row->status == StatusEnum::YA) {
-                            $aksi .= '<a href="' . ci_route('komentar.lock', $row->id) . '" class="btn bg-navy btn-sm" title="Nonaktifkan"><i class="fa fa-unlock"></i></a> ';
-                        } else {
-                            $aksi .= '<a href="' . ci_route('komentar.lock', $row->id) . '" class="btn bg-navy btn-sm" title="Aktifkan"><i class="fa fa-lock"></i></a> ';
-                        }
+                        $aksi .= View::make('admin.layouts.components.buttons.btn', [
+                            'url'        => ci_route('komentar.detail', $row->id),
+                            'icon'       => 'fa fa-mail-forward',
+                            'judul'      => 'Balas Komentar',
+                            'type'       => 'btn-info',
+                            'buttonOnly' => true,
+                        ])->render();
                     }
 
-                    if (can('h')) {
-                        $aksi .= '<a href="#" data-href="' . ci_route('komentar.delete', $row->id) . '" class="btn bg-maroon btn-sm"  title="Hapus Data" data-toggle="modal" data-target="#confirm-delete"><i class="fa fa-trash"></i></a> ';
-                    }
+                    $aksi .= View::make('admin.layouts.components.tombol_aktifkan', [
+                        'url'    => site_url("komentar/lock/{$row->id}"),
+                        'active' => $row->status,
+                    ])->render();
+
+                    $aksi .= View::make('admin.layouts.components.buttons.hapus', [
+                        'url'           => ci_route('komentar.delete', $row->id),
+                        'confirmDelete' => true,
+                    ])->render();
 
                     return $aksi;
                 })
@@ -128,24 +137,11 @@ class Komentar extends Admin_Controller
 
         try {
             ModelsKomentar::findOrFail($id)->update($data);
-            redirect_with('success', 'Komentar berhasil diubah', $url);
+            redirect_with('success', __('notification.updated.success'), $url);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Komentar gagal diubah', $url);
+            redirect_with('error', __('notification.updated.error'), $url);
         }
-    }
-
-    private function validasi(array $post)
-    {
-        $data['owner']    = htmlentities((string) $post['owner']);
-        $data['no_hp']    = bilangan($post['no_hp']);
-        $data['email']    = email($post['email']);
-        $data['komentar'] = htmlentities((string) $post['komentar']);
-        if (isset($post['status'])) {
-            $data['status'] = bilangan($post['status']);
-        }
-
-        return $data;
     }
 
     public function insert(): void
@@ -155,10 +151,10 @@ class Komentar extends Admin_Controller
 
         try {
             ModelsKomentar::create($data);
-            redirect_with('success', 'Komentar berhasil disimpan');
+            redirect_with('success', __('notification.created.success'));
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Komentar disimpan');
+            redirect_with('error', __('notification.created.error'));
         }
 
         redirect('komentar');
@@ -168,7 +164,13 @@ class Komentar extends Admin_Controller
     {
         isCan('u');
 
-        $komentar = ModelsKomentar::with('children')->find($id) ?? show_404();
+        $komentar = ModelsKomentar::with(['artikel', 'children'])->find($id) ?? show_404();
+
+        // Cek apakah komentar masih unread
+        if ($komentar->updated_at <= $komentar->tgl_upload) {
+            $komentar->touch();
+            redirect("{$this->controller}/detail/{$id}");
+        }
 
         $data['komentar']    = $komentar->toArray();
         $data['form_action'] = site_url("komentar/balas/{$id}");
@@ -198,10 +200,10 @@ class Komentar extends Admin_Controller
             ModelsKomentar::create($data);
         } catch (Exception $e) {
             log_message('error', $e->getMessage());
-            redirect_with('error', 'Komentar gagal disimpan');
+            redirect_with('error', __('notification.created.error'));
         }
 
-        redirect_with('success', 'Komentar berhasil disimpan', "{$this->controller}/detail/{$id}");
+        redirect_with('success', __('notification.created.success'), "{$this->controller}/detail/{$id}");
     }
 
     public function delete($parent_id = null, $id = ''): void
@@ -216,27 +218,40 @@ class Komentar extends Admin_Controller
         }
 
         if (ModelsKomentar::destroy($id)) {
-            redirect_with('success', 'Berhasil Hapus Data', $to);
+            redirect_with('success', __('notification.deleted.success'), $to);
         }
-        redirect_with('error', 'Gagal Hapus Data', $to);
+        redirect_with('error', __('notification.deleted.error'), $to);
     }
 
     public function delete_all(): void
     {
         isCan('h');
         if (ModelsKomentar::destroy($this->request['id_cb'])) {
-            redirect_with('success', 'Berhasil Hapus Data');
+            redirect_with('success', __('notification.deleted.success'));
         }
 
-        redirect_with('error', 'Gagal Hapus Data');
+        redirect_with('error', __('notification.deleted.error'));
     }
 
     public function lock($id = 0): void
     {
         isCan('u');
         if (ModelsKomentar::gantiStatus($id, 'status')) {
-            redirect_with('success', 'Berhasil Ubah Status');
+            redirect_with('success', __('notification.status.success'));
         }
-        redirect_with('error', 'Gagal Ubah Status');
+        redirect_with('error', __('notification.status.error'));
+    }
+
+    private function validasi(array $post)
+    {
+        $data['owner']    = htmlentities((string) $post['owner']);
+        $data['no_hp']    = bilangan($post['no_hp']);
+        $data['email']    = email($post['email']);
+        $data['komentar'] = htmlentities((string) $post['komentar']);
+        if (isset($post['status'])) {
+            $data['status'] = bilangan($post['status']);
+        }
+
+        return $data;
     }
 }

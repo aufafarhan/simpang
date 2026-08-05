@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,7 +37,9 @@
 
 namespace App\Models;
 
+use App\Enums\AktifEnum;
 use App\Traits\ConfigId;
+use App\Traits\StatusTrait;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -45,9 +47,10 @@ defined('BASEPATH') || exit('No direct script access allowed');
 class Garis extends BaseModel
 {
     use ConfigId;
+    use StatusTrait;
 
-    public const LOCK   = 1;
-    public const UNLOCK = 2;
+    public $timestamps      = false;
+    public $statusColumName = 'enabled';
 
     /**
      * The table associated with the model.
@@ -55,8 +58,6 @@ class Garis extends BaseModel
      * @var string
      */
     protected $table = 'garis';
-
-    public $timestamps = false;
 
     /**
      * The attributes that are mass assignable.
@@ -100,8 +101,12 @@ class Garis extends BaseModel
     public static function deleteFile($model, ?string $file, $deleting = false): void
     {
         if ($model->isDirty($file) || $deleting) {
+            $original   = LOKASI_FOTO_GARIS . $model->getOriginal($file);
             $fotoSedang = LOKASI_FOTO_GARIS . 'sedang_' . $model->getOriginal($file);
             $fotoKecil  = LOKASI_FOTO_GARIS . 'kecil_' . $model->getOriginal($file);
+            if (file_exists($original)) {
+                unlink($original);
+            }
             if (file_exists($fotoSedang)) {
                 unlink($fotoSedang);
             }
@@ -109,6 +114,21 @@ class Garis extends BaseModel
                 unlink($fotoKecil);
             }
         }
+    }
+
+    public static function activeGarisMap()
+    {
+        return self::active()->with(['line' => static fn ($q) => $q->select(['id', 'nama', 'parrent', 'simbol', 'color', 'tebal', 'jenis'])->with(['parent' => static fn ($r) => $r->select(['id', 'nama', 'parrent', 'simbol', 'color', 'tebal', 'jenis'])]),
+        ])->get()->map(function ($item) {
+            $item->jenis       = $item->line->parent->nama ?? '';
+            $item->kategori    = $item->line->nama ?? '';
+            $item->simbol      = $item->line->simbol ?? '';
+            $item->color       = $item->line->color ?? '';
+            $item->tebal       = $item->line->tebal ?? '';
+            $item->jenis_garis = $item->line->jenis ?? '';
+
+            return $item;
+        })->toArray();
     }
 
     /**
@@ -145,24 +165,25 @@ class Garis extends BaseModel
     public function getFotoGarisAttribute(): ?string
     {
         if ($kecil = $this->getFotoKecilAttribute()) {
-            return to_base64($kecil);
+            return base_url($kecil);
         }
 
         if ($sedang = $this->getFotoSedangAttribute()) {
-            return to_base64($sedang);
+            return base_url($sedang);
+        }
+
+        $foto = LOKASI_FOTO_GARIS . $this->attributes['foto'];
+
+        if (file_exists(FCPATH . $foto)) {
+            return base_url($foto);
         }
 
         return null;
     }
 
-    protected function scopeActive($query)
-    {
-        return $query->whereEnabled(1);
-    }
-
     public function isLock(): bool
     {
-        return $this->enabled == self::LOCK;
+        return $this->enabled == AktifEnum::TIDAK_AKTIF;
     }
 
     /**
@@ -173,18 +194,8 @@ class Garis extends BaseModel
         return $this->hasOne(Line::class, 'id', 'ref_line');
     }
 
-    public static function activeGarisMap()
+    protected function scopeActive($query)
     {
-        return self::active()->with(['line' => static fn ($q) => $q->select(['id', 'nama', 'parrent', 'simbol', 'color', 'tebal', 'jenis'])->with(['parent' => static fn ($r) => $r->select(['id', 'nama', 'parrent', 'simbol', 'color', 'tebal', 'jenis'])]),
-        ])->get()->map(function ($item) {
-            $item->jenis       = $item->line->parent->nama ?? '';
-            $item->kategori    = $item->line->nama ?? '';
-            $item->simbol      = $item->line->simbol ?? '';
-            $item->color       = $item->line->color ?? '';
-            $item->tebal       = $item->line->tebal ?? '';
-            $item->jenis_garis = $item->line->jenis ?? '';
-
-            return $item;
-        })->toArray();
+        return $query->whereEnabled(AktifEnum::AKTIF);
     }
 }

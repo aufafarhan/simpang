@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -39,6 +39,7 @@ namespace App\Services\Auth;
 
 use Closure;
 use Illuminate\Auth\EloquentUserProvider;
+use Illuminate\Contracts\Auth\Authenticatable as UserContract;
 use Illuminate\Contracts\Hashing\Hasher as HasherContract;
 use Illuminate\Contracts\Support\Arrayable;
 
@@ -53,20 +54,18 @@ class PendudukMandiriProvider extends EloquentUserProvider
     }
 
     /**
-     * Retrieve a user by the given credentials.
-     *
-     * @return \Illuminate\Contracts\Auth\Authenticatable|null
+     * {@inheritDoc}
      */
     public function retrieveByCredentials(array $credentials)
     {
         $credentials = array_filter(
             $credentials,
-            static fn ($key) => ! str_contains($key, 'password'),
+            static fn ($key): bool => ! str_contains((string) $key, 'password'),
             ARRAY_FILTER_USE_KEY
         );
 
-        if (empty($credentials)) {
-            return;
+        if ($credentials === []) {
+            return null;
         }
 
         // First we will add each credential element to the query as a where clause.
@@ -76,7 +75,7 @@ class PendudukMandiriProvider extends EloquentUserProvider
 
         foreach ($credentials as $key => $value) {
             if (is_array($value) || $value instanceof Arrayable) {
-                $query->whereHas($this->belongsTo, static function ($query) use ($key, $value) {
+                $query->whereHas($this->belongsTo, static function ($query) use ($key, $value): void {
                     $query->whereIn($key, $value);
                 });
             } elseif ($value instanceof Closure) {
@@ -87,5 +86,29 @@ class PendudukMandiriProvider extends EloquentUserProvider
         }
 
         return $query->first();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function validateCredentials(UserContract $user, array $credentials)
+    {
+        if (null === ($plain = $credentials['password'])) {
+            return false;
+        }
+
+        if ($this->isMd5Hash($user)) {
+            return $this->hasher->driver('md5')->check($plain, $user->getAuthPassword());
+        }
+
+        return $this->hasher->check($plain, $user->getAuthPassword());
+    }
+
+    /**
+     * Check if the user's password is an MD5 hash.
+     */
+    public function isMd5Hash(UserContract $user): bool
+    {
+        return preg_match('/^[a-f0-9]{32}$/', $user->getAuthPassword());
     }
 }

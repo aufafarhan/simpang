@@ -6,7 +6,7 @@
                 <label for="nama">Umur</label>
             </div>
             @if ($input_umur)
-                <div class="col-sm-5">
+                <div class="col-sm-4">
                     <div class="form-group">
                         <input
                             class="form-control input-sm bilangan"
@@ -20,7 +20,7 @@
                     </div>
                 </div>
 
-                <div class="col-sm-5">
+                <div class="col-sm-4">
                     <div class="form-group">
                         <input
                             id="umur_max"
@@ -34,7 +34,7 @@
                     </div>
                 </div>
 
-                <div class="col-sm-2">
+                <div class="col-sm-4">
                     <div class="form-group">
                         <select class="form-control input-sm select2" id="umur" name="umur">
                             <option value="tahun" @selected($umur == 'tahun')>Tahun</option>
@@ -43,6 +43,22 @@
                     </div>
                 </div>
             @endif
+
+            <div class="col-sm-12">
+                <div class="form-group">
+                    <label for="birth_datepicker">Tanggal Lahir</label>
+                    <div class="input-group">
+                        <input type="text" id="birth_datepicker" class="form-control input-sm" placeholder="Pilih hari/bulan (opsional tahun)">
+                        <span class="input-group-addon input-sm">
+                            <input type="checkbox" id="include_birth_year" name="include_birth_year" value="1"> Tahun
+                        </span>
+                        <input type="hidden" id="birth_day" name="birth_day">
+                        <input type="hidden" id="birth_month" name="birth_month">
+                        <input type="hidden" id="birth_year" name="birth_year">
+                    </div>
+                    <small class="text-muted text-danger">Klik input untuk memilih hari & bulan. Centang "Tahun" untuk memilih tanggal lengkap.</small>
+                </div>
+            </div>
 
             @if ($list_pekerjaan)
                 <div class="col-sm-6">
@@ -212,6 +228,20 @@
                 </div>
             @endif
 
+            @if ($kepemilikan_bpjs)
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="kepemilikan_bpjs">Kepemilikan BPJS Ketenagakerjaan</label>
+                        <select class="form-control input-sm select2" id="kepemilikan_bpjs" name="kepemilikan_bpjs">
+                            <option value=""> -- </option>
+                            @foreach ($kepemilikan_bpjs as $key => $item)
+                                <option value="{{ $key }}">{{ $item }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            @endif
+
             @if ($list_warganegara)
                 <div class="col-sm-6">
                     <div class="form-group">
@@ -281,6 +311,48 @@
                     </div>
                 </div>
             @endif
+
+            @if ($list_adat)
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="id_kk">Adat</label>
+                        <select class="form-control input-sm select2" id="adat" name="adat">
+                            <option value=""> -- </option>
+                            @foreach ($list_adat as $key => $item)
+                                <option value="{{ $key }}">{{ $item }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            @endif
+
+            @if ($list_suku)
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="id_kk">Suku / Etnis</label>
+                        <select class="form-control input-sm select2" id="suku" name="suku">
+                            <option value=""> -- </option>
+                            @foreach ($list_suku as $key => $item)
+                                <option value="{{ $key }}">{{ $item }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            @endif
+
+            @if ($list_marga)
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label for="id_kk">Marga</label>
+                        <select class="form-control input-sm select2" id="marga" name="marga">
+                            <option value=""> -- </option>
+                            @foreach ($list_marga as $key => $item)
+                                <option value="{{ $key }}">{{ $item }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
     <div class="modal-footer">
@@ -293,37 +365,92 @@
     $('#umur_min').on('input', function(e) {
         var min = $(this).val();
         var max = $('#umur_max').val();
-
         if (min) {
-            $('#umur_max').prop('class', 'required')
+            $('#umur_max').addClass('required');
         } else {
-            $('#umur_max').removeClass('required')
+            $('#umur_max').removeClass('required');
         }
-        $(this).prop('max', max)
+        $(this).attr('max', max);
     });
-
     $('#umur_max').on('input', function(e) {
         var max = $(this).val();
         var min = $('#umur_min').val();
-
         if (max) {
-            $('#umur_min').prop('class', 'required')
+            $('#umur_min').addClass('required');
         } else {
-            $('#umur_min').removeClass('required')
+            $('#umur_min').removeClass('required');
         }
-        $(this).prop('min', min)
+        $(this).attr('min', min);
     });
+
     $(function() {
-        let advanceSearch = $('#tabeldata').data('advancesearch')
+        let advanceSearch = $('#tabeldata').data('advancesearch');
         if (advanceSearch) {
             for (let x in advanceSearch) {
-                console.log(advanceSearch[x])
                 if (advanceSearch[x]) {
-                    $('.modal [name=' + x + ']').val(advanceSearch[x])
-                    $('.modal [name=' + x + ']').trigger('change')
+                    $(`.modal [name='${x}']`).val(advanceSearch[x])
+                    $(`.modal [name='${x}']`).trigger('change')
                 }
-
             }
         }
-    })
+        // Birth datepicker with year toggle
+        function initBirthPicker(withYear) {
+            // Destroy existing datepicker
+            if ($('#birth_datepicker').data('datepicker')) {
+                $('#birth_datepicker').datepicker('destroy');
+            }
+            // Get today's date
+            const today = new Date();
+            const day = today.getDate().toString().padStart(2, '0');
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            const year = today.getFullYear();
+            // Set endDate
+            let endDate = withYear ? `${day}-${month}-${year}` : `${day}-${month}`;
+            $('#birth_datepicker').datepicker({
+                format: withYear ? 'dd-mm-yyyy' : 'dd-mm',
+                autoclose: true,
+                clearBtn: true,
+                language: 'id',
+                endDate: endDate
+            }).off('change').on('change', function() {
+                const val = $(this).val();
+                const parts = val.split('-');
+                // Clear or set values
+                $('#birth_day').val(parts[0] ? parseInt(parts[0]) : '');
+                $('#birth_month').val(parts[1] ? parseInt(parts[1]) : '');
+                $('#birth_year').val(withYear && parts[2] ? parseInt(parts[2]) : '');
+            });
+        }
+        // Helper to format date value
+        function formatDate(day, month, year) {
+            const d = day.toString().padStart(2, '0');
+            const m = month.toString().padStart(2, '0');
+            return year ? `${d}-${m}-${year}` : `${d}-${m}`;
+        }
+        // Initialize
+        const day = $('#birth_day').val();
+        const month = $('#birth_month').val();
+        const year = $('#birth_year').val();
+        const withYear = !!year || $('#include_birth_year').is(':checked');
+        $('#include_birth_year').prop('checked', withYear);
+        initBirthPicker(withYear);
+        // Set initial value if data exists
+        if (day && month) {
+            $('#birth_datepicker').val(formatDate(day, month, withYear ? year : ''));
+        }
+        // Handle checkbox toggle
+        $('#include_birth_year').on('change', function() {
+            const checked = $(this).is(':checked');
+            const curDay = $('#birth_day').val();
+            const curMonth = $('#birth_month').val();
+            const curYear = $('#birth_year').val();
+
+            console.log(curDay, curMonth, curYear, checked);
+            initBirthPicker(checked);
+            if (curDay && curMonth) {
+                const yearVal = checked ? (curYear || new Date().getFullYear()) : '';
+                $('#birth_datepicker').val(formatDate(curDay, curMonth, yearVal)).trigger('change');
+            }
+        });
+    });
 </script>

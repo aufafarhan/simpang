@@ -3,14 +3,14 @@
 
 @section('title')
     <h1>
-        Pemilihan
+        Data {{ $module_name }}
         <small>{{ $action }} Data</small>
     </h1>
 @endsection
 
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ ci_route('pemilihan') }}"> Pemilihan</a></li>
-    <li class="breadcrumb-item"><a href="{{ ci_route('pemilihan.pemilihan') }}">Daftar Pemilihan</a></li>
+    <li class="breadcrumb-item"><a href="{{ ci_route('dpt') }}">Data {{ $module_name }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ ci_route('pemilihan') }}">Data Pemilihan</a></li>
     <li class="active">{{ $action }} Data</li>
 @endsection
 
@@ -18,9 +18,8 @@
     @include('admin.layouts.components.notifikasi')
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('pemilihan') }}" class="btn btn-social btn-info btn-sm btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block">
-                <i class="fa fa-arrow-circle-left"></i>Kembali ke Daftar Pemilihan
-            </a>
+            @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('pemilihan'), 'label' => "Daftar {$module_name}"])
+
         </div>
         <div class="box-body">
             {!! form_open($form_action, 'id="validasi"') !!}

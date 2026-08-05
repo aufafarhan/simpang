@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,18 +37,31 @@
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
+use App\Enums\StatusEnum;
+use App\Libraries\TinyMCE;
+use App\Libraries\TinyMCE\KodeIsianGambar;
 use App\Models\FormatSurat;
 use App\Models\LogSurat;
 use App\Models\Penduduk;
 use App\Models\PermohonanSurat;
 use App\Models\SyaratSurat;
+use App\Notifications\Penduduk\PermohonanSuratNotification;
 use Mike42\Escpos\PrintConnectors\NetworkPrintConnector;
+use NotificationChannels\Telegram\Telegram;
+use Spipu\Html2Pdf\Exception\ExceptionFormatter;
+use Spipu\Html2Pdf\Exception\Html2PdfException;
 
 class AnjunganSuratController extends MandiriModulController
 {
+    public $moduleName = 'Anjungan';
+    protected TinyMCE $tinymce;
+
     public function __construct()
     {
         parent::__construct();
+
+        $this->tinymce = new TinyMCE();
+
         if (! $this->session->is_anjungan) {
             redirect(route('layanan-mandiri.beranda.index'));
         }
@@ -88,7 +101,7 @@ class AnjunganSuratController extends MandiriModulController
         $surat        = FormatSurat::find($id);
         $syarat_surat = $this->getSyarat($surat->syarat_surat);
         $penduduk     = Penduduk::find($id_pend) ?? show_404();
-        $individu     = $penduduk->formIndividu();
+        $individu     = $penduduk->toArray();
         $data         = [];
         $data         = array_merge($data, [
             'syarat_surat' => $syarat_surat,
@@ -120,18 +133,6 @@ class AnjunganSuratController extends MandiriModulController
         }
 
         return $data;
-    }
-
-    private function get_data_untuk_form($url, array &$data): void
-    {
-        // Panggil 1 penduduk berdasarkan datanya sendiri
-        $data['penduduk'] = [$data['periksa']['penduduk']];
-
-        $data['surat_terakhir']     = LogSurat::lastNomerSurat($url);
-        $data['surat']              = FormatSurat::where('url_surat', $url)->first()->toArray();
-        $data['input']              = $this->input->post();
-        $data['input']['nomor']     = $data['surat_terakhir']['no_surat_berikutnya'];
-        $data['format_nomor_surat'] = FormatSurat::format_penomoran_surat($data);
     }
 
     public function permohonan()
@@ -191,6 +192,77 @@ class AnjunganSuratController extends MandiriModulController
         return view('anjungan::frontend.surat.permohonan');
     }
 
+    public function kirim($id = '')
+    {
+        $post  = $this->input->post();
+        $surat = FormatSurat::where('url_surat', $post['url_surat'])->first();
+
+        $syarat = collect(json_decode($surat->syarat_surat, true))
+            ->mapWithKeys(static fn ($item, $key) => [(string) ($key + 1) => $item])
+            ->all();
+
+        $currentTimestamp = date('Y-m-d H:i:s');
+
+        $data = [
+            'config_id'   => identitas('id'),
+            'id_pemohon'  => bilangan($post['nik']),
+            'id_surat'    => $surat->id,
+            'isian_form'  => json_encode($post, JSON_THROW_ON_ERROR),
+            'status'      => 1,
+            'keterangan'  => 'Permohonan Surat dari Anjungan Mandiri' . (auth('pendudukGuest')->check() ? ' (tanpa akun)' : ''),
+            'no_hp_aktif' => bilangan($post['no_hp_aktif']),
+            'syarat'      => json_encode($syarat, JSON_THROW_ON_ERROR),
+            'updated_at'  => $currentTimestamp,
+        ];
+
+        $previewMode = $this->input->get('preview');
+
+        if ($id) {
+            PermohonanSurat::whereId($id)->update($data);
+        } else {
+            if ($previewMode) {
+                $this->handlePreview($surat, $post, $data);
+
+                if ($previewMode === 'cetak') {
+                    $data['created_at'] = $currentTimestamp;
+                    PermohonanSurat::insert($data);
+
+                    if (setting('telegram_notifikasi') && cek_koneksi_internet()) {
+                        $this->sendTelegramNotification($post, $surat);
+                    }
+                }
+            }
+        }
+
+        $this->session->unset_userdata('data_permohonan');
+
+        // logout penduduk guest jika sudah cetak surat
+        if (auth('pendudukGuest')->check() && $previewMode === 'cetak') {
+            activity()
+                ->causedBy(auth('pendudukGuest')->user())
+                ->inLog('Anjungan')
+                ->event('Cetak Surat')
+                ->withProperties([
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'referer'    => request()->headers->get('referer'),
+                ])
+                ->log('Cetak Surat dari Anjungan Mandiri (tanpa akun)');
+
+            try {
+                auth('pendudukGuest')->user()->notify(new PermohonanSuratNotification());
+            } catch (Throwable $e) {
+                logger()->error($e);
+            }
+
+            auth('pendudukGuest')->logout();
+
+            return redirect('anjungan-mandiri');
+        }
+
+        return redirect(route('anjungan.permohonan'));
+    }
+
     protected function print_connector()
     {
         if (null === ($anjungan = $this->cek_anjungan)) {
@@ -208,62 +280,120 @@ class AnjunganSuratController extends MandiriModulController
         return $connector;
     }
 
-    public function kirim($id = ''): void
+    private function get_data_untuk_form($url, array &$data): void
     {
-        $this->load->library('Telegram/telegram');
-        $post = $this->input->post();
+        // Panggil 1 penduduk berdasarkan datanya sendiri
+        $data['penduduk'] = [$data['periksa']['penduduk']];
 
-        $surat = FormatSurat::where('url_surat', $post['url_surat'])->first();
+        $data['surat_terakhir']     = LogSurat::lastNomerSurat($url);
+        $data['surat']              = FormatSurat::where('url_surat', $url)->first()->toArray();
+        $data['input']              = $this->input->post();
+        $data['input']['nomor']     = $data['surat_terakhir']['no_surat_berikutnya'];
+        $data['format_nomor_surat'] = FormatSurat::format_penomoran_surat($data);
 
-        $syrat = collect(json_decode($surat->syarat_surat, true))
-            ->mapWithKeys(static fn ($item, $key) => [(string) ($key + 1) => $item])
-            ->all();
+        $penandatangan     = $this->tinymce->formPenandatangan();
+        $data['pamong']    = $penandatangan['penandatangan'];
+        $data['atas_nama'] = $penandatangan['atas_nama'];
+    }
 
-        $data = [
-            'config_id'   => identitas('id'),
-            'id_pemohon'  => bilangan($post['nik']),
-            'id_surat'    => $surat->id,
-            'isian_form'  => json_encode($post, JSON_THROW_ON_ERROR),
-            'status'      => 1, // Selalu 1 bagi pengguna layanan mandiri
-            'keterangan'  => 'Permohonan Surat dari Anjungan Mandiri',
-            'no_hp_aktif' => bilangan($post['no_hp_aktif']),
-            'syarat'      => json_encode($syrat, JSON_THROW_ON_ERROR),
-            'updated_at'  => date('Y-m-d H:i:s'),
-        ];
+    private function handlePreview($surat, $post, $data)
+    {
+        try {
+            // Prepare log_surat inline
+            $log_surat = [
+                'id_pend'  => $data['id_pemohon'],
+                'surat'    => $surat,
+                'input'    => $post,
+                'no_surat' => $post['nomor'],
+            ];
 
-        if ($id) {
-            PermohonanSurat::whereId($id)->update($data);
-        } else {
-            $data['created_at'] = $data['updated_at'];
+            $setting_header = $surat->header == StatusEnum::TIDAK ? '' : setting('header_surat');
+            $setting_footer = $surat->footer == StatusEnum::YA
+                ? (setting('tte') == StatusEnum::YA ? setting('footer_surat_tte') : setting('footer_surat'))
+                : '';
+            $log_surat['isi_surat'] = preg_replace('/\\\\/', '', $setting_header)
+                . '<!-- pagebreak -->'
+                . ($surat->template_desa ?: $surat->template)
+                . '<!-- pagebreak -->'
+                . preg_replace('/\\\\/', '', $setting_footer);
 
-            PermohonanSurat::insert($data);
+            // Process the template
+            $isi_surat = $this->tinymce->gantiKodeIsian($log_surat, false);
+            $isi_cetak = $this->tinymce->formatPdf($surat->header, $surat->footer, $isi_surat);
+            $isi_cetak = KodeIsianGambar::set($log_surat['surat'], $isi_cetak, $surat)['result'];
 
-            if (setting('telegram_notifikasi') && cek_koneksi_internet()) {
-                try {
-                    // Data pesan telegram yang akan digantikan
-                    $pesanTelegram = [
-                        '[nama_penduduk]' => $this->is_login->nama,
-                        '[judul_surat]'   => FormatSurat::find($post['id_surat'])->nama,
-                        '[tanggal]'       => tgl_indo2(date('Y-m-d H:i:s')),
-                        '[melalui]'       => 'Layanan Mandiri',
-                        '[website]'       => APP_URL,
-                    ];
+            $nama_surat = $this->namaSuratArsip(
+                $log_surat['surat']['url_surat'],
+                auth('penduduk')->user()->penduduk->nik ?? auth('pendudukGuest')->user()->nik,
+                $log_surat['no_surat']
+            );
 
-                    $kirimPesan = setting('notifikasi_pengajuan_surat');
-                    $kirimPesan = str_replace(array_keys($pesanTelegram), array_values($pesanTelegram), $kirimPesan);
-                    $this->telegram->sendMessage([
-                        'text'       => $kirimPesan,
-                        'parse_mode' => 'Markdown',
-                        'chat_id'    => $this->setting->telegram_user_id,
-                    ]);
-                } catch (Exception $e) {
-                    logger()->error($e->getMessage());
-                }
+            $margin_cm_to_mm = $log_surat['surat']['margin_cm_to_mm'];
+
+            if ($log_surat['surat']['margin_global'] == '1') {
+                $margin_cm_to_mm = setting('surat_margin_cm_to_mm');
             }
+
+            $defaultFont = underscore(setting('font_surat'));
+
+            // Generate PDF and attachments
+            $this->tinymce->generateSurat($isi_cetak, $log_surat, $margin_cm_to_mm, $defaultFont);
+            $this->tinymce->generateLampiran($log_surat['id_pend'], $log_surat, $log_surat['input']);
+
+            // Handle preview mode
+            $previewMode = $this->input->get('preview');
+            if ($previewMode === 'cetak') {
+                $this->tinymce->pdfMerge->merge(FCPATH . LOKASI_ARSIP . $nama_surat, 'FI');
+            } else {
+                return $this->tinymce->pdfMerge->merge($nama_surat, 'I');
+            }
+        } catch (Html2PdfException $e) {
+            return $this->handlePdfException($e);
         }
+    }
 
-        $this->session->unset_userdata('data_permohonan');
+    private function sendTelegramNotification($post, $surat)
+    {
+        $telegram = new Telegram(setting('telegram_token'));
 
-        redirect(route('anjungan.permohonan'));
+        try {
+            $pesanTelegram = [
+                '[nama_penduduk]' => $this->is_login->nama,
+                '[judul_surat]'   => $surat->nama,
+                '[tanggal]'       => tgl_indo2(date('Y-m-d H:i:s')),
+                '[melalui]'       => 'Layanan Mandiri',
+                '[website]'       => APP_URL,
+            ];
+
+            $kirimPesan = str_replace(array_keys($pesanTelegram), array_values($pesanTelegram), setting('notifikasi_pengajuan_surat'));
+            $telegram->sendMessage([
+                'text'       => $kirimPesan,
+                'parse_mode' => 'Markdown',
+                'chat_id'    => setting('telegram_user_id'),
+            ]);
+        } catch (Exception $e) {
+            logger()->error($e->getMessage());
+        }
+    }
+
+    private function handlePdfException($e)
+    {
+        $formatter = new ExceptionFormatter($e);
+        logger()->error($e);
+
+        return $this->output
+            ->set_status_header(404, str_replace("\n", ' ', $formatter->getMessage()))
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'statusText' => $formatter->getMessage(),
+            ], JSON_THROW_ON_ERROR));
+    }
+
+    private function namaSuratArsip(string $url, string $nik, $nomor): string
+    {
+        $nomor_surat = str_replace("'", '', $nomor);
+        $nomor_surat = preg_replace('/[^a-zA-Z0-9.	]/', '-', $nomor_surat);
+
+        return $url . '_' . $nik . '_' . date('Y-m-d') . '_' . $nomor_surat . '.pdf';
     }
 }

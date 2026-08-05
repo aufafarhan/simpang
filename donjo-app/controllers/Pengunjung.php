@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -49,7 +49,6 @@ class Pengunjung extends Admin_Controller
     {
         parent::__construct();
         isCan('b');
-        $this->load->model('statistik_pengunjung_model');
     }
 
     public function index()
@@ -63,6 +62,42 @@ class Pengunjung extends Admin_Controller
         $data['main']       = $this->getPengunjung();
 
         return view('admin.pengunjung.index', $data);
+    }
+
+    public function detail($id = null)
+    {
+        $data['hari_ini']   = StatistikPengunjung::filter(StatistikPengunjung::HARI_INI)->sum('jumlah');
+        $data['kemarin']    = StatistikPengunjung::filter(StatistikPengunjung::KEMARIN)->sum('jumlah');
+        $data['minggu_ini'] = StatistikPengunjung::filter(StatistikPengunjung::MINGGU_INI)->sum('jumlah');
+        $data['bulan_ini']  = StatistikPengunjung::filter(StatistikPengunjung::BULAN_INI)->sum('jumlah');
+        $data['tahun_ini']  = StatistikPengunjung::filter(StatistikPengunjung::TAHUN_INI)->sum('jumlah');
+        $data['jumlah']     = StatistikPengunjung::sum('jumlah');
+        $data['main']       = $this->getPengunjung($id);
+
+        return view('admin.pengunjung.index', $data);
+    }
+
+    public function cetak($aksi = 'cetak')
+    {
+        $data = [
+            'aksi'   => $aksi,
+            'config' => $this->header['desa'],
+            'main'   => $this->getPengunjung(),
+            'file'   => 'LAPORAN DATA STATISTIK PENGUNJUNG WEBSITE SETIAP TAHUN',
+            'isi'    => 'admin.pengunjung.cetak',
+        ];
+
+        return view('admin.layouts.components.format_cetak', $data);
+    }
+
+    /**
+     * Rentang tanggal.
+     *
+     * @return string
+     */
+    protected function op_tgl(string $op, string $tgl)
+    {
+        return date('Y-m-d', strtotime($op, strtotime($tgl)));
     }
 
     private function getPengunjung($type = null)
@@ -136,41 +171,5 @@ class Pengunjung extends Admin_Controller
         $data['pengunjung'] = $data['pengunjung']->toArray();
 
         return $data;
-    }
-
-    public function detail($id = null)
-    {
-        $data['hari_ini']   = StatistikPengunjung::filter(StatistikPengunjung::HARI_INI)->sum('jumlah');
-        $data['kemarin']    = StatistikPengunjung::filter(StatistikPengunjung::KEMARIN)->sum('jumlah');
-        $data['minggu_ini'] = StatistikPengunjung::filter(StatistikPengunjung::MINGGU_INI)->sum('jumlah');
-        $data['bulan_ini']  = StatistikPengunjung::filter(StatistikPengunjung::BULAN_INI)->sum('jumlah');
-        $data['tahun_ini']  = StatistikPengunjung::filter(StatistikPengunjung::TAHUN_INI)->sum('jumlah');
-        $data['jumlah']     = StatistikPengunjung::sum('jumlah');
-        $data['main']       = $this->getPengunjung($id);
-
-        return view('admin.pengunjung.index', $data);
-    }
-
-    public function cetak($aksi = 'cetak')
-    {
-        $data = [
-            'aksi'   => $aksi,
-            'config' => $this->header['desa'],
-            'main'   => $this->getPengunjung(),
-            'file'   => 'LAPORAN DATA STATISTIK PENGUNJUNG WEBSITE SETIAP TAHUN',
-            'isi'    => 'admin.pengunjung.cetak',
-        ];
-
-        return view('admin.layouts.components.format_cetak', $data);
-    }
-
-    /**
-     * Rentang tanggal.
-     *
-     * @return string
-     */
-    protected function op_tgl(string $op, string $tgl)
-    {
-        return date('Y-m-d', strtotime($op, strtotime($tgl)));
     }
 }

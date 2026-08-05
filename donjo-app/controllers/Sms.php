@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,12 +29,13 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Libraries\OTP\OtpManager;
 use App\Models\AnggotaGrup;
 use App\Models\DaftarKontak;
 use App\Models\GrupKontak;
@@ -50,12 +51,14 @@ class Sms extends Admin_Controller
 {
     public $modul_ini           = 'hubung-warga';
     public $sub_modul_ini       = 'kirim-pesan';
-    public $kategori_pengaturan = 'hubung warga';
+    public $kategori_pengaturan = 'Hubung Warga';
+    private OtpManager $otp;
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+        $this->otp = new OtpManager();
     }
 
     public function index()
@@ -100,7 +103,7 @@ class Sms extends Admin_Controller
         $data['kontakEksternal'] = DaftarKontak::select(['id_kontak', 'nama', 'telepon'])->whereNotNull('telepon')->get();
 
         if ($id) {
-            switch($tipe) {
+            switch ($tipe) {
                 case 2:
                     $sms = SentItem::findOrFail($id);
                     break;
@@ -111,7 +114,6 @@ class Sms extends Admin_Controller
 
                 default:
                     $sms = Outbox::findOrFail($id);
-
             }
             $data['sms']         = $sms;
             $data['form_action'] = ci_route("sms.insert.{$tipe}.{$id}");
@@ -195,16 +197,15 @@ class Sms extends Admin_Controller
             Outbox::destroy($this->request['id_cb'] ?? $id);
         }
 
-            if ($tipe == 1) {
-                redirect_with('success', 'Data berhasil dihapus', ci_route('sms'));
-            } elseif ($tipe == 2) {
-                redirect_with('success', 'Data berhasil dihapus', ci_route('sms.sentitem'));
-            } elseif ($tipe == 3) {
-                redirect_with('success', 'Data berhasil dihapus', ci_route('sms.pending'));
-            } else {
-                redirect_with('success', 'Data berhasil dihapus', ci_route('sms.outbox'));
-            }
-
+        if ($tipe == 1) {
+            redirect_with('success', 'Data berhasil dihapus', ci_route('sms'));
+        } elseif ($tipe == 2) {
+            redirect_with('success', 'Data berhasil dihapus', ci_route('sms.sentitem'));
+        } elseif ($tipe == 3) {
+            redirect_with('success', 'Data berhasil dihapus', ci_route('sms.pending'));
+        } else {
+            redirect_with('success', 'Data berhasil dihapus', ci_route('sms.outbox'));
+        }
     }
 
     // Kirim Pesan (Hubung Warga)
@@ -259,9 +260,22 @@ class Sms extends Admin_Controller
 
         if ($notif['jumlahBerhasil'] > 0) {
             HubungWarga::create($validasi);
-            set_session('success', "Berhasil Kirim Pesan </br>{$notif['pesanError']}");
+            set_session('information', "Laporan Pengiriman Pesan: </br>{$notif['pesanError']}");
         } else {
             set_session('error', "Gagal Kirim Pesan </br>{$notif['pesanError']}");
+        }
+
+        redirect('sms/arsip');
+    }
+
+    public function hubungDelete($id = null): void
+    {
+        isCan('h');
+
+        if (HubungWarga::destroy($this->request['id_cb'] ?? $id)) {
+            set_session('success', 'Berhasil Hapus Data');
+        } else {
+            set_session('error', 'Gagal Hapus Data');
         }
 
         redirect('sms/arsip');
@@ -282,17 +296,19 @@ class Sms extends Admin_Controller
 
     protected function kirimPesanGrup($data = [])
     {
-        $this->load->library('OTP/OTP_manager', null, 'otp');
+        $result = [
+            'jumlahBerhasil' => 0,
+            'pesanError'     => '',
+        ];
 
-        $result        = [];
         $daftarAnggota = AnggotaGrup::where('id_grup', bilangan($data['id_grup']))->dataAnggota()->get();
 
         foreach ($daftarAnggota as $anggota) {
-            // Kirim pesan berdasarkan pilihan hubung warga
-            // Prioritas : berdasarkan pilihan, telegram jika tidak tersedia, jangan kirim
+            $kirim = false; // Default untuk tiap anggota
+
             switch (true) {
-                case (bool) $this->setting->aktifkan_sms && $anggota->hubung_warga = 'SMS' && null !== $anggota->telepon:
-                    $kirim                                                         = Outbox::create([
+                case (bool) setting('aktifkan_sms') && $anggota->hubung_warga == 'SMS' && ! empty($anggota->telepon):
+                    $kirim = Outbox::create([
                         'DestinationNumber' => $anggota->telepon,
                         'TextDecoded'       => <<<EOD
                             SUBJEK :
@@ -305,39 +321,55 @@ class Sms extends Admin_Controller
 
                     if ($kirim) {
                         $result['jumlahBerhasil']++;
-                        break;
+                    } else {
+                        $result['pesanError'] .= "Gagal kirim pesan SMS ke : {$anggota->nama} <br/>";
                     }
+                    break;
 
-                    $result['pesanError'] = "Gagal kirim pesan SMS ke : {$anggota->nama} </br>";
+                case $anggota->hubung_warga == 'Email' && ! empty($anggota->email):
+                    if (empty(setting('email_notifikasi'))) {
+                        $result['pesanError'] .= 'Pengaturan notifikasi email belum diaktifkan. <br/>';
+                    } else {
+                        try {
+                            $kirim = $this->otp->driver('email')->kirimPesan([
+                                'tujuan' => $anggota->email,
+                                'subjek' => $data['subjek'],
+                                'isi'    => $data['isi'],
+                                'nama'   => $anggota->nama,
+                            ]);
 
-                    // no break
-                case $anggota->hubung_warga = 'Email' && null !== $anggota->email:
-                    try {
-                        $kirim = $this->otp->driver('email')->kirim_pesan([
-                            'tujuan' => $anggota->email,
-                            'subjek' => $data['subjek'],
-                            'isi'    => $data['isi'],
-                            'nama'   => $anggota->nama,
-                        ]);
-                        $result['jumlahBerhasil']++;
-
-                        break;
-                    } catch (Exception $e) {
-                        log_message('error', $e);
-                        $result['pesanError'] = "Gagal kirim pesan Email ke : {$anggota->nama} </br>";
+                            if ($kirim) {
+                                $result['pesanError'] .= "Berhasil kirim pesan Email ke : {$anggota->nama} <br/>";
+                                $result['jumlahBerhasil']++;
+                            }
+                        } catch (Exception $e) {
+                            log_message('error', $e);
+                            $result['pesanError'] .= "Gagal kirim pesan Email ke : {$anggota->nama} <br/>";
+                        }
                     }
+                    break;
 
                 default:
-                    try {
-                        $kirim = $this->otp->driver('telegram')->kirim_pesan([
-                            'tujuan' => $anggota->telegram,
-                            'subjek' => $data['subjek'],
-                            'isi'    => $data['isi'],
-                        ]);
-                        $result['jumlahBerhasil']++;
-                    } catch (Exception $e) {
-                        log_message('error', $e);
-                        $result['pesanError'] = "Gagal kirim pesan Telegram ke : {$anggota->nama} </br>";
+                    if (! empty($anggota->telegram)) {
+                        if (empty(setting('telegram_notifikasi'))) {
+                            $result['pesanError'] .= 'Pengaturan notifikasi telegram belum diaktifkan. <br/>';
+                        } else {
+                            try {
+                                $kirim = $this->otp->driver('telegram')->kirimPesan([
+                                    'tujuan' => $anggota->telegram,
+                                    'subjek' => $data['subjek'],
+                                    'isi'    => $data['isi'],
+                                ]);
+
+                                if ($kirim) {
+                                    $result['pesanError'] .= "Berhasil kirim pesan Telegram ke : {$anggota->nama} <br/>";
+                                    $result['jumlahBerhasil']++;
+                                }
+                            } catch (Exception $e) {
+                                log_message('error', $e);
+                                $result['pesanError'] .= "Gagal kirim pesan Telegram ke : {$anggota->nama} <br/>";
+                            }
+                        }
                     }
                     break;
             }
@@ -346,18 +378,5 @@ class Sms extends Admin_Controller
         $result['jumlahData'] = count($daftarAnggota);
 
         return $result;
-    }
-
-    public function hubungDelete($id = null): void
-    {
-        isCan('h');
-
-        if (HubungWarga::destroy($this->request['id_cb'] ?? $id)) {
-            set_session('success', 'Berhasil Hapus Data');
-        } else {
-            set_session('error', 'Gagal Hapus Data');
-        }
-
-        redirect('sms/arsip');
     }
 }

@@ -223,11 +223,11 @@
 <page orientation="portrait" orientation="landscape" format="A4" backtop="5mm" backbottom="5mm"
     style="font-family: Arial, Helvetica, sans-serif; font-size: 8pt">
     <page_header>
-        <h4 class="tengah" style="margin-top:-10px">REGISTRASI SOSIAL EKONOMI 2022  </h4>
+        <h4 class="tengah" style="margin-top:-10px"><?= setting('sebutan_lengkap_regsosek') ?>  </h4>
         <table style="width: 100%;border:none;margin-top:-30px">
             <tr>
                 <td style="width: 50%;border:none"><b>RAHASIA</b></td>
-                <td style="width: 50%;border:none" class="kanan">REGSOS-EK2022.K</td>
+                <td style="width: 50%;border:none" class="kanan"><?= setting('sebutan_singkat_regsosek') ?></td>
             </tr>
         </table>
     </page_header>
@@ -588,7 +588,7 @@
                 perjanjian
                 pemanfaatan
                 tertulis<br>3. SHM bukan a.n Anggota Keluarga tanpa perjanjian pemanfaatan tertulis</td>
-            <td class="no-border border-b border-r" colspan="2">4. Sertfikat selain SHM (SHGB, SHRS)<br>5. Surat
+            <td class="no-border border-b border-r" colspan="2">4. Sertifikat selain SHM (SHGB, SHRS)<br>5. Surat
                 bukti lainnya (Girik, Letter C, dll)<br>6. Tidak punya</td>
             <td class="no-border border-b border-r">
                 b.
@@ -1271,11 +1271,11 @@
 <page orientation="portrait" orientation="landscape" format="A4" backtop="5mm" backbottom="5mm"
 style="font-family: Arial, Helvetica, sans-serif; font-size: 8pt">
     <page_header>
-        <h4 class="tengah" style="margin-top:-10px">REGISTRASI SOSIAL EKONOMI 2022  </h4>
+        <h4 class="tengah" style="margin-top:-10px"><?= setting('sebutan_lengkap_regsosek') ?>  </h4>
         <table style="width: 100%;border:none;margin-top:-30px">
             <tr>
                 <td style="width: 50%;border:none"><b>RAHASIA</b></td>
-                <td style="width: 50%;border:none" class="kanan">REGSOS-EK2022.K</td>
+                <td style="width: 50%;border:none" class="kanan"><?= setting('sebutan_dtks') ?></td>
             </tr>
         </table>
     </page_header>
@@ -1470,10 +1470,9 @@ style="font-family: Arial, Helvetica, sans-serif; font-size: 8pt">
             <td style="width: 25%;">
                 408. Status Perkawinan (isikan kode)
                 <br>
-                <?=str_repeat('&nbsp;', 6)?>1. Belum kawin
-                <?=str_repeat('&nbsp;', 6)?>2. Kawin/nikah
-                <br><?=str_repeat('&nbsp;', 6)?>3. Cerai hidup
-                <?=str_repeat('&nbsp;', 6)?>4. Cerai mati
+                 <?php foreach (\App\Enums\StatusKawinEnum::valuesToUcwords() as $kode => $label): ?>
+                    <?= str_repeat('&nbsp;', 6) . $kode . '. ' . $label ?><br>
+                <?php endforeach; ?>
             </td>
             <?php foreach($dtksAnggota as $key => $agt) : ?>
                 <td style="width: 15%;">
@@ -2733,7 +2732,7 @@ style="font-family: Arial, Helvetica, sans-serif; font-size: 8pt">
                 <?=str_repeat('&nbsp;', 6)?><b>( 13 )</b> Kolesterol
                 <?=str_repeat('&nbsp;', 6)?><b>( 14 )</b> Sirosis Hati
                 <?=str_repeat('&nbsp;', 6)?><b>( 15 )</b> Thalasemia
-                <?=str_repeat('&nbsp;', 6)?><b>( 16 )</b> Leukimia
+                <?=str_repeat('&nbsp;', 6)?><b>( 16 )</b> Leukemia
                 <?=str_repeat('&nbsp;', 6)?><b>( 17 )</b> Alzheimer
                 <?=str_repeat('&nbsp;', 4)?><b>( 18 )</b> Lainnya
             </td>

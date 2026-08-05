@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,15 +29,18 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
  */
 
+use App\Libraries\Database;
+use App\Libraries\Ekspor;
 use App\Libraries\FlxZipArchive;
 use App\Models\LogBackup;
 use App\Models\LogRestoreDesa;
+use Illuminate\Support\Facades\DB;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -48,12 +51,11 @@ class Job extends CI_Controller
         parent::__construct();
         $this->load->database();
         $this->load->helper(['number', 'file']);
-        $this->load->model(['ekspor_model', 'database_model']);
     }
 
     public function restore($database = null): void
     {
-        if (! config_item('demo_mode') || ENVIRONMENT === 'production') {
+        if (ENVIRONMENT !== 'production' || (! config_item('demo_mode') && ENVIRONMENT === 'production')) {
             show_404();
         }
 
@@ -76,30 +78,26 @@ class Job extends CI_Controller
         // Buat folder desa
         folder_desa();
 
-        // Proses Restore Database
-        if ($this->ekspor_model->proses_restore($this->cekDB($database ?? 'contoh_data_awal'))) {
-            $this->database_model->migrasi_db_cri();
-        } else {
-            log_message('error', 'Proses Restore Database Gagal');
+        try {
+            // Proses Restore Database
+            $connection = DB::connection();
+            $connection->statement('SET FOREIGN_KEY_CHECKS=0');
+            $success = (new Ekspor())->restore($this->cekDB($database ?? 'contoh_data_awal'));
+            $connection->statement('SET FOREIGN_KEY_CHECKS=1');
+            if ($success) {
+                (new Database())->migrateDatabase();
+            } else {
+                log_message('error', 'Proses Restore Database Gagal');
+            }
+        } catch (Exception $e) {
+            $pesan = $e->getMessage();
+            log_message('error', $pesan);
         }
 
         cache()->flush();
         kosongkanFolder('storage/framework/views/');
 
         log_message('notice', '>_ Selesai');
-    }
-
-    private function cekDB($filename): string|false
-    {
-        $filename = DESAPATH . "/config/{$filename}.sql";
-
-        if (file_exists($filename)) {
-            return $filename;
-        }
-
-        log_message('error', 'File ' . $filename . ' tidak ditemukan');
-
-        return false;
     }
 
     public function backup_inkremental($lokasi): void
@@ -112,7 +110,7 @@ class Job extends CI_Controller
         3 = dibatalkan
         */
 
-        $lokasi      = ($lokasi == 'null') ? null : 'backup_inkremental';
+        $lokasi      = ($lokasi == 'null') ? sys_get_temp_dir() : 'backup_inkremental';
         $last_backup = LogBackup::latest()->first()->created_at;
         $last_backup = ($last_backup != null) ? $last_backup->format('Y-m-d') : '1990-01-01';
         $backup      = LogBackup::create(['permanen' => ($lokasi) ? 1 : 0, 'pid_process' => getmypid()]); // tandai backup sedang berlangsung
@@ -124,6 +122,8 @@ class Job extends CI_Controller
             $file_backup = get_file_info($path);
             $backup->update(['status' => 1, 'ukuran' => byte_format($file_backup['size']), 'path' => $path]); // update backup sudah selesai
         } catch (Exception $e) {
+            logger()->error($e);
+
             $backup->update(['status' => -1]); // update backup gagal
             printf($e);
         }
@@ -159,5 +159,18 @@ class Job extends CI_Controller
             $restore->update(['status' => -1]); // update backup gagal
             printf($e);
         }
+    }
+
+    private function cekDB($filename): string|false
+    {
+        $filename = DESAPATH . "/config/{$filename}.sql";
+
+        if (file_exists($filename)) {
+            return $filename;
+        }
+
+        log_message('error', 'File ' . $filename . ' tidak ditemukan');
+
+        return false;
     }
 }

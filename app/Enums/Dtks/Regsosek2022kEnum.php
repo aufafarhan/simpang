@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -37,40 +37,8 @@
 
 namespace App\Enums\Dtks;
 
-/*
- *
- * File ini bagian dari:
- *
- * OpenSID
- *
- * Sistem informasi desa sumber terbuka untuk memajukan desa
- *
- * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
- *
- * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2022 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
- *
- * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
- * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
- * tanpa batasan, termasuk hak untuk menggunakan, menyalin, mengubah dan/atau mendistribusikan,
- * asal tunduk pada syarat berikut:
- *
- * Pemberitahuan hak cipta di atas dan pemberitahuan izin ini harus disertakan dalam
- * setiap salinan atau bagian penting Aplikasi Ini. Barang siapa yang menghapus atau menghilangkan
- * pemberitahuan ini melanggar ketentuan lisensi Aplikasi Ini.
- *
- * PERANGKAT LUNAK INI DISEDIAKAN "SEBAGAIMANA ADANYA", TANPA JAMINAN APA PUN, BAIK TERSURAT MAUPUN
- * TERSIRAT. PENULIS ATAU PEMEGANG HAK CIPTA SAMA SEKALI TIDAK BERTANGGUNG JAWAB ATAS KLAIM, KERUSAKAN ATAU
- * KEWAJIBAN APAPUN ATAS PENGGUNAAN ATAU LAINNYA TERKAIT APLIKASI INI.
- *
- * @package   OpenSID
- * @author    Tim Pengembang OpenDesa
- * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2022 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
- * @license   http://www.gnu.org/licenses/gpl.html GPL V3
- * @link      https://github.com/OpenSID/OpenSID
- *
- */
+use App\Enums\JenisKelaminEnum;
+use App\Enums\StatusKawinEnum;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -267,7 +235,7 @@ class Regsosek2022kEnum
         ];
     }
 
-    final public static function pilihanBagian3()
+    final public static function pilihanBagian3(): array
     {
         $pilihan3 = [
             '301a' => [
@@ -276,12 +244,13 @@ class Regsosek2022kEnum
                 '3' => '3. Bebas sewa',
                 '4' => '4. Dinas',
                 '5' => '5. Lainnya',
+                '6' => '6. Menumpang & Kepemilikan Bersama',
             ],
             '301b' => [
                 '1' => '1. SHM atas Nama Anggota Keluarga',
                 '2' => '2. SHM bukan a.n Anggota Keluarga dengan perjanjian pemanfaatan tertulis',
                 '3' => '3. SHM bukan a.n Anggota Keluarga tanpa perjanjian pemanfaatan tertulis',
-                '4' => '4. Sertfikat selain SHM (SHGB, SHSRS)',
+                '4' => '4. Sertifikat selain SHM (SHGB, SHSRS)',
                 '5' => '5. Surat bukti lainnya (Girik, Letter C, dll)',
                 '6' => '6. Tidak Punya',
             ],
@@ -327,6 +296,8 @@ class Regsosek2022kEnum
                 '9'  => '9. Air permukaan (sungai/danau/waduk/kolam/irigasi)',
                 '10' => '10. Air hujan',
                 '11' => '11. Lainnya',
+                '12' => '12. Air PDAM',
+                '13' => '13. PAMDES/PAMSIMAS',
             ],
             '306b' => [
                 '1' => '1. < 10 meter',
@@ -402,15 +373,10 @@ class Regsosek2022kEnum
                 '6' => '6. Tidak ditemukan',
             ],
             '405' => [
-                '1' => '1. Laki-laki',
-                '2' => '2. Perempuan',
+                '1' => '1. ' . JenisKelaminEnum::valueOf(JenisKelaminEnum::LAKI_LAKI),
+                '2' => '2. ' . JenisKelaminEnum::valueOf(JenisKelaminEnum::PEREMPUAN),
             ],
-            '408' => [
-                '1' => '1. Belum kawin',
-                '2' => '2. Kawin/nikah',
-                '3' => '3. Cerai hidup',
-                '4' => '4. Cerai mati',
-            ],
+            '408' => StatusKawinEnum::all(),
             '409' => [
                 '1' => '1. Kepala keluarga',
                 '2' => '2. Istri/suami',
@@ -608,7 +574,7 @@ class Regsosek2022kEnum
                 '13' => '13. Kolesterol',
                 '14' => '14. Sirosis Hati',
                 '15' => '15. Thalasemia',
-                '16' => '16. Leukimia',
+                '16' => '16. Leukemia',
                 '17' => '17. Alzheimer',
                 '18' => '18. Lainnya',
             ],

@@ -11,7 +11,7 @@
  * Aplikasi dan source code ini dirilis berdasarkan lisensi GPL V3
  *
  * Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  *
  * Dengan ini diberikan izin, secara gratis, kepada siapa pun yang mendapatkan salinan
  * dari perangkat lunak ini dan file dokumentasi terkait ("Aplikasi Ini"), untuk diperlakukan
@@ -29,7 +29,7 @@
  * @package   OpenSID
  * @author    Tim Pengembang OpenDesa
  * @copyright Hak Cipta 2009 - 2015 Combine Resource Institution (http://lumbungkomunitas.net/)
- * @copyright Hak Cipta 2016 - 2024 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
+ * @copyright Hak Cipta 2016 - 2025 Perkumpulan Desa Digital Terbuka (https://opendesa.id)
  * @license   http://www.gnu.org/licenses/gpl.html GPL V3
  * @link      https://github.com/OpenSID/OpenSID
  *
@@ -93,7 +93,20 @@ class PermohonanSurat extends BaseModel
     /**
      * {@inheritDoc}
      */
+    protected $appends = ['kodeStatusPermohonan'];
+
+    /**
+     * {@inheritDoc}
+     */
     protected $with = ['surat', 'penduduk'];
+
+    // Notifikasi pada layanan mandiri, ditampilkan jika ada surat belum lengkap (0) atau surat siap diambil (3)
+    public static function notifikasi($id = '')
+    {
+        return self::where('id_pemohon', $id)
+            ->whereIn('status', [self::BELUM_LENGKAP, self::SIAP_DIAMBIL])
+            ->count();
+    }
 
     /**
      * Getter untuk mapping status permohonan.
@@ -103,6 +116,17 @@ class PermohonanSurat extends BaseModel
     public function getStatusPermohonanAttribute()
     {
         return static::STATUS_PERMOHONAN[$this->status];
+    }
+
+    /**
+     * Getter untuk kode status permohonan.
+     *
+     * @return string
+     */
+    public function getKodeStatusPermohonanAttribute()
+    {
+        // Mengembalikan id model saat ini secara spesifik, meskipun ada relasi model lain
+        return $this->getAttribute('status');
     }
 
     /**
@@ -148,7 +172,7 @@ class PermohonanSurat extends BaseModel
             return $query;
         }
 
-        return $query->where('status', $status);
+        return $query->where($this->getTable() . '.status', $status);
     }
 
     public function penduduk()
@@ -164,6 +188,21 @@ class PermohonanSurat extends BaseModel
     public function scopeBelumDiambil($query)
     {
         return $query->where('status', '!=', self::SUDAH_DIAMBIL);
+    }
+
+    public function scopeBaru($query)
+    {
+        return $query->where('status', self::SEDANG_DIPERIKSA);
+    }
+
+    /**
+     * Scope query untuk membatasi permohonan surat hanya milik penduduk tertentu.
+     *
+     * @param Builder $query
+     */
+    public function scopeMilikPenduduk($query, int $idPemohon)
+    {
+        return $query->where('id_pemohon', $idPemohon);
     }
 
     /**
@@ -193,13 +232,13 @@ class PermohonanSurat extends BaseModel
     {
         if ($status == PermohonanSurat::BELUM_LENGKAP) {
             // Belum Lengkap
-            $this->db->where('status', PermohonanSurat::SEDANG_DIPERIKSA);
+            $this->where('status', PermohonanSurat::SEDANG_DIPERIKSA);
         } elseif ($status == PermohonanSurat::DIBATALKAN) {
             // Batalkan hanya jika status = 0 (belum lengkap) atau 1 (sedang diproses)
-            $this->db->where_in('status', [PermohonanSurat::BELUM_LENGKAP, PermohonanSurat::SEDANG_DIPERIKSA]);
+            $this->where_in('status', [PermohonanSurat::BELUM_LENGKAP, PermohonanSurat::SEDANG_DIPERIKSA]);
         } else {
             // Lainnya
-            $this->db->where('status', ($status - 1));
+            $this->where('status', ($status - 1));
         }
 
         $this->update(['status' => $status]);

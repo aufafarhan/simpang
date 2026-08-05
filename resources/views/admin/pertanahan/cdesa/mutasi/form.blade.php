@@ -17,12 +17,10 @@
     @include('admin.layouts.components.notifikasi')
     <div class="box box-info">
         <div class="box-header with-border">
-            <a href="{{ ci_route('cdesa.rincian', $cdesa['id']) }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Rincian C-Desa"><i class="fa fa-arrow-circle-o-left"></i> Kembali Ke
-                Rincian C-Desa</a>
+            <x-kembali-button judul="Kembali Ke Rincian C-Desa" url="cdesa/rincian/{{ $cdesa['id'] }}"/>
+
             @if ($persil)
-                <a href="{{ ci_route('cdesa.mutasi.' . $cdesa['id'], $persil['id']) }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Kembali Ke Rincian C-Desa"><i class="fa fa-arrow-circle-o-left"></i>
-                    Kembali Ke
-                    Rincian Mutasi C-Desa</a>
+                <x-kembali-button judul="Kembali Ke Rincian Mutasi C-Desa" url="cdesa/mutasi/{{ $cdesa['id'] }}/{{ $persil['id'] }}"/>
             @endif
         </div>
         <div class="box-body">
@@ -42,7 +40,7 @@
                         <div class="form-group">
                             <label class="col-sm-3 control-label">NIK Pemilik</label>
                             <div class="col-sm-8">
-                                <input class="form-control input-sm" type="text" placeholder="NIK Pemilik" value="{{ $cdesa->nik }}" disabled>
+                                <input class="form-control input-sm" type="text" placeholder="NIK Pemilik" value="{{ $cdesa->nik_pemilik }}" disabled>
                             </div>
                         </div>
                         <div class="form-group">
@@ -77,10 +75,10 @@
             <div class="panel box box-default">
                 <div class="box-header with-border">
                     <h4 class="box-title">
-                        <a data-toggle="collapse" data-parent="#accordion" href="#persil">Persil</a>
+                        <a data-toggle="collapse" data-parent="#accordion" href="#persil" aria-expanded="true">Persil</a>
                     </h4>
                 </div>
-                <div id="persil" class="panel-collapse">
+                <div id="persil" class="panel-collapse collapse in" aria-expanded="true">
                     <div class="box-body">
                         <form id="main" name="main" method="POST" class="form-horizontal">
                             <div class="form-group">
@@ -198,16 +196,15 @@
 
                 <div id="cdesa_awal" class="@if (empty($persil['cdesa_awal']) && empty($mutasi)) show @else hide @endif">
                     <div class="box-body">
-                        <a href="{{ site_url('cdesa/awal_persil/' . $cdesa['id'] . '/' . $persil['id']) }}" class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block col-sm-2" title="Kembali Ke Rincian C-Desa"><i
-                                class="fa fa-step-backward"
-                            ></i>C-Desa Awal</a>
+                        @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('cdesa.awal_persil', $cdesa['id']), 'label' => 'C-Desa Awal'])
+
                         <span style="padding-left: 10px;">Catat C-Desa ini sebagai pemilik awal keseluruhan
                             persil
                             {{ $persil['nomor'] }}
                         </span>
                     </div>
                     <div class="box-body">
-                        <a class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block col-sm-2" title="Kembali Ke Rincian C-Desa" onclick="tambah_mutasi();"><i class="fa fa-plus"></i>Tambah
+                        <a class="btn btn-social btn-success btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block col-sm-2" onclick="tambah_mutasi();"><i class="fa fa-plus"></i>Tambah
                             Mutasi</a>
                         <span style="padding-left: 10px;">Tambah mutasi C-Desa
                             {{ $cdesa['nomor'] }} untuk persil
@@ -228,11 +225,11 @@
                         <div id="mutasi-tanah" class="@if ($mutasi['jenis_mutasi'] != 9) show @else hide @endif">
                             <div class="box-header with-border">
                                 <h4 class="box-title">
-                                    <a data-toggle="collapse" data-parent="#accordion" href="#persil">Mutasi -
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#bidang_persil" aria-expanded="true">Mutasi -
                                         Bidang Tanah</a>
                                 </h4>
                             </div>
-                            <div id="bidang_persil" class="panel-collapse">
+                            <div id="bidang_persil" class="panel-collapse collapse in" aria-expanded="true">
                                 <div class="box-body">
                                     <div class="form-group">
                                         <label for="no_bidang_persil" class="col-sm-3 control-label">Nomor Bidang
@@ -244,7 +241,13 @@
                                     <div class="form-group">
                                         <label for="luas" class="col-sm-3 control-label">Luas Mutasi (M2)</label>
                                         <div class="col-sm-9">
-                                            <input name="luas" type="text" class="form-control input-sm luas required" placeholder="Luas Mutasi (M2)" value="{{ $mutasi['luas'] }}">
+                                            <input name="luas" type="text" class="form-control input-sm luas" placeholder="Luas Mutasi (M2)" value="{{ $mutasi['luas'] }}">
+                                        </div>
+                                        <label for="" class="col-sm-3 control-label"></label>
+                                        <div class="col-sm-8">
+                                            <p class="help-block">
+                                                <code>Gunakan tanda titik (.) untuk bilangan pecahan</code>
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="form-group">
@@ -291,13 +294,14 @@
 
                                 </div>
                             </div>
+
                             <div class="box-header with-border">
                                 <h4 class="box-title">
-                                    <a data-toggle="collapse" data-parent="#accordion" href="#mutasi">Mutasi - Sebab
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#mutasi" aria-expanded="true">Mutasi - Sebab
                                         Dan Tanggal Perubahan</a>
                                 </h4>
                             </div>
-                            <div id="mutasi" class="panel-collapse">
+                            <div id="mutasi" class="panel-collapse collapse in" aria-expanded="true">
                                 <div class="box-body">
                                     <div class="form-group">
                                         <label for="tanggal_mutasi" class="col-sm-3 control-label">Tanggal
@@ -312,10 +316,10 @@
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label for="jenis_mutasi" class="col-sm-3 control-label required">Sebab
+                                        <label for="jenis_mutasi" class="col-sm-3 control-label">Sebab
                                             Mutasi</label>
                                         <div class="col-sm-4">
-                                            <select class="form-control input-sm required" name="jenis_mutasi">
+                                            <select class="form-control input-sm" name="jenis_mutasi">
                                                 <option value>-- Pilih Sebab Mutasi--</option>
                                                 @foreach ($persil_sebab_mutasi as $key => $item)
                                                     <option value="{{ $item['id'] }}" @selected($item['id'] == $mutasi['jenis_mutasi'])>
@@ -323,14 +327,6 @@
                                                     </option>
                                                 @endforeach
                                             </select>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="" class="col-sm-3 control-label"></label>
-                                        <div class="col-sm-8">
-                                            <p class="help-block">
-                                                <code>Gunakan tanda titik (.) untuk bilangan pecahan</code>
-                                            </p>
                                         </div>
                                     </div>
                                     <div class="form-group">
@@ -518,7 +514,32 @@
             }).addTo(peta_area);
 
             // end tampilkan map
+            $('form').on('reset', function() {
+                setTimeout(function() {
+                    var id_peta = "{{ $mutasi['id_peta'] ?? 2 }}";
 
+                    // Uncheck semua dan hapus class active
+                    $('input[name="area_tanah"]').prop("checked", false).closest('label').removeClass('active');
+
+                    if (id_peta == 1) {
+                        $('input[name="area_tanah"][value="1"]')
+                            .prop("checked", true)
+                            .closest('label').addClass('active')
+                            .find('input').trigger('change');
+
+                        $('#pilih-area').show();
+                        peta_area.pm.removeControls(editToolbarPoly());
+                    } else {
+                        $('input[name="area_tanah"][value="2"]')
+                            .prop("checked", true)
+                            .closest('label').addClass('active')
+                            .find('input').trigger('change');
+
+                        $('#pilih-area').hide().val(null);
+                        peta_area.pm.addControls(editToolbarPoly());
+                    }
+                }, 10); // tunggu browser selesai reset form
+            });
             if ($('select[name="id_peta"]').val() == '') {
                 $('input[name="area_tanah"][value="2"]').prop("checked", true).trigger('click').trigger('change')
                 $('#pilih-area').hide();
