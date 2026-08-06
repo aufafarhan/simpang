@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
     // Izinkan gambar dari server OpenSID. Tambahkan domain produksi di sini,
     // mis. { protocol: "https", hostname: "simpang.desa.id" }
     remotePatterns: [
-      { protocol: "http", hostname: "localhost", port: "8080" },
-      { protocol: "http", hostname: "127.0.0.1", port: "8080" },
+      { protocol: "http", hostname: "localhost", port: "8000" },
+      { protocol: "http", hostname: "127.0.0.1", port: "8000" },
     ],
   },
   async redirects() {
