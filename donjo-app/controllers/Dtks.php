@@ -38,6 +38,7 @@
 defined('BASEPATH') || exit('No direct script access allowed');
 
 use App\Enums\Dtks\DtksEnum;
+use App\Enums\Dtks\Regsosek2022kEnum;
 use App\Enums\StatusEnum;
 use App\Models\Dtks as ModelDtks;
 use App\Models\DtksAnggota;
@@ -46,8 +47,8 @@ use App\Models\Penduduk;
 use App\Models\Rtm;
 use App\Models\Wilayah;
 use App\Services\DTKSRegsosEk2022k;
-
 use App\Services\DtksService;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 
@@ -57,14 +58,401 @@ use Illuminate\Support\Facades\View;
 
 class Dtks extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini           = 'satu-data';
     public $sub_modul_ini       = 'dtks';
     public $kategori_pengaturan = 'DTKS';
+
+    // Impor Excel mencakup Bagian I-III (Keterangan Tempat, Petugas, Perumahan) dan Bagian V-VI
+    // (Bantuan Sosial & Aset Rumah Tangga, Catatan) — semuanya level-rumah-tangga (field nempel
+    // langsung ke $dtks, satu baris Excel = satu rumah tangga). Bagian IV SENGAJA TIDAK dicakup
+    // karena levelnya per-anggota keluarga (field nempel ke DtksAnggota, baris anggota dibuat
+    // otomatis dari data Penduduk, dan banyak field-nya auto-terisi dari data Penduduk yang sudah
+    // ada) — beda struktur & jauh lebih berisiko menimpa data yang sudah benar. Bagian VII (upload
+    // foto) juga tidak dicakup karena berkas fisik tidak bisa dibawa lewat Excel.
+    private array $kolomImpor = [
+        'no_kk',
+        // Bagian I - Keterangan Tempat
+        'kode_sls_non_sls', 'kode_sub_sls', 'nama_sls_non_sls', 'no_urut_bangunan_tinggal',
+        'no_urut_keluarga_verif', 'status_keluarga', 'kode_landmark_wilkerstat', 'kd_kk',
+        // Bagian II - Keterangan Petugas
+        'tanggal_pendataan', 'nama_ppl', 'kode_ppl', 'tanggal_pemeriksaan', 'nama_pml', 'kode_pml',
+        'nama_responden', 'no_hp_responden', 'kd_hasil_pendataan_keluarga',
+        // Bagian III - Keterangan Perumahan
+        'kd_stat_bangunan_tinggal', 'kd_sertiv_lahan_milik', 'luas_lantai', 'kd_jenis_lantai_terluas',
+        'kd_jenis_dinding', 'kd_jenis_atap', 'kd_sumber_air_minum', 'kd_jarak_sumber_air_ke_tpl',
+        'kd_sumber_penerangan_utama', 'kd_daya_terpasang', 'kd_daya_terpasang2', 'kd_daya_terpasang3',
+        'kd_bahan_bakar_memasak', 'kd_fasilitas_tempat_bab', 'kd_jenis_kloset', 'kd_pembuangan_akhir_tinja',
+        // Bagian V - Bantuan Sosial (501a-g: dapat/bulan/tahun)
+        '501a_dapat', '501a_bulan', '501a_tahun',
+        '501b_dapat', '501b_bulan', '501b_tahun',
+        '501c_dapat', '501c_bulan', '501c_tahun',
+        '501d_dapat', '501d_bulan', '501d_tahun',
+        '501e_dapat', '501e_bulan', '501e_tahun',
+        '501f_dapat', '501f_bulan', '501f_tahun',
+        '501g_dapat', '501g_bulan', '501g_tahun',
+        // Bagian V - Kepemilikan Aset
+        '502a', '502b', '502c', '502d', '502e', '502f', '502g', '502h', '502i', '502k', '502l', '502m', '502n',
+        // Bagian V - Kepemilikan Ternak
+        '504a', '504b', '504c', '504d', '504e',
+        // Bagian V - Lahan, Internet, Rekening
+        '503a', '503b', '505', '506',
+        // Bagian VI - Catatan
+        'catatan',
+    ];
+
+    // Peta kode kuisioner (501x/502x/504x) ke nama kolom pada model Dtks,
+    // mereplikasi persis pemetaan pada DTKSRegsosEk2022k::saveBagian5().
+    private const BAGIAN5_BANSOS = [
+        '501a' => 'bss_bnpt',
+        '501b' => 'pkh',
+        '501c' => 'blt_dana_desa',
+        '501d' => 'subsidi_listrik',
+        '501e' => 'bantuan_pemda',
+        '501f' => 'subsidi_pupuk',
+        '501g' => 'subsidi_lpg',
+    ];
+
+    // Catatan: 502d sengaja diisikan ke DUA kolom (kd_pemanas_air & kd_telepon_rumah) dan 502j
+    // tidak dipetakan ke kolom manapun — ini meniru persis (termasuk kejanggalannya) logic asli
+    // DTKSRegsosEk2022k::saveBagian5(), bukan kesalahan penulisan di sini.
+    private const BAGIAN5_ASET = [
+        '502a' => ['tabung_gas_5_5_kg'],
+        '502b' => ['lemari_es'],
+        '502c' => ['ac'],
+        '502d' => ['pemanas_air', 'telepon_rumah'],
+        '502e' => ['televisi'],
+        '502f' => ['perhiasan_10_gr_emas'],
+        '502g' => ['komputer_laptop'],
+        '502h' => ['sepeda_motor'],
+        '502i' => ['sepeda'],
+        '502k' => ['mobil'],
+        '502l' => ['perahu'],
+        '502m' => ['kapal_perahu_motor'],
+        '502n' => ['smartphone'],
+    ];
+
+    private const BAGIAN5_TERNAK = [
+        '504a' => 'sapi',
+        '504b' => 'kerbau',
+        '504c' => 'kuda',
+        '504d' => 'babi',
+        '504e' => 'kambing_domba',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-dtks-bagian-1-3-5-6.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'dtks');
+        }
+
+        $sukses   = 0;
+        $gagal    = 0;
+        $ganda    = 0;
+        $pesan    = '';
+        $barisKe  = 0;
+        $diproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'dtks');
+                    }
+
+                    continue;
+                }
+
+                $sel  = array_pad($sel, count($this->kolomImpor), null);
+                $data = array_map(static function ($v) {
+                    if ($v instanceof DateTimeInterface) {
+                        return $v->format('Y-m-d');
+                    }
+
+                    return is_string($v) ? trim($v) : $v;
+                }, array_combine($this->kolomImpor, $sel));
+
+                $noKk = preg_replace('/[^0-9]/', '', (string) $data['no_kk']);
+                if ($noKk === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom no_kk wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $rtm = Rtm::where('no_kk', $noKk)->first();
+                if (! $rtm) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) RTM dengan No KK '{$noKk}' tidak ditemukan. Pastikan KK tersebut sudah terdaftar sebagai RTM terlebih dahulu.<br>";
+
+                    continue;
+                }
+
+                if (isset($diproses[$rtm->id])) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) No KK '{$noKk}' sudah diproses pada baris {$diproses[$rtm->id]}.<br>";
+
+                    continue;
+                }
+                $diproses[$rtm->id] = $barisKe;
+
+                $errorValidasi = $this->validasiKodeDtks($data) . ' ' . $this->validasiKodeDtks56($data);
+                $errorValidasi = trim($errorValidasi);
+                if ($errorValidasi !== '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) {$errorValidasi}<br>";
+
+                    continue;
+                }
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert/update DB dilewati, hasil parse dicatat ke log.
+                    // DB::beginTransaction();
+                    // $dtks = ModelDtks::where(['id_rtm' => $rtm->id, 'versi_kuisioner' => DtksEnum::VERSION_CODE])->first();
+                    // if (! $dtks) {
+                    //     $dtks = ModelDtks::create([
+                    //         'versi_kuisioner' => DtksEnum::VERSION_CODE,
+                    //         'id_rtm'          => $rtm->id,
+                    //         'is_draft'        => StatusEnum::YA,
+                    //     ]);
+                    //     (new DTKSRegsosEk2022k())->syncronizeWithOpenSid($dtks);
+                    // }
+                    //
+                    // $this->isiBagian123($dtks, $data);
+                    // $this->isiBagian56($dtks, $data);
+                    // $dtks->save();
+                    // DB::commit();
+                    log_message('debug', json_encode(array_merge(['no_kk' => $noKk, 'id_rtm' => $rtm->id], $data)));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('dtks');
+    }
+
+    /**
+     * Isi field Bagian I (Keterangan Tempat), II (Keterangan Petugas), III (Keterangan Perumahan)
+     * pada $dtks, mereplikasi field & aturan kondisional persis seperti
+     * DTKSRegsosEk2022k::saveBagian1()/saveBagian2()/saveBagian3().
+     */
+    private function isiBagian123(ModelDtks $dtks, array $data): void
+    {
+        $kosongKeNull = static fn ($v) => ($v === '' || $v === null) ? null : $v;
+
+        // Bagian I - Keterangan Tempat
+        $dtks->kode_sls_non_sls         = $kosongKeNull($data['kode_sls_non_sls']);
+        $dtks->kode_sub_sls             = $kosongKeNull($data['kode_sub_sls']);
+        $dtks->nama_sls_non_sls         = $kosongKeNull($data['nama_sls_non_sls']);
+        $dtks->no_urut_bangunan_tinggal = $kosongKeNull($data['no_urut_bangunan_tinggal']);
+        $dtks->no_urut_keluarga_verif   = $kosongKeNull($data['no_urut_keluarga_verif']);
+        $dtks->status_keluarga          = $kosongKeNull($data['status_keluarga']);
+        $dtks->kode_landmark_wilkerstat = $kosongKeNull($data['kode_landmark_wilkerstat']);
+        $dtks->kd_kk                    = $kosongKeNull($data['kd_kk']);
+
+        // Bagian II - Keterangan Petugas
+        $dtks->tanggal_pendataan           = $kosongKeNull($data['tanggal_pendataan']);
+        $dtks->nama_ppl                    = $kosongKeNull($data['nama_ppl']);
+        $dtks->kode_ppl                    = $kosongKeNull($data['kode_ppl']);
+        $dtks->tanggal_pemeriksaan         = $kosongKeNull($data['tanggal_pemeriksaan']);
+        $dtks->nama_pml                    = $kosongKeNull($data['nama_pml']);
+        $dtks->kode_pml                    = $kosongKeNull($data['kode_pml']);
+        $dtks->nama_responden              = $kosongKeNull($data['nama_responden']);
+        $dtks->no_hp_responden             = $kosongKeNull($data['no_hp_responden']);
+        $dtks->kd_hasil_pendataan_keluarga = $kosongKeNull($data['kd_hasil_pendataan_keluarga']);
+
+        // Bagian III - Keterangan Perumahan (dengan field kondisional seperti pada form asli)
+        $dtks->kd_stat_bangunan_tinggal = $kosongKeNull($data['kd_stat_bangunan_tinggal']);
+        $dtks->kd_sertiv_lahan_milik    = $dtks->kd_stat_bangunan_tinggal == '1' ? $kosongKeNull($data['kd_sertiv_lahan_milik']) : null;
+        $dtks->luas_lantai              = is_numeric($data['luas_lantai']) ? (int) $data['luas_lantai'] : null;
+        $dtks->kd_jenis_lantai_terluas  = $kosongKeNull($data['kd_jenis_lantai_terluas']);
+        $dtks->kd_jenis_dinding         = $kosongKeNull($data['kd_jenis_dinding']);
+        $dtks->kd_jenis_atap            = $kosongKeNull($data['kd_jenis_atap']);
+        $dtks->kd_sumber_air_minum      = $kosongKeNull($data['kd_sumber_air_minum']);
+
+        $dtks->kd_jarak_sumber_air_ke_tpl = in_array($dtks->kd_sumber_air_minum, ['4', '5', '6', '7', '8'], true)
+            ? $kosongKeNull($data['kd_jarak_sumber_air_ke_tpl'])
+            : null;
+
+        $dtks->kd_sumber_penerangan_utama = $kosongKeNull($data['kd_sumber_penerangan_utama']);
+        $dtks->kd_daya_terpasang          = $dtks->kd_sumber_penerangan_utama == '1' ? $kosongKeNull($data['kd_daya_terpasang']) : null;
+        $dtks->kd_daya_terpasang2         = $dtks->kd_sumber_penerangan_utama == '1' ? $kosongKeNull($data['kd_daya_terpasang2']) : null;
+        $dtks->kd_daya_terpasang3         = $dtks->kd_sumber_penerangan_utama == '1' ? $kosongKeNull($data['kd_daya_terpasang3']) : null;
+        $dtks->kd_bahan_bakar_memasak     = $kosongKeNull($data['kd_bahan_bakar_memasak']);
+        $dtks->kd_fasilitas_tempat_bab    = $kosongKeNull($data['kd_fasilitas_tempat_bab']);
+
+        $dtks->kd_jenis_kloset = in_array($dtks->kd_fasilitas_tempat_bab, ['1', '2', '3'], true)
+            ? $kosongKeNull($data['kd_jenis_kloset'])
+            : null;
+
+        $dtks->kd_pembuangan_akhir_tinja = $kosongKeNull($data['kd_pembuangan_akhir_tinja']);
+    }
+
+    /**
+     * Validasi kode pilihan (dropdown) terhadap daftar resmi Regsosek2022kEnum,
+     * mereplikasi pengecekan array_key_exists() yang dipakai saveBagian1()/2()/3().
+     */
+    private function validasiKodeDtks(array $data): string
+    {
+        $pilihan1 = Regsosek2022kEnum::pilihanBagian1();
+        $pilihan2 = Regsosek2022kEnum::pilihanBagian2();
+        $pilihan3 = Regsosek2022kEnum::pilihanBagian3();
+
+        $cekKode = static function (string $kode, $nilai, array $daftarPilihan): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return array_key_exists($nilai, $daftarPilihan[$kode] ?? []) ? null : "Kolom {$kode}: kode '{$nilai}' tidak dikenali.";
+        };
+
+        $pesan = array_filter([
+            $cekKode('115', $data['kd_kk'], $pilihan1),
+            $cekKode('205', $data['kd_hasil_pendataan_keluarga'], $pilihan2),
+            $cekKode('301a', $data['kd_stat_bangunan_tinggal'], $pilihan3),
+            $cekKode('301b', $data['kd_sertiv_lahan_milik'], $pilihan3),
+            $cekKode('303', $data['kd_jenis_lantai_terluas'], $pilihan3),
+            $cekKode('304', $data['kd_jenis_dinding'], $pilihan3),
+            $cekKode('305', $data['kd_jenis_atap'], $pilihan3),
+            $cekKode('306a', $data['kd_sumber_air_minum'], $pilihan3),
+            $cekKode('306b', $data['kd_jarak_sumber_air_ke_tpl'], $pilihan3),
+            $cekKode('307a', $data['kd_sumber_penerangan_utama'], $pilihan3),
+            $cekKode('307b1', $data['kd_daya_terpasang'], $pilihan3),
+            $cekKode('307b2', $data['kd_daya_terpasang2'], $pilihan3),
+            $cekKode('307b3', $data['kd_daya_terpasang3'], $pilihan3),
+            $cekKode('308', $data['kd_bahan_bakar_memasak'], $pilihan3),
+            $cekKode('309a', $data['kd_fasilitas_tempat_bab'], $pilihan3),
+            $cekKode('309b', $data['kd_jenis_kloset'], $pilihan3),
+            $cekKode('310', $data['kd_pembuangan_akhir_tinja'], $pilihan3),
+        ]);
+
+        return implode(' ', $pesan);
+    }
+
+    /**
+     * Isi field Bagian V (Bantuan Sosial & Aset Rumah Tangga) dan VI (Catatan) pada $dtks,
+     * mereplikasi field & pemetaan persis seperti DTKSRegsosEk2022k::saveBagian5()/saveBagian6().
+     * Tidak ada gating kondisional di sini karena saveBagian5() asli juga tidak menggating
+     * bulan/tahun terhadap nilai *_dapat.
+     */
+    private function isiBagian56(ModelDtks $dtks, array $data): void
+    {
+        $kosongKeNull = static fn ($v) => ($v === '' || $v === null) ? null : $v;
+
+        foreach (self::BAGIAN5_BANSOS as $kode => $nama) {
+            $dtks->{"kd_{$nama}"}     = $kosongKeNull($data["{$kode}_dapat"]);
+            $dtks->{"bulan_{$nama}"}  = $kosongKeNull($data["{$kode}_bulan"]);
+            $dtks->{"tahun_{$nama}"}  = $kosongKeNull($data["{$kode}_tahun"]);
+        }
+
+        foreach (self::BAGIAN5_ASET as $kode => $daftarNama) {
+            foreach ($daftarNama as $nama) {
+                $dtks->{"kd_{$nama}"} = $kosongKeNull($data[$kode]);
+            }
+        }
+
+        foreach (self::BAGIAN5_TERNAK as $kode => $nama) {
+            $dtks->{"jumlah_{$nama}"} = is_numeric($data[$kode]) ? (int) $data[$kode] : 0;
+        }
+
+        $dtks->kd_lahan               = $kosongKeNull($data['503a']);
+        $dtks->kd_rumah_ditempat_lain = $kosongKeNull($data['503b']);
+        $dtks->kd_internet_sebulan    = $kosongKeNull($data['505']);
+        $dtks->kd_rek_aktif           = $kosongKeNull($data['506']);
+
+        // Bagian VI - Catatan
+        $dtks->catatan = $kosongKeNull($data['catatan']);
+    }
+
+    /**
+     * Validasi kode pilihan Bagian V terhadap Regsosek2022kEnum::YA_TIDAK / pilihanBagian5(),
+     * mereplikasi pengecekan array_key_exists() yang dipakai saveBagian5().
+     */
+    private function validasiKodeDtks56(array $data): string
+    {
+        $yaTidak   = Regsosek2022kEnum::YA_TIDAK;
+        $bulanList = bulan();
+        $pilihan5  = Regsosek2022kEnum::pilihanBagian5();
+
+        $cekYaTidak = static function (string $kode, $nilai) use ($yaTidak): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return array_key_exists($nilai, $yaTidak) ? null : "Kolom {$kode}: nilai '{$nilai}' harus 1 (Ya) atau 2 (Tidak).";
+        };
+        $cekBulan = static function (string $kode, $nilai) use ($bulanList): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+            $angka = is_numeric($nilai) ? (int) $nilai : array_search(strtolower($nilai), array_map('strtolower', $bulanList), true);
+
+            return ($angka !== false && array_key_exists((int) $angka, $bulanList)) ? null : "Kolom {$kode}: bulan '{$nilai}' tidak dikenali.";
+        };
+        $cekTahun = static function (string $kode, $nilai): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return validate_date($nilai, 'Y') ? null : "Kolom {$kode}: tahun '{$nilai}' tidak valid.";
+        };
+        $cekPilihan = static function (string $kode, $nilai, array $daftarPilihan) use ($cekYaTidak): ?string {
+            $nilai = trim((string) $nilai);
+            if ($nilai === '') {
+                return null;
+            }
+
+            return array_key_exists($nilai, $daftarPilihan) ? null : "Kolom {$kode}: kode '{$nilai}' tidak dikenali.";
+        };
+
+        $pesan = [];
+        foreach (self::BAGIAN5_BANSOS as $kode => $nama) {
+            $pesan[] = $cekYaTidak("{$kode}_dapat", $data["{$kode}_dapat"]);
+            $pesan[] = $cekBulan("{$kode}_bulan", $data["{$kode}_bulan"]);
+            $pesan[] = $cekTahun("{$kode}_tahun", $data["{$kode}_tahun"]);
+        }
+        foreach (array_keys(self::BAGIAN5_ASET) as $kode) {
+            $pesan[] = $cekYaTidak($kode, $data[$kode]);
+        }
+        $pesan[] = $cekYaTidak('503a', $data['503a']);
+        $pesan[] = $cekYaTidak('503b', $data['503b']);
+        $pesan[] = $cekPilihan('505', $data['505'], $pilihan5['505']);
+        $pesan[] = $cekPilihan('506', $data['506'], $pilihan5['506']);
+
+        return implode(' ', array_filter($pesan));
     }
 
     public function index()

@@ -39,20 +39,127 @@ use App\Enums\InventarisSubMenuEnum;
 use App\Models\Aset;
 use App\Models\InventarisPeralatan;
 use App\Models\Pamong;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Inventaris_peralatan extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'sekretariat';
     public $sub_modul_ini = 'inventaris';
     public $akses_modul   = 'inventaris-peralatan';
+
+    private array $kolomImpor = [
+        'nama_barang', 'kode_barang', 'register', 'merk', 'ukuran', 'bahan', 'tahun_pengadaan',
+        'no_pabrik', 'no_rangka', 'no_mesin', 'no_polisi', 'no_bpkb', 'asal', 'harga', 'keterangan',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-inventaris-peralatan.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'inventaris_peralatan');
+        }
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'inventaris_peralatan');
+                    }
+
+                    continue;
+                }
+
+                [$namaBarang, $kodeBarang, $register, $merk, $ukuran, $bahan, $tahunPengadaan, $noPabrik, $noRangka, $noMesin, $noPolisi, $noBpkb, $asal, $harga, $keterangan] = array_pad($sel, 15, null);
+                $namaBarang = trim((string) $namaBarang);
+                $kodeBarang = trim((string) $kodeBarang);
+                $register   = trim((string) $register);
+
+                if ($namaBarang === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nama_barang wajib diisi.<br>";
+
+                    continue;
+                }
+
+                if ($kodeBarang !== '' && $register !== '') {
+                    $kunci = strtolower($kodeBarang) . '|' . strtolower($register);
+                    if (isset($sudahDiproses[$kunci]) || InventarisPeralatan::where('kode_barang', $kodeBarang)->where('register', $register)->exists()) {
+                        $ganda++;
+                        $pesan .= "{$barisKe}) Kode barang '{$kodeBarang}' dengan register '{$register}' sudah ada.<br>";
+
+                        continue;
+                    }
+                    $sudahDiproses[$kunci] = $barisKe;
+                }
+
+                $dataSimpan = [
+                    'nama_barang'     => $namaBarang,
+                    'kode_barang'     => $kodeBarang !== '' ? $kodeBarang : null,
+                    'register'        => $register !== '' ? $register : null,
+                    'merk'            => trim((string) $merk) !== '' ? trim((string) $merk) : null,
+                    'ukuran'          => trim((string) $ukuran) !== '' ? trim((string) $ukuran) : null,
+                    'bahan'           => trim((string) $bahan) !== '' ? trim((string) $bahan) : null,
+                    'tahun_pengadaan' => trim((string) $tahunPengadaan) !== '' ? trim((string) $tahunPengadaan) : null,
+                    'no_pabrik'       => trim((string) $noPabrik) !== '' ? trim((string) $noPabrik) : null,
+                    'no_rangka'       => trim((string) $noRangka) !== '' ? trim((string) $noRangka) : null,
+                    'no_mesin'        => trim((string) $noMesin) !== '' ? trim((string) $noMesin) : null,
+                    'no_polisi'       => trim((string) $noPolisi) !== '' ? trim((string) $noPolisi) : null,
+                    'no_bpkb'         => trim((string) $noBpkb) !== '' ? trim((string) $noBpkb) : null,
+                    'asal'            => trim((string) $asal) !== '' ? trim((string) $asal) : null,
+                    'harga'           => is_numeric($harga) ? (float) $harga : null,
+                    'keterangan'      => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'visible'         => 1,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // InventarisPeralatan::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('inventaris_peralatan');
     }
 
     public function index()

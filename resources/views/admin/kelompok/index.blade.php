@@ -18,6 +18,9 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @if (in_array($ci->controller, ['kelompok', 'lembaga']))
+        @include('admin.components.impor_ringkasan')
+    @endif
     @include('admin.layouts.components.konfirmasi_hapus')
 
     <div class="row">
@@ -25,6 +28,9 @@
             <div class="box box-info">
                 <div class="box-header with-border">
                     <x-tambah-button :url="$ci->controller . '/form'" />
+                    @if (can('u'))
+                        <a href="#modal-impor-{{ $ci->controller }}" data-toggle="modal" data-target="#modal-impor-{{ $ci->controller }}" title="Impor" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+                    @endif
                     
                     <x-hapus-button 
                         confirmDelete="true"
@@ -111,6 +117,21 @@
             </div>
         </div>
     </div>
+
+    @if (in_array($ci->controller, ['kelompok', 'lembaga']) && can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-' . $ci->controller,
+            'judul' => 'Impor Data ' . $tipe,
+            'formAction' => ci_route("{$ci->controller}.proses_impor"),
+            'formatImpor' => ci_route("{$ci->controller}.format_impor"),
+            'petunjuk' => [
+                'Kolom: <b>kategori, nama, kode, no_sk_pendirian, nik_ketua, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>kategori</b> harus sama persis dengan salah satu nama Kategori yang sudah ada di menu Kategori ' . $tipe . '.',
+                'Kolom <b>nik_ketua</b> harus NIK penduduk yang sudah terdata.',
+                'Kolom <b>kode</b> harus unik, baris dengan kode yang sudah dipakai akan dilewati.',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

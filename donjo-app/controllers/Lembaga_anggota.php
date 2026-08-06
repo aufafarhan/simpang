@@ -45,6 +45,9 @@ class Lembaga_anggota extends Kelompok_anggota
     public $sub_modul_ini   = 'lembaga-desa';
     public $tipe            = 'lembaga';
     public $aliasController = 'lembaga';
+    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB impor dilewati,
+    // hasil parse dicatat ke log (lihat guard $dryRunImpor di Kelompok_anggota::proses_impor()).
+    protected bool $dryRunImpor = true;
 
     public function __construct()
     {

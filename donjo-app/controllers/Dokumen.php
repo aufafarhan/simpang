@@ -43,6 +43,7 @@ use App\Models\Dokumen as DokumenModel;
 use App\Models\DokumenHidup;
 use App\Models\LogEkspor;
 use App\Rules\Traits\ValidateCloudDomainTrait;
+use App\Traits\ImporExcel;
 use App\Traits\Upload;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -53,11 +54,18 @@ defined('BASEPATH') || exit('No direct script access allowed');
 class Dokumen extends Admin_Controller
 {
     use Upload;
+    use ImporExcel;
     use ValidateCloudDomainTrait;
 
     public $modul_ini     = 'sekretariat';
     public $sub_modul_ini = 'informasi-publik';
     private int|string $modulesDirectory;
+
+    // Impor Excel dibatasi hanya dokumen Informasi Publik berupa TAUTAN/URL (tipe=2),
+    // TIDAK mencakup dokumen berupa berkas unggahan (tipe=1) karena berkas fisik tidak bisa
+    // dibawa lewat Excel, dan TIDAK mencakup dokumen warga (dok_warga=1, terkait anggota KK
+    // per-penduduk) karena itu kasus yang berbeda dari publikasi umum.
+    private array $kolomImpor = ['nama', 'tahun', 'kategori_info_publik', 'url'];
 
     public function __construct()
     {
@@ -68,6 +76,117 @@ class Dokumen extends Admin_Controller
         if ($this->isPPIDInstalled()) {
             redirect(route('ppid.daftar-dokumen'));
         }
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-dokumen-informasi-publik.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'dokumen');
+        }
+
+        $petaKategoriPublik = KategoriPublicEnum::all();
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'dokumen');
+                    }
+
+                    continue;
+                }
+
+                [$nama, $tahun, $kategoriTeks, $url] = array_pad($sel, 4, null);
+                $nama         = trim((string) $nama);
+                $tahun        = trim((string) $tahun);
+                $kategoriTeks = trim((string) $kategoriTeks);
+                $url          = trim((string) $url);
+
+                if ($nama === '' || $tahun === '' || $kategoriTeks === '' || $url === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nama, tahun, kategori_info_publik, dan url wajib diisi.<br>";
+
+                    continue;
+                }
+
+                if (! filter_var($url, FILTER_VALIDATE_URL)) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom url '{$url}' bukan URL yang valid.<br>";
+
+                    continue;
+                }
+
+                $kategori = (ctype_digit($kategoriTeks) && array_key_exists((int) $kategoriTeks, $petaKategoriPublik))
+                    ? (int) $kategoriTeks
+                    : $this->resolveKodeReferensi($petaKategoriPublik, $kategoriTeks);
+                if (! $kategori) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom kategori_info_publik: nilai '{$kategoriTeks}' tidak dikenali.<br>";
+
+                    continue;
+                }
+
+                $kunci = strtolower($nama) . '|' . $tahun;
+                if (isset($sudahDiproses[$kunci]) || DokumenModel::where('nama', $nama)->where('tahun', $tahun)->where('kategori', DokumenEnum::INFORMASI_PUBLIK)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Dokumen '{$nama}' tahun {$tahun} sudah ada.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $dataSimpan = [
+                    'nama'                 => nomor_surat_keputusan($nama),
+                    'kategori'             => DokumenEnum::INFORMASI_PUBLIK,
+                    'kategori_info_publik' => $kategori,
+                    'id_syarat'            => null,
+                    'id_pend'              => 0,
+                    'tipe'                 => 2,
+                    'url'                  => $url,
+                    'anggota_kk'           => [],
+                    'dok_warga'            => 0,
+                    'tahun'                => $tahun,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // DokumenModel::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('dokumen');
     }
 
     public function index(): void

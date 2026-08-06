@@ -14,6 +14,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     <div class="box box-info">
         <div class="box-header with-border">
             @if (can('u'))
@@ -52,6 +53,9 @@
                     ];
                 @endphp
                 <x-split-button :list="$listTambahAnggota" type="btn-success" icon="fa fa-plus" judul="Tambah Anggota" />
+                @if (can('u'))
+                    <a href="{{ ci_route('keluarga.impor_anggota', $kk) }}" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Impor Anggota"><i class="fa fa-upload"></i> Impor</a>
+                @endif
             @endif
             <x-btn-button url="keluarga/kartu_keluarga/{{ $kk }}" type="bg-purple" icon="fa fa-book" judul="Kartu Keluarga" />
             <x-kembali-button url="keluarga" judul="Kembali Ke Daftar Keluarga" />

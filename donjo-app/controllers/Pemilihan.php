@@ -36,6 +36,7 @@
  */
 
 use App\Models\Pemilihan as PemilihanModel;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 
@@ -43,9 +44,13 @@ defined('BASEPATH') || exit('No direct script access allowed');
 
 class Pemilihan extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'kependudukan';
     public $sub_modul_ini = 'calon-pemilih';
     public $akses_modul   = 'calon-pemilih';
+
+    private array $kolomImpor = ['judul', 'tanggal', 'status', 'keterangan'];
 
     public function __construct()
     {
@@ -70,6 +75,92 @@ class Pemilihan extends Admin_Controller
     public function index()
     {
         return view('admin.pemilihan.index');
+    }
+
+    public function format_impor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-pemilihan.xlsx');
+    }
+
+    public function proses_impor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'pemilihan');
+        }
+
+        $sukses = 0;
+        $gagal  = 0;
+        $ganda  = 0;
+        $pesan  = '';
+        $barisKe = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'pemilihan');
+                    }
+                    continue;
+                }
+
+                [$judul, $tanggal, $status, $keterangan] = array_pad($sel, 4, null);
+                $judul = trim((string) $judul);
+
+                if ($judul === '' || empty($tanggal)) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom judul dan tanggal wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $waktu = strtotime((string) $tanggal);
+                if ($waktu === false) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Format tanggal '{$tanggal}' tidak dikenali.<br>";
+
+                    continue;
+                }
+
+                $kunci = strtolower($judul) . '|' . date('Y-m-d', $waktu);
+                if (isset($sudahDiproses[$kunci])) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) '{$judul}' tanggal " . date('d-m-Y', $waktu) . " sama dengan baris {$sudahDiproses[$kunci]}.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                try {
+                    PemilihanModel::create(static::validate([
+                        'judul'      => $judul,
+                        'tanggal'    => date('Y-m-d', $waktu),
+                        'status'     => in_array(strtolower(trim((string) $status)), ['1', 'ya', 'aktif', 'true'], true) ? 1 : 0,
+                        'keterangan' => $keterangan,
+                    ]));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('pemilihan');
     }
 
     public function datatables()

@@ -15,6 +15,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     <div class="box box-info">
         <div class="box-header with-border">
@@ -26,6 +27,9 @@
             ])
             @include('admin.layouts.components.tombol_kembali', ['url' => ci_route('dpt'), 'label' => 'DPT'])
 
+@if (can('u'))
+    <a href="#modal-impor-pemilihan" data-toggle="modal" data-target="#modal-impor-pemilihan" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+@endif
         </div>
         <div class="box-body">
             {!! form_open(null, 'id="mainform" name="mainform"') !!}
@@ -47,6 +51,21 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-pemilihan',
+            'judul' => 'Impor Data Pemilihan',
+            'formAction' => ci_route('pemilihan.proses_impor'),
+            'formatImpor' => ci_route('pemilihan.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>judul, tanggal, status, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>tanggal</b> diisi format tanggal apa saja yang bisa dibaca (mis. 2026-08-17 atau 17-08-2026).',
+                'Kolom <b>status</b> diisi 1/Aktif untuk pemilihan yang aktif, selain itu dianggap tidak aktif.',
+                'Baris dengan judul dan tanggal yang sama seperti baris sebelumnya akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 @push('scripts')
     <script>

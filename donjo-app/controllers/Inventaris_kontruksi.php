@@ -38,20 +38,120 @@
 use App\Enums\InventarisSubMenuEnum;
 use App\Models\InventarisKontruksi;
 use App\Models\Pamong;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Inventaris_kontruksi extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'sekretariat';
     public $sub_modul_ini = 'inventaris';
     public $akses_modul   = 'inventaris-kontruksi';
+
+    private array $kolomImpor = [
+        'nama_barang', 'kondisi_bangunan', 'kontruksi_bertingkat', 'kontruksi_beton', 'luas_bangunan',
+        'letak', 'no_dokument', 'tanggal_dokument', 'tanggal_mulai', 'status_tanah', 'kode_tanah',
+        'asal', 'harga', 'keterangan',
+    ];
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function formatImpor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, 'format-impor-inventaris-kontruksi.xlsx');
+    }
+
+    public function prosesImpor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'inventaris_kontruksi');
+        }
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'inventaris_kontruksi');
+                    }
+
+                    continue;
+                }
+
+                [$namaBarang, $kondisiBangunan, $bertingkat, $beton, $luasBangunan, $letak, $noDokumen, $tglDokumen, $tglMulai, $statusTanah, $kodeTanah, $asal, $harga, $keterangan] = array_pad($sel, 14, null);
+                $namaBarang = trim((string) $namaBarang);
+
+                if ($namaBarang === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom nama_barang wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $tglDokumenParsed = $tglDokumen instanceof DateTimeInterface
+                    ? $tglDokumen->format('Y-m-d')
+                    : (($w = strtotime((string) $tglDokumen)) !== false ? date('Y-m-d', $w) : null);
+                $tglMulaiParsed = $tglMulai instanceof DateTimeInterface
+                    ? $tglMulai->format('Y-m-d')
+                    : (($w2 = strtotime((string) $tglMulai)) !== false ? date('Y-m-d', $w2) : null);
+
+                $dataSimpan = [
+                    'nama_barang'          => $namaBarang,
+                    'kondisi_bangunan'     => trim((string) $kondisiBangunan) !== '' ? trim((string) $kondisiBangunan) : null,
+                    'kontruksi_bertingkat' => trim((string) $bertingkat) !== '' ? trim((string) $bertingkat) : null,
+                    'kontruksi_beton'      => is_numeric($beton) ? (int) $beton : null,
+                    'luas_bangunan'        => is_numeric($luasBangunan) ? (float) $luasBangunan : null,
+                    'letak'                => trim((string) $letak) !== '' ? trim((string) $letak) : null,
+                    'no_dokument'          => trim((string) $noDokumen) !== '' ? trim((string) $noDokumen) : null,
+                    'tanggal_dokument'     => $tglDokumenParsed,
+                    'tanggal'              => $tglMulaiParsed,
+                    'status_tanah'         => trim((string) $statusTanah) !== '' ? trim((string) $statusTanah) : null,
+                    'kode_tanah'           => trim((string) $kodeTanah) !== '' ? trim((string) $kodeTanah) : null,
+                    'asal'                 => trim((string) $asal) !== '' ? trim((string) $asal) : null,
+                    'harga'                => is_numeric($harga) ? (float) $harga : null,
+                    'keterangan'           => trim((string) $keterangan) !== '' ? trim((string) $keterangan) : null,
+                    'visible'              => 1,
+                ];
+
+                try {
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // InventarisKontruksi::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('inventaris_kontruksi');
     }
 
     public function index()

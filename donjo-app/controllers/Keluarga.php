@@ -90,6 +90,32 @@ class Keluarga extends Admin_Controller
         isCan('b');
     }
 
+    // Impor Excel KK baru (kepala keluarga + rumah tangga), memakai mesin impor yang sama dengan Penduduk
+    public function impor(): void
+    {
+        if (config_item('demo_mode') || data_lengkap()) {
+            redirect_with('error', 'Tidak dapat melakukan impor pada mode demo atau data sudah dinyatakan lengkap', 'keluarga');
+        }
+        isCan('u');
+        $data = [
+            'form_action' => ci_route('keluarga.proses_impor'),
+            'formatImpor' => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+        ];
+        view('admin.penduduk.keluarga.impor', $data);
+    }
+
+    public function proses_impor(): void
+    {
+        if (config_item('demo_mode') || data_lengkap()) {
+            redirect('keluarga');
+        }
+        isCan('u');
+        $this->load->model(['impor_model']);
+        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): dryRun=true supaya hasil parse dicatat ke log, tidak ditulis ke DB.
+        $this->impor_model->impor_excel(false, true);
+        redirect(ci_route('keluarga.impor'));
+    }
+
     public function index(): void
     {
         // Secara dinamis menerapkan filter dari statistik

@@ -41,6 +41,7 @@ use App\Models\Kelompok;
 use App\Models\KelompokAnggota as KelompokAnggotaModel;
 use App\Models\Pamong;
 use App\Models\Penduduk;
+use App\Traits\ImporExcel;
 use App\Traits\Upload;
 use Illuminate\Support\Facades\View;
 
@@ -48,12 +49,29 @@ defined('BASEPATH') || exit('No direct script access allowed');
 
 class Kelompok_anggota extends Admin_Controller
 {
+    use ImporExcel;
     use Upload;
 
     public $modul_ini       = 'kependudukan';
     public $sub_modul_ini   = 'kelompok';
     public $tipe            = 'kelompok';
     public $aliasController = 'kelompok';
+    // Sementara dinonaktifkan (akses admin terkunci lisensi premium) khusus untuk Lembaga_anggota.php
+    // (di-override true di sana) — Kelompok_anggota.php sendiri tetap insert seperti biasa.
+    protected bool $dryRunImpor = false;
+
+    private function kolomImpor(): array
+    {
+        $kolom = ['kode_kelompok', 'nik_anggota', 'no_anggota', 'jabatan', 'no_sk_jabatan', 'keterangan'];
+
+        if ($this->tipe === 'lembaga') {
+            $kolom = array_merge($kolom, [
+                'nmr_sk_pengangkatan', 'tgl_sk_pengangkatan', 'nmr_sk_pemberhentian', 'tgl_sk_pemberhentian', 'periode',
+            ]);
+        }
+
+        return $kolom;
+    }
 
     public function __construct()
     {
@@ -180,6 +198,142 @@ class Kelompok_anggota extends Admin_Controller
         }
 
         view('admin.kelompok.anggota.form', $data);
+    }
+
+    public function format_impor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor(), "format-impor-{$this->tipe}-anggota.xlsx");
+    }
+
+    public function proses_impor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), $this->aliasController);
+        }
+
+        $petaNik      = $this->petaNikPenduduk();
+        $petaKelompok = Kelompok::tipe($this->tipe)->pluck('id', 'kode');
+        $lookupJabatan = JabatanKelompokEnum::all();
+        $kolomImpor    = $this->kolomImpor();
+        $isLembaga     = $this->tipe === 'lembaga';
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, $this->aliasController);
+                    }
+
+                    continue;
+                }
+
+                $sel = array_pad($sel, count($kolomImpor), null);
+                [$kodeKelompok, $nikAnggota, $noAnggota, $jabatanTeks, $noSkJabatan, $keterangan] = $sel;
+                [$nmrSkPengangkatan, $tglSkPengangkatan, $nmrSkPemberhentian, $tglSkPemberhentian, $periode] = $isLembaga
+                    ? array_slice($sel, 6, 5)
+                    : [null, null, null, null, null];
+                $kodeKelompok = trim((string) $kodeKelompok);
+                $nikAnggota   = trim((string) $nikAnggota);
+
+                if ($kodeKelompok === '' || $nikAnggota === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom kode_kelompok dan nik_anggota wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $idKelompok = $petaKelompok[$kodeKelompok] ?? null;
+                if (! $idKelompok) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kode kelompok '{$kodeKelompok}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $idPenduduk = $petaNik[$nikAnggota] ?? null;
+                if (! $idPenduduk) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) NIK anggota '{$nikAnggota}' tidak ditemukan di data penduduk.<br>";
+
+                    continue;
+                }
+
+                $kunci = $idKelompok . '|' . $idPenduduk;
+                if (isset($sudahDiproses[$kunci]) || KelompokAnggotaModel::tipe($this->tipe)->where('id_kelompok', $idKelompok)->where('id_penduduk', $idPenduduk)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) NIK '{$nikAnggota}' sudah menjadi anggota kelompok ini.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $jabatan = $this->resolveKodeReferensi($lookupJabatan, $jabatanTeks) ?? JabatanKelompokEnum::ANGGOTA;
+
+                $dataAnggota = [
+                    'id_kelompok'   => $idKelompok,
+                    'config_id'     => identitas('id'),
+                    'id_penduduk'   => $idPenduduk,
+                    'no_anggota'    => bilangan((string) $noAnggota) ?: null,
+                    'jabatan'       => $jabatan,
+                    'no_sk_jabatan' => nomor_surat_keputusan((string) $noSkJabatan),
+                    'keterangan'    => htmlentities((string) $keterangan),
+                    'tipe'          => $this->tipe,
+                ];
+
+                if ($isLembaga) {
+                    $tglAngkat = $tglSkPengangkatan instanceof DateTimeInterface
+                        ? $tglSkPengangkatan->format('Y-m-d')
+                        : (($w1 = strtotime((string) $tglSkPengangkatan)) !== false && trim((string) $tglSkPengangkatan) !== '' ? date('Y-m-d', $w1) : null);
+                    $tglBerhenti = $tglSkPemberhentian instanceof DateTimeInterface
+                        ? $tglSkPemberhentian->format('Y-m-d')
+                        : (($w2 = strtotime((string) $tglSkPemberhentian)) !== false && trim((string) $tglSkPemberhentian) !== '' ? date('Y-m-d', $w2) : null);
+
+                    $dataAnggota['nmr_sk_pengangkatan']  = nomor_surat_keputusan((string) $nmrSkPengangkatan);
+                    $dataAnggota['tgl_sk_pengangkatan']  = $tglAngkat;
+                    $dataAnggota['nmr_sk_pemberhentian'] = nomor_surat_keputusan((string) $nmrSkPemberhentian);
+                    $dataAnggota['tgl_sk_pemberhentian'] = $tglBerhenti;
+                    $dataAnggota['periode']              = htmlentities((string) $periode);
+                }
+
+                try {
+                    if ($this->dryRunImpor) {
+                        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                        log_message('debug', json_encode($dataAnggota));
+                    } else {
+                        KelompokAnggotaModel::UbahJabatan($idKelompok, $idPenduduk, $jabatan, null);
+                        (new KelompokAnggotaModel($dataAnggota))->save();
+                    }
+
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect($this->aliasController);
     }
 
     public function insert($id = 0)

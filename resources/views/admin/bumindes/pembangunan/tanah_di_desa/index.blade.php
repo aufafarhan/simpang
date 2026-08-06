@@ -1,8 +1,12 @@
 @include('admin.layouts.components.asset_datatables')
+@include('admin.components.impor_ringkasan')
 
 <div class="box box-info">
     <div class="box-header">
         <x-tambah-button :url="'bumindes_tanah_desa/form'" />
+        @if (can('u'))
+            <a href="#modal-impor-bumindes-tanah-desa" data-toggle="modal" data-target="#modal-impor-bumindes-tanah-desa" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+        @endif
         @php
             $listCetakUnduh = [
                 [
@@ -47,6 +51,20 @@
         </form>
     </div>
 </div>
+
+@if (can('u'))
+    @include('admin.components.modal_impor', [
+        'modalId' => 'modal-impor-bumindes-tanah-desa',
+        'judul' => 'Impor Data Buku Tanah di Desa',
+        'formAction' => ci_route('bumindes_tanah_desa.proses_impor'),
+        'formatImpor' => ci_route('bumindes_tanah_desa.format_impor'),
+        'petunjuk' => [
+            'Kolom: <b>nik, jenis_pemilik, nama_pemilik_asal, luas, hak_milik, hak_guna_bangunan, hak_pakai, hak_guna_usaha, hak_pengelolaan, hak_milik_adat, hak_verponding, tanah_negara, perumahan, perdagangan_jasa, perkantoran, industri, fasilitas_umum, sawah, tegalan, perkebunan, peternakan_perikanan, hutan_belukar, hutan_lebat_lindung, tanah_kosong, lain_lain, mutasi, keterangan</b> (urutan tidak boleh diubah).',
+            'Hanya kolom <b>nama_pemilik_asal</b> yang wajib diisi. Kolom <b>nik</b> opsional — jika cocok dengan NIK penduduk desa, akan otomatis tertaut.',
+            'Kolom luas dan angka lain boleh dikosongkan.',
+        ],
+    ])
+@endif
 
 @push('scripts')
     <script>

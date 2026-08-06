@@ -7,10 +7,12 @@
 		</ol>
 	</section>
 	<section class="content" id="maincontent">
+		<?= view('admin.components.impor_ringkasan') ?>
 		<div class="box box-info">
 			<div class="box-header with-border">
 				<?php if (can('u')): ?>
 					<a href="<?= site_url('covid19/form_pemudik')?>" title="Tambah Data Warga" class="btn btn-social btn-flat bg-olive btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-plus"></i> Tambah Warga Pemudik</a>
+					<a href="#modal-impor-covid19-pemudik" data-toggle="modal" data-target="#modal-impor-covid19-pemudik" class="btn btn-social btn-flat bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
 				<?php endif; ?>
 				<a href="<?= site_url('covid19/daftar/cetak')?>" class="btn btn-social btn-flat bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block" title="Cetak" target="_blank"><i class="fa fa-print"></i> Cetak
 				</a>
@@ -143,4 +145,20 @@
 		</div>
 	</section>
 </div>
+<?php if (can('u')): ?>
+	<?= view('admin.components.modal_impor', [
+		'modalId' => 'modal-impor-covid19-pemudik',
+		'judul' => 'Impor Data Pemudik Covid-19',
+		'formAction' => ci_route('covid19.proses_impor'),
+		'formatImpor' => ci_route('covid19.format_impor'),
+		'petunjuk' => [
+			'Kolom: <b>nik, pantau, status_covid, wajib_pantau, keluhan, keterangan, tanggal_tiba, asal_pemudik, durasi_pemudik, tujuan_pemudik, hp_pemudik, email_pemudik</b> (urutan tidak boleh diubah).',
+			'Kolom <b>nik</b> harus sesuai NIK penduduk yang sudah terdaftar.',
+			'Kolom <b>pantau</b> dan <b>wajib_pantau</b> diisi "Ya"/"Tidak" atau 1/0.',
+			'Kolom <b>status_covid</b> diisi sesuai nama pada Referensi Status Covid.',
+			'Jika pantau = Ya, kolom tanggal_tiba, asal_pemudik, durasi_pemudik, tujuan_pemudik, hp_pemudik, email_pemudik akan ikut disimpan.',
+			'Satu NIK hanya boleh terdaftar sekali sebagai data pemudik — baris dengan NIK yang sudah ada akan dilewati (dianggap duplikat).',
+		],
+	]) ?>
+<?php endif; ?>
 <?php $this->load->view('global/confirm_delete'); ?>

@@ -13,10 +13,14 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     <div class="box box-info">
         <div class="box-header with-border">
             <x-tambah-button :url="'admin_pembangunan/form'" />
+            @if (can('u'))
+                <a href="#modal-impor-pembangunan" data-toggle="modal" data-target="#modal-impor-pembangunan" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+            @endif
         </div>
         <div class="box-body">
             <div class="row mepet">
@@ -55,6 +59,23 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-pembangunan',
+            'judul' => 'Impor Data Pembangunan',
+            'formAction' => ci_route('admin_pembangunan.proses_impor'),
+            'formatImpor' => ci_route('admin_pembangunan.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>judul, sumber_dana, volume, waktu, satuan_waktu, tahun_anggaran, pelaksana_kegiatan, lokasi, anggaran, sumber_biaya_pemerintah, sumber_biaya_provinsi, sumber_biaya_kab_kota, sumber_biaya_swadaya, manfaat, sifat_proyek, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>judul</b> dan <b>tahun_anggaran</b> wajib diisi.',
+                'Kolom <b>sumber_dana</b> diisi teks sesuai Referensi Sumber Dana, <b>satuan_waktu</b> diisi Hari/Minggu/Bulan/Tahun.',
+                'Kolom <b>sifat_proyek</b> diisi BARU atau LANJUTAN.',
+                'Impor ini membuat proyek baru berstatus "Rencana" — belum ada dokumentasi progres. Untuk menambah dokumentasi progres (menaikkan status ke Kegiatan/Hasil), gunakan impor di halaman Rincian Dokumentasi proyek terkait.',
+                'Kolom foto/gambar tidak tersedia lewat impor Excel — tambahkan manual lewat form jika perlu.',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

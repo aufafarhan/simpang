@@ -23,6 +23,9 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @if (in_array($controller, ['kelompok_anggota', 'lembaga_anggota']))
+        @include('admin.components.impor_ringkasan')
+    @endif
     <div class="row">
         <div class="col-md-12">
             <div class="box box-info">
@@ -45,6 +48,9 @@
                                 ],
                             ]"
                         />
+                    @endif
+                    @if (can('u'))
+                        <a href="#modal-impor-{{ $controller }}" data-toggle="modal" data-target="#modal-impor-{{ $controller }}" title="Impor Anggota" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
                     @endif
 
                     <x-hapus-button 
@@ -178,6 +184,29 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u') && in_array($controller, ['kelompok_anggota', 'lembaga_anggota']))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-' . $controller,
+            'judul' => 'Impor Anggota ' . $tipe,
+            'formAction' => ci_route("{$controller}.proses_impor"),
+            'formatImpor' => ci_route("{$controller}.format_impor"),
+            'petunjuk' => $tipe == 'Lembaga' ? [
+                'Kolom: <b>kode_kelompok, nik_anggota, no_anggota, jabatan, no_sk_jabatan, keterangan, nmr_sk_pengangkatan, tgl_sk_pengangkatan, nmr_sk_pemberhentian, tgl_sk_pemberhentian, periode</b> (urutan tidak boleh diubah).',
+                'Kolom <b>kode_kelompok</b> harus sama dengan kode lembaga yang sudah terdaftar (boleh berisi anggota dari beberapa lembaga sekaligus dalam satu berkas).',
+                'Kolom <b>nik_anggota</b> harus NIK penduduk yang sudah terdata.',
+                'Kolom <b>jabatan</b> diisi salah satu: Ketua, Wakil Ketua, Sekretaris, Bendahara, atau Anggota. Kosongkan untuk otomatis diisi Anggota.',
+                'Kolom tanggal SK boleh dikosongkan jika belum ada.',
+                'Baris dengan NIK yang sudah menjadi anggota lembaga yang sama akan dilewati.',
+            ] : [
+                'Kolom: <b>kode_kelompok, nik_anggota, no_anggota, jabatan, no_sk_jabatan, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>kode_kelompok</b> harus sama dengan kode kelompok yang sudah terdaftar (boleh berisi anggota dari beberapa kelompok sekaligus dalam satu berkas).',
+                'Kolom <b>nik_anggota</b> harus NIK penduduk yang sudah terdata.',
+                'Kolom <b>jabatan</b> diisi salah satu: Ketua, Wakil Ketua, Sekretaris, Bendahara, atau Anggota. Kosongkan untuk otomatis diisi Anggota.',
+                'Baris dengan NIK yang sudah menjadi anggota kelompok yang sama akan dilewati.',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

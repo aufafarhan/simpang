@@ -272,6 +272,8 @@ Route::group('keluarga', static function (): void {
     Route::get('list_kk_ajax', 'Keluarga@list_kk_ajax')->name('keluarga.list_kk_ajax');
     Route::post('cetak/{aksi?}/{privasi_kk?}', 'Keluarga@cetak')->name('keluarga.cetak');
     Route::get('form', 'Keluarga@form')->name('keluarga.form');
+    Route::get('impor', 'Keluarga@impor')->name('keluarga.impor');
+    Route::post('proses_impor', 'Keluarga@proses_impor')->name('keluarga.proses_impor');
     Route::get('form_peristiwa/{peristiwa}/{id?}', 'AnggotaKeluarga@form')->name('keluarga.form_peristiwa');
     Route::get('edit_nokk/{id?}', 'Keluarga@edit_nokk')->name('keluarga.edit_nokk');
     Route::get('add_exist/{id?}', 'Keluarga@add_exist')->name('keluarga.add_exist');
@@ -285,6 +287,8 @@ Route::group('keluarga', static function (): void {
     Route::post('tambah_rtm_all', 'Keluarga@tambah_rtm_all')->name('keluarga.tambah_rtm_all');
     Route::post('delete_all', 'Keluarga@delete_all')->name('keluarga.delete_all');
     Route::get('anggota/{id}', 'AnggotaKeluarga@index')->name('keluarga.anggota');
+    Route::get('impor_anggota/{id?}', 'AnggotaKeluarga@impor')->name('keluarga.impor_anggota');
+    Route::post('proses_impor_anggota/{id?}', 'AnggotaKeluarga@proses_impor')->name('keluarga.proses_impor_anggota');
     Route::get('ajax_add_anggota/{id?}', 'AnggotaKeluarga@ajax_add_anggota')->name('keluarga.ajax_add_anggota');
     Route::get('ajax_gabung_kk/{kk?}/{id?}', 'AnggotaKeluarga@ajax_gabung_kk')->name('keluarga.ajax_gabung_kk');
     Route::get('edit_anggota/{id_kk?}/{id?}', 'AnggotaKeluarga@edit_anggota')->name('keluarga.edit_anggota');
@@ -387,6 +391,23 @@ foreach (['lembaga' => 'Lembaga', 'kelompok' => 'Kelompok'] as $key => $value) {
     });
 }
 
+// Impor Excel modul Kelompok & Lembaga (Lembaga memakai method yang sama via pewarisan class,
+// dengan jalur DB dipotong lewat guard $dryRunImpor)
+foreach (['kelompok', 'lembaga'] as $key) {
+    Route::group($key, static function () use ($key): void {
+        Route::get('/format_impor', ucfirst($key) . '@format_impor')->name("{$key}.format_impor");
+        Route::post('/proses_impor', ucfirst($key) . '@proses_impor')->name("{$key}.proses_impor");
+    });
+    Route::group("{$key}_anggota", static function () use ($key): void {
+        Route::get('/format_impor', ucfirst($key) . '_anggota@format_impor')->name("{$key}_anggota.format_impor");
+        Route::post('/proses_impor', ucfirst($key) . '_anggota@proses_impor')->name("{$key}_anggota.proses_impor");
+    });
+    Route::group("{$key}_master", static function () use ($key): void {
+        Route::get('/format_impor', ucfirst($key) . '_master@format_impor')->name("{$key}_master.format_impor");
+        Route::post('/proses_impor', ucfirst($key) . '_master@proses_impor')->name("{$key}_master.proses_impor");
+    });
+}
+
 // Kependudukan > Data Suplemen
 Route::group('suplemen', static function (): void {
     Route::get('/clear', static function (): void {
@@ -434,6 +455,8 @@ Route::group('pemilihan', static function (): void {
     Route::get('/status/{id?}', 'Pemilihan@status')->name('pemilihan.status');
     Route::get('/delete/{id}', 'Pemilihan@delete')->name('pemilihan.delete');
     Route::post('/delete_all', 'Pemilihan@delete_all')->name('pemilihan.delete_all');
+    Route::get('/format_impor', 'Pemilihan@format_impor')->name('pemilihan.format_impor');
+    Route::post('/proses_impor', 'Pemilihan@proses_impor')->name('pemilihan.proses_impor');
 });
 
 // Statistik > Statistik Kependudukan
@@ -541,6 +564,8 @@ Route::group('covid19', static function (): void {
     Route::post('/add_pantau', 'Covid19@add_pantau')->name('covid19.add_pantau');
     Route::get('/hapus_pantau/{id?}/{page?}/{plus?}', 'Covid19@hapus_pantau')->name('covid19.hapus_pantau');
     Route::get('/daftar/{aksi?}/{tgl?}/{nik?}', 'Covid19@daftar')->name('covid19.daftar');
+    Route::get('/format-impor', 'Covid19@formatImpor')->name('covid19.format_impor');
+    Route::post('/proses-impor', 'Covid19@prosesImpor')->name('covid19.proses_impor');
 });
 
 // Kesehatan > Vaksin
@@ -594,6 +619,8 @@ Route::group('stunting', static function (): void {
     Route::get('/deleteIbuHamil/{id}', 'Stunting@deleteIbuHamil')->name('stunting.deleteIbuHamil');
     Route::post('/deleteAllIbuHamil', 'Stunting@deleteAllIbuHamil')->name('stunting.deleteAllIbuHamil');
     Route::get('/eksporIbuHamil', 'Stunting@eksporIbuHamil')->name('stunting.eksporIbuHamil');
+    Route::get('/formatImporIbuHamil', 'Stunting@formatImporIbuHamil')->name('stunting.formatImporIbuHamil');
+    Route::post('/prosesImporIbuHamil', 'Stunting@prosesImporIbuHamil')->name('stunting.prosesImporIbuHamil');
     // Pemantauan Ibu Anak
     Route::get('/pemantauan_anak', 'Stunting@pemantauan_anak')->name('stunting.pemantauan_anak');
     Route::get('/datatablesAnak', 'Stunting@datatablesAnak')->name('stunting.datatablesAnak');
@@ -603,6 +630,8 @@ Route::group('stunting', static function (): void {
     Route::get('/deleteAnak/{id}', 'Stunting@deleteAnak')->name('stunting.deleteAnak');
     Route::post('/deleteAllAnak', 'Stunting@deleteAllAnak')->name('stunting.deleteAllAnak');
     Route::get('/eksporAnak', 'Stunting@eksporAnak')->name('stunting.eksporAnak');
+    Route::get('/formatImporAnak', 'Stunting@formatImporAnak')->name('stunting.formatImporAnak');
+    Route::post('/prosesImporAnak', 'Stunting@prosesImporAnak')->name('stunting.prosesImporAnak');
     // Pemantauan Paud
     Route::get('/pemantauan_paud', 'Stunting@pemantauan_paud')->name('stunting.pemantauan_paud');
     Route::get('/datatablesPaud', 'Stunting@datatablesPaud')->name('stunting.datatablesPaud');
@@ -612,6 +641,8 @@ Route::group('stunting', static function (): void {
     Route::get('/deletePaud/{id}', 'Stunting@deletePaud')->name('stunting.deletePaud');
     Route::post('/deleteAllPaud', 'Stunting@deleteAllPaud')->name('stunting.deleteAllPaud');
     Route::get('/eksporPaud', 'Stunting@eksporPaud')->name('stunting.eksporPaud');
+    Route::get('/formatImporPaud', 'Stunting@formatImporPaud')->name('stunting.formatImporPaud');
+    Route::post('/prosesImporPaud', 'Stunting@prosesImporPaud')->name('stunting.prosesImporPaud');
     // Rekapitulasi
     Route::get('rekapitulasi_ibu_hamil/{kuartal?}/{tahun?}/{id?}', 'Stunting_rekapitulasi@ibu_hamil')->name('stunting.rekapitulasi_ibu_hamil');
     Route::get('rekapitulasi_bulanan_anak/{kuartal?}/{tahun?}/{id?}', 'Stunting_rekapitulasi@bulanan_anak')->name('stunting.rekapitulasi_bulanan_anak');
@@ -819,6 +850,8 @@ Route::group('dokumen', static function (): void {
     Route::get('tampilkan_berkas/{id_dokumen?}/{id_pend?}/{popup?}', 'Dokumen@tampilkan_berkas')->name('dokumen.tampilkan_berkas');
     Route::get('ekspor', 'Dokumen@ekspor')->name('dokumen.ekspor');
     Route::post('ekspor_csv', 'Dokumen@ekspor_csv')->name('dokumen.ekspor_csv');
+    Route::get('format-impor', 'Dokumen@formatImpor')->name('dokumen.format_impor');
+    Route::post('proses-impor', 'Dokumen@prosesImpor')->name('dokumen.proses_impor');
 });
 
 Route::group('inventaris_master', static function (): void {
@@ -835,6 +868,8 @@ Route::group('inventaris_gedung', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_gedung@delete')->name('inventaris_gedung.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_gedung@dialog')->name('inventaris_gedung.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_gedung@cetak')->name('inventaris_gedung.cetak');
+    Route::get('/format-impor', 'Inventaris_gedung@formatImpor')->name('inventaris_gedung.format_impor');
+    Route::post('/proses-impor', 'Inventaris_gedung@prosesImpor')->name('inventaris_gedung.proses_impor');
 });
 
 Route::group('inventaris_gedung_mutasi', static function (): void {
@@ -855,6 +890,8 @@ Route::group('inventaris_jalan', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_jalan@delete')->name('inventaris_jalan.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_jalan@dialog')->name('inventaris_jalan.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_jalan@cetak')->name('inventaris_jalan.cetak');
+    Route::get('/format-impor', 'Inventaris_jalan@formatImpor')->name('inventaris_jalan.format_impor');
+    Route::post('/proses-impor', 'Inventaris_jalan@prosesImpor')->name('inventaris_jalan.proses_impor');
 });
 
 Route::group('inventaris_jalan_mutasi', static function (): void {
@@ -875,6 +912,8 @@ Route::group('inventaris_asset', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_asset@delete')->name('inventaris_asset.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_asset@dialog')->name('inventaris_asset.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_asset@cetak')->name('inventaris_asset.cetak');
+    Route::get('/format-impor', 'Inventaris_asset@formatImpor')->name('inventaris_asset.format_impor');
+    Route::post('/proses-impor', 'Inventaris_asset@prosesImpor')->name('inventaris_asset.proses_impor');
 });
 
 Route::group('inventaris_asset_mutasi', static function (): void {
@@ -896,6 +935,8 @@ Route::group('inventaris_kontruksi', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_kontruksi@delete')->name('inventaris_kontruksi.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_kontruksi@dialog')->name('inventaris_kontruksi.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_kontruksi@cetak')->name('inventaris_kontruksi.cetak');
+    Route::get('/format-impor', 'Inventaris_kontruksi@formatImpor')->name('inventaris_kontruksi.format_impor');
+    Route::post('/proses-impor', 'Inventaris_kontruksi@prosesImpor')->name('inventaris_kontruksi.proses_impor');
 });
 
 Route::group('inventaris_peralatan', static function (): void {
@@ -908,6 +949,8 @@ Route::group('inventaris_peralatan', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_peralatan@delete')->name('inventaris_peralatan.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_peralatan@dialog')->name('inventaris_peralatan.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_peralatan@cetak')->name('inventaris_peralatan.cetak');
+    Route::get('/format-impor', 'Inventaris_peralatan@formatImpor')->name('inventaris_peralatan.format_impor');
+    Route::post('/proses-impor', 'Inventaris_peralatan@prosesImpor')->name('inventaris_peralatan.proses_impor');
 });
 
 Route::group('inventaris_peralatan_mutasi', static function (): void {
@@ -929,6 +972,8 @@ Route::group('inventaris_tanah', static function (): void {
     Route::get('/delete/{id}', 'Inventaris_tanah@delete')->name('inventaris_tanah.delete');
     Route::get('/dialog/{aksi?}', 'Inventaris_tanah@dialog')->name('inventaris_tanah.dialog');
     Route::post('/cetak/{aksi?}', 'Inventaris_tanah@cetak')->name('inventaris_tanah.cetak');
+    Route::get('/format-impor', 'Inventaris_tanah@formatImpor')->name('inventaris_tanah.format_impor');
+    Route::post('/proses-impor', 'Inventaris_tanah@prosesImpor')->name('inventaris_tanah.proses_impor');
 });
 
 Route::group('inventaris_tanah_mutasi', static function (): void {
@@ -1103,6 +1148,8 @@ Route::group('bumindes_tanah_kas_desa', static function (): void {
     Route::get('/delete_tanah_kas_desa/{id?}', 'Bumindes_tanah_kas_desa@delete_tanah_kas_desa')->name('bumindes_tanah_kas_desa.delete_tanah_kas_desa');
     Route::post('/delete_all', 'Bumindes_tanah_kas_desa@delete_all')->name('bumindes_tanah_kas_desa.delete_all');
     // Route::post('/cetak_tanah_kas_desa/{aksi?}', 'Bumindes_tanah_kas_desa@cetak_tanah_kas_desa')->name('bumindes_tanah_kas_desa.cetak_tanah_kas_desa');
+    Route::get('/format-impor', 'Bumindes_tanah_kas_desa@formatImpor')->name('bumindes_tanah_kas_desa.format_impor');
+    Route::post('/proses-impor', 'Bumindes_tanah_kas_desa@prosesImpor')->name('bumindes_tanah_kas_desa.proses_impor');
 });
 
 // Buku Tanah Desa
@@ -1119,6 +1166,8 @@ Route::group('bumindes_tanah_desa', static function (): void {
     Route::get('/delete/{id}', 'Bumindes_tanah_desa@delete')->name('bumindes_tanah_desa.delete');
     Route::get('/dialog/{aksi?}', 'Bumindes_tanah_desa@dialog')->name('bumindes_tanah_desa.dialog');
     Route::post('/cetak/{aksi?}', 'Bumindes_tanah_desa@cetak')->name('bumindes_tanah_desa.cetak');
+    Route::get('/format-impor', 'Bumindes_tanah_desa@formatImpor')->name('bumindes_tanah_desa.format_impor');
+    Route::post('/proses-impor', 'Bumindes_tanah_desa@prosesImpor')->name('bumindes_tanah_desa.proses_impor');
 });
 
 // Buku inventaris dan kekayaan desa
@@ -1222,6 +1271,8 @@ Route::group('bumindes_kader', static function (): void {
     Route::post('/delete_all', 'Bumindes_kader@delete_all')->name('bumindes_kader.delete_all');
     Route::get('/dialog/{aksi?}', 'Bumindes_kader@dialog')->name('bumindes_kader.dialog');
     Route::post('/cetak/{aksi?}', 'Bumindes_kader@cetak')->name('bumindes_kader.cetak');
+    Route::get('/format-impor', 'Bumindes_kader@formatImpor')->name('bumindes_kader.format_impor');
+    Route::post('/proses-impor', 'Bumindes_kader@prosesImpor')->name('bumindes_kader.proses_impor');
 });
 
 // - Arsip Desa
@@ -1324,6 +1375,8 @@ Route::group('data_persil', static function (): void {
     Route::get('dialog/{aksi}/{id?}', 'Data_persil@dialog_cetak')->name('data_persil.dialog_cetak');
     Route::post('cetak/{aksi}/{id?}', 'Data_persil@cetak')->name('data_persil.cetak');
     Route::get('area_map', 'Data_persil@area_map')->name('data_persil.area_map');
+    Route::get('format-impor', 'Data_persil@formatImpor')->name('data_persil.format_impor');
+    Route::post('proses-impor', 'Data_persil@prosesImpor')->name('data_persil.proses_impor');
 });
 
 // Pertanahan > C-Desa
@@ -1343,6 +1396,10 @@ Route::group('cdesa', static function (): void {
     Route::post('/update/{id?}', 'Cdesa@update')->name('cdesa.update');
     Route::get('/delete/{id?}', 'Cdesa@delete')->name('cdesa.delete');
     Route::post('/delete_all', 'Cdesa@deleteAll')->name('cdesa.delete_all');
+    Route::get('/format-impor', 'Cdesa@formatImpor')->name('cdesa.format_impor');
+    Route::post('/proses-impor', 'Cdesa@prosesImpor')->name('cdesa.proses_impor');
+    Route::get('/format-impor-mutasi', 'Cdesa_mutasi@formatImpor')->name('cdesa.format_impor_mutasi');
+    Route::post('/proses-impor-mutasi', 'Cdesa_mutasi@prosesImpor')->name('cdesa.proses_impor_mutasi');
 
     // group rincian
     Route::group('rincian/{rincian}', static function (): void {
@@ -1378,6 +1435,8 @@ Route::group('admin_pembangunan', static function (): void {
     Route::match(['GET', 'POST'], '/maps/{id}', 'Admin_pembangunan@maps')->name('admin_pembangunan.maps');
     Route::post('/update-maps/{id}', 'Admin_pembangunan@updateMaps')->name('admin_pembangunan.update-maps');
     Route::get('/lock/{id?}', 'Admin_pembangunan@lock')->name('admin_pembangunan.lock');
+    Route::get('/format-impor', 'Admin_pembangunan@formatImpor')->name('admin_pembangunan.format_impor');
+    Route::post('/proses-impor', 'Admin_pembangunan@prosesImpor')->name('admin_pembangunan.proses_impor');
 });
 
 // Pembagunan
@@ -1390,6 +1449,8 @@ Route::group('pembangunan_dokumentasi', static function (): void {
     Route::get('/delete-dokumentasi/{id_pembangunan}/{id?}', 'Pembangunan_dokumentasi@deleteDokumentasi')->name('pembangunan_dokumentasi.delete-dokumentasi');
     Route::get('/dialog/{id}/{aksi?}', 'Pembangunan_dokumentasi@dialog')->name('pembangunan_dokumentasi.dialog');
     Route::post('/daftar/{id}/{aksi?}', 'Pembangunan_dokumentasi@daftar')->name('pembangunan_dokumentasi.daftar');
+    Route::get('/format-impor', 'Pembangunan_dokumentasi@formatImpor')->name('pembangunan_dokumentasi.format_impor');
+    Route::post('/proses-impor', 'Pembangunan_dokumentasi@prosesImpor')->name('pembangunan_dokumentasi.proses_impor');
 });
 
 // Pengaduan
@@ -1957,6 +2018,8 @@ Route::group('dtks', static function (): void {
     Route::get('/listAnggota/{id_dtks}', 'Dtks@listAnggota')->name('dtks.listAnggota');
     Route::get('/loadRecentInfo', 'Dtks@loadRecentInfo')->name('dtks.loadRecentInfo');
     Route::get('/loadRecentImpor', 'Dtks@loadRecentImpor')->name('dtks.loadRecentImpor');
+    Route::get('/formatImpor', 'Dtks@formatImpor')->name('dtks.formatImpor');
+    Route::post('/prosesImpor', 'Dtks@prosesImpor')->name('dtks.prosesImpor');
     Route::get('/ekspor', 'Dtks@ekspor')->name('dtks.ekspor');
     Route::match(['GET', 'POST'], '/cetak2/{id?}', 'Dtks@cetak2')->name('dtks.cetak2');
     Route::match(['GET', 'POST'], '/new/{id_rtm}', 'Dtks@new')->name('dtks.new');

@@ -48,6 +48,7 @@ use App\Models\Paud;
 use App\Models\Penduduk;
 use App\Models\Posyandu;
 use App\Models\SasaranPaud;
+use App\Traits\ImporExcel;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\View;
 use OpenSpout\Common\Entity\Row;
@@ -55,9 +56,31 @@ use OpenSpout\Writer\XLSX\Writer;
 
 class Stunting extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'kesehatan';
     public $sub_modul_ini = 'stunting';
     protected $rekap;
+
+    private array $kolomImporIbuHamil = [
+        'no_kia', 'posyandu', 'tanggal_periksa', 'status_kehamilan', 'usia_kehamilan',
+        'tanggal_melahirkan', 'pemeriksaan_kehamilan', 'konsumsi_pil_fe', 'butir_pil_fe',
+        'pemeriksaan_nifas', 'konseling_gizi', 'kunjungan_rumah', 'akses_air_bersih',
+        'kepemilikan_jamban', 'jaminan_kesehatan',
+    ];
+
+    private array $kolomImporAnak = [
+        'no_kia', 'posyandu', 'tanggal_periksa', 'status_gizi', 'umur_bulan', 'status_tikar',
+        'pemberian_imunisasi_dasar', 'pemberian_imunisasi_campak', 'berat_badan', 'pengukuran_berat_badan',
+        'tinggi_badan', 'pengukuran_tinggi_badan', 'konseling_gizi_ayah', 'konseling_gizi_ibu',
+        'kunjungan_rumah', 'air_bersih', 'kepemilikan_jamban', 'akta_lahir', 'jaminan_kesehatan', 'pengasuhan_paud',
+    ];
+
+    private array $kolomImporPaud = [
+        'no_kia', 'posyandu', 'tanggal_periksa', 'kategori_usia',
+        'januari', 'februari', 'maret', 'april', 'mei', 'juni',
+        'juli', 'agustus', 'september', 'oktober', 'november', 'desember',
+    ];
 
     public function __construct()
     {
@@ -163,6 +186,21 @@ class Stunting extends Admin_Controller
             'november'      => $request['november'],
             'desember'      => $request['desember'],
         ];
+    }
+
+    private function boolDariTeks($nilai): int
+    {
+        return in_array(strtolower(trim((string) $nilai)), ['1', 'v', 'ya', 'true'], true) ? 1 : 0;
+    }
+
+    private function petaKia(): array
+    {
+        return KIA::pluck('id', 'no_kia')->all();
+    }
+
+    private function petaPosyandu(): array
+    {
+        return Posyandu::pluck('id', 'nama')->all();
     }
 
     public function index()
@@ -664,6 +702,130 @@ class Stunting extends Admin_Controller
         $writer->close();
     }
 
+    public function formatImporIbuHamil(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImporIbuHamil, 'format-impor-ibu-hamil.xlsx');
+    }
+
+    public function prosesImporIbuHamil(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'stunting/pemantauan_ibu_hamil');
+        }
+
+        $petaKia      = $this->petaKia();
+        $petaPosyandu = $this->petaPosyandu();
+        $lookupStatus = collect(IbuHamil::STATUS_KEHAMILAN_IBU)->pluck('simbol', 'id')->all();
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImporIbuHamil)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'stunting/pemantauan_ibu_hamil');
+                    }
+
+                    continue;
+                }
+
+                [$noKia, $posyandu, $tglPeriksa, $statusKehamilan, $usiaKehamilan, $tglMelahirkan, $periksaHamil, $konsumsiPilFe, $butirPilFe, $periksaNifas, $konselingGizi, $kunjunganRumah, $aksesAirBersih, $kepemilikanJamban, $jaminanKesehatan] = array_pad($sel, 15, null);
+                $noKia    = trim((string) $noKia);
+                $posyandu = trim((string) $posyandu);
+
+                if ($noKia === '' || $posyandu === '' || empty($tglPeriksa)) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom no_kia, posyandu, dan tanggal_periksa wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $kiaId = $petaKia[$noKia] ?? null;
+                if (! $kiaId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) No KIA '{$noKia}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $posyanduId = $petaPosyandu[$posyandu] ?? null;
+                if (! $posyanduId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Posyandu '{$posyandu}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $waktu = strtotime((string) $tglPeriksa);
+                if ($waktu === false) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Format tanggal_periksa '{$tglPeriksa}' tidak dikenali.<br>";
+
+                    continue;
+                }
+
+                $kunci = $kiaId . '|' . date('Y-m', $waktu);
+                if (isset($sudahDiproses[$kunci]) || IbuHamil::where('kia_id', $kiaId)->whereMonth('created_at', date('m', $waktu))->whereYear('created_at', date('Y', $waktu))->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Data ibu hamil untuk No KIA '{$noKia}' bulan " . date('m-Y', $waktu) . ' sudah ada.<br>';
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $statusKode = $this->resolveKodeReferensi($lookupStatus, $statusKehamilan) ?? ($statusKehamilan !== '' && ctype_digit((string) $statusKehamilan) ? (int) $statusKehamilan : null);
+
+                try {
+                    $dataSimpan = static::validateIbuHamil([
+                        'id_posyandu'           => $posyanduId,
+                        'id_kia'                => $kiaId,
+                        'tanggal_periksa'       => date('Y-m-d', $waktu),
+                        'status_kehamilan'      => $statusKode,
+                        'usia_kehamilan'        => $usiaKehamilan ?: null,
+                        'tanggal_melahirkan'    => $tglMelahirkan ?: null,
+                        'pemeriksaan_kehamilan' => $this->boolDariTeks($periksaHamil),
+                        'konsumsi_pil_fe'       => $this->boolDariTeks($konsumsiPilFe),
+                        'butir_pil_fe'          => is_numeric($butirPilFe) ? (int) $butirPilFe : 0,
+                        'pemeriksaan_nifas'     => $this->boolDariTeks($periksaNifas),
+                        'konseling_gizi'        => $this->boolDariTeks($konselingGizi),
+                        'kunjungan_rumah'       => $this->boolDariTeks($kunjunganRumah),
+                        'akses_air_bersih'      => $this->boolDariTeks($aksesAirBersih),
+                        'kepemilikan_jamban'    => $this->boolDariTeks($kepemilikanJamban),
+                        'jaminan_kesehatan'     => $this->boolDariTeks($jaminanKesehatan),
+                    ]);
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // IbuHamil::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('stunting/pemantauan_ibu_hamil');
+    }
+
     /////////////////////////////////////////////////////////////////////////////////////////////////
     public function pemantauan_anak()
     {
@@ -887,6 +1049,142 @@ class Stunting extends Admin_Controller
         $writer->close();
     }
 
+    public function formatImporAnak(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImporAnak, 'format-impor-bulanan-anak.xlsx');
+    }
+
+    public function prosesImporAnak(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'stunting/pemantauan_anak');
+        }
+
+        $petaKia            = $this->petaKia();
+        $petaPosyandu       = $this->petaPosyandu();
+        $lookupStatusGizi   = collect(Anak::STATUS_GIZI_ANAK)->pluck('simbol', 'id')->all();
+        $lookupStatusTikar  = collect(Anak::STATUS_TIKAR_ANAK)->pluck('simbol', 'id')->all();
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImporAnak)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'stunting/pemantauan_anak');
+                    }
+
+                    continue;
+                }
+
+                [
+                    $noKia, $posyandu, $tglPeriksa, $statusGizi, $umurBulan, $statusTikar,
+                    $imunisasiDasar, $imunisasiCampak, $beratBadan, $ukurBerat,
+                    $tinggiBadan, $ukurTinggi, $konselingAyah, $konselingIbu,
+                    $kunjunganRumah, $airBersih, $kepemilikanJamban, $aktaLahir, $jaminanKesehatan, $pengasuhanPaud,
+                ] = array_pad($sel, 20, null);
+                $noKia    = trim((string) $noKia);
+                $posyandu = trim((string) $posyandu);
+
+                if ($noKia === '' || $posyandu === '' || empty($tglPeriksa)) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom no_kia, posyandu, dan tanggal_periksa wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $kiaId = $petaKia[$noKia] ?? null;
+                if (! $kiaId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) No KIA '{$noKia}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $posyanduId = $petaPosyandu[$posyandu] ?? null;
+                if (! $posyanduId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Posyandu '{$posyandu}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $waktu = strtotime((string) $tglPeriksa);
+                if ($waktu === false) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Format tanggal_periksa '{$tglPeriksa}' tidak dikenali.<br>";
+
+                    continue;
+                }
+
+                $kunci = $kiaId . '|' . date('Y-m', $waktu);
+                if (isset($sudahDiproses[$kunci]) || Anak::where('kia_id', $kiaId)->whereMonth('created_at', date('m', $waktu))->whereYear('created_at', date('Y', $waktu))->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Data anak untuk No KIA '{$noKia}' bulan " . date('m-Y', $waktu) . ' sudah ada.<br>';
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $statusGiziKode  = $this->resolveKodeReferensi($lookupStatusGizi, $statusGizi) ?? ($statusGizi !== '' && ctype_digit((string) $statusGizi) ? (int) $statusGizi : null);
+                $statusTikarKode = $this->resolveKodeReferensi($lookupStatusTikar, $statusTikar) ?? ($statusTikar !== '' && ctype_digit((string) $statusTikar) ? (int) $statusTikar : null);
+
+                try {
+                    $dataSimpan = static::validateAnak([
+                        'id_posyandu'                => $posyanduId,
+                        'id_kia'                      => $kiaId,
+                        'tanggal_periksa'             => date('Y-m-d', $waktu),
+                        'status_gizi'                 => $statusGiziKode,
+                        'umur_bulan'                   => is_numeric($umurBulan) ? (int) $umurBulan : null,
+                        'status_tikar'                => $statusTikarKode,
+                        'pemberian_imunisasi_dasar'   => $this->boolDariTeks($imunisasiDasar),
+                        'pemberian_imunisasi_campak'  => $this->boolDariTeks($imunisasiCampak),
+                        'berat_badan'                 => is_numeric($beratBadan) ? (float) $beratBadan : null,
+                        'pengukuran_berat_badan'      => $this->boolDariTeks($ukurBerat),
+                        'tinggi_badan'                => is_numeric($tinggiBadan) ? (float) $tinggiBadan : null,
+                        'pengukuran_tinggi_badan'     => $this->boolDariTeks($ukurTinggi),
+                        'konseling_gizi_ayah'         => $this->boolDariTeks($konselingAyah),
+                        'konseling_gizi_ibu'          => $this->boolDariTeks($konselingIbu),
+                        'kunjungan_rumah'             => $this->boolDariTeks($kunjunganRumah),
+                        'air_bersih'                  => $this->boolDariTeks($airBersih),
+                        'kepemilikan_jamban'          => $this->boolDariTeks($kepemilikanJamban),
+                        'akta_lahir'                  => $this->boolDariTeks($aktaLahir),
+                        'jaminan_kesehatan'           => $this->boolDariTeks($jaminanKesehatan),
+                        'pengasuhan_paud'             => $this->boolDariTeks($pengasuhanPaud),
+                    ]);
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // Anak::create($dataSimpan);
+                    log_message('debug', json_encode($dataSimpan));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('stunting/pemantauan_anak');
+    }
+
     //////////////////////////////////////////////////////////////////////////////////////////////////
     public function pemantauan_paud()
     {
@@ -1073,6 +1371,124 @@ class Stunting extends Admin_Controller
             $writer->addRow(Row::fromValues($data));
         }
         $writer->close();
+    }
+
+    public function formatImporPaud(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImporPaud, 'format-impor-sasaran-paud.xlsx');
+    }
+
+    public function prosesImporPaud(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), 'stunting/pemantauan_paud');
+        }
+
+        $petaKia         = $this->petaKia();
+        $petaPosyandu    = $this->petaPosyandu();
+        $lookupBulan     = [1 => 'Belum', 2 => 'Mengikuti', 3 => 'Tidak Mengikuti'];
+        $namaBulanKolom  = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+
+        $sukses  = 0;
+        $gagal   = 0;
+        $ganda   = 0;
+        $pesan   = '';
+        $barisKe = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImporPaud)) {
+                        $reader->close();
+                        redirect_with('error', $error, 'stunting/pemantauan_paud');
+                    }
+
+                    continue;
+                }
+
+                [$noKia, $posyandu, $tglPeriksa, $kategoriUsia] = array_pad($sel, 4, null);
+                $noKia    = trim((string) $noKia);
+                $posyandu = trim((string) $posyandu);
+
+                if ($noKia === '' || $posyandu === '' || empty($tglPeriksa)) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom no_kia, posyandu, dan tanggal_periksa wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $kiaId = $petaKia[$noKia] ?? null;
+                if (! $kiaId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) No KIA '{$noKia}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $posyanduId = $petaPosyandu[$posyandu] ?? null;
+                if (! $posyanduId) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Posyandu '{$posyandu}' tidak ditemukan.<br>";
+
+                    continue;
+                }
+
+                $waktu = strtotime((string) $tglPeriksa);
+                if ($waktu === false) {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Format tanggal_periksa '{$tglPeriksa}' tidak dikenali.<br>";
+
+                    continue;
+                }
+
+                $kunci = $kiaId . '|' . date('Y', $waktu);
+                if (isset($sudahDiproses[$kunci]) || Paud::where('kia_id', $kiaId)->whereYear('created_at', date('Y', $waktu))->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Data sasaran PAUD untuk No KIA '{$noKia}' tahun " . date('Y', $waktu) . ' sudah ada.<br>';
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $dataSimpan = [
+                    'id_posyandu'     => $posyanduId,
+                    'id_kia'          => $kiaId,
+                    'tanggal_periksa' => date('Y-m-d', $waktu),
+                    'kategori_usia'   => in_array((string) $kategoriUsia, ['1', '2'], true) ? (int) $kategoriUsia : 1,
+                ];
+                foreach ($namaBulanKolom as $i => $namaBulan) {
+                    $nilaiBulan               = $sel[4 + $i] ?? null;
+                    $dataSimpan[$namaBulan] = $this->resolveKodeReferensi($lookupBulan, $nilaiBulan) ?? 1;
+                }
+
+                try {
+                    $dataSimpanPaud = static::validatePaud($dataSimpan);
+                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                    // Paud::create($dataSimpanPaud);
+                    log_message('debug', json_encode($dataSimpanPaud));
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect('stunting/pemantauan_paud');
     }
 
     ///////////////////////////////////

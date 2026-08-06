@@ -21,6 +21,7 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
     <div class="row">
         <div class="col-sm-3">
             @include('admin.inventaris.menu')
@@ -29,6 +30,9 @@
             <div class="box box-info">
                 <div class="box-header with-border">
                     <x-tambah-button :url="'inventaris_tanah/form'" />
+                    @if (can('u'))
+                        <a href="#modal-impor-inventaris-tanah" data-toggle="modal" data-target="#modal-impor-inventaris-tanah" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+                    @endif
                     @php
                         $listCetakUnduh = [
                             [
@@ -93,6 +97,20 @@
         </div>
         @include('admin.layouts.components.konfirmasi_hapus')
     </div>
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-inventaris-tanah',
+            'judul' => 'Impor Data Inventaris Tanah',
+            'formAction' => ci_route('inventaris_tanah.proses_impor'),
+            'formatImpor' => ci_route('inventaris_tanah.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>nama_barang, kode_barang, register, luas, tahun_pengadaan, letak, hak, tanggal_sertifikat, no_sertifikat, penggunaan, asal, harga, keterangan</b> (urutan tidak boleh diubah).',
+                'Hanya kolom <b>nama_barang</b> yang wajib diisi, kolom lain boleh dikosongkan.',
+                'Baris dengan kode_barang dan register yang sama dengan data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

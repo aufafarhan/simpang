@@ -14,10 +14,14 @@
 
 @section('content')
     @include('admin.layouts.components.notifikasi')
+    @include('admin.components.impor_ringkasan')
 
     <div class="box box-info">
         <div class="box-header with-border">
             <x-tambah-button :url="'pembangunan_dokumentasi/form-dokumentasi/'.$pembangunan->id" />
+            @if (can('u'))
+                <a href="#modal-impor-pembangunan-dokumentasi" data-toggle="modal" data-target="#modal-impor-pembangunan-dokumentasi" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+            @endif
             @php
                 $listCetakUnduh = [
                     [
@@ -95,6 +99,22 @@
     </div>
 
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-pembangunan-dokumentasi',
+            'judul' => 'Impor Dokumentasi Progres Pembangunan',
+            'formAction' => ci_route('pembangunan_dokumentasi.proses_impor'),
+            'formatImpor' => ci_route('pembangunan_dokumentasi.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>judul_pembangunan, persentase, keterangan</b> (urutan tidak boleh diubah).',
+                'Kolom <b>judul_pembangunan</b> harus sama persis dengan judul proyek yang sudah ada (tidak harus proyek ini saja — bisa proyek pembangunan manapun).',
+                'Kolom <b>persentase</b> diisi salah satu: 0%, 30%, 80%, 100%.',
+                'Entri dengan persentase < 100% akan membuat proyek muncul sebagai "Kegiatan"; persentase 100% membuatnya muncul sebagai "Hasil" pada laporan Buku Kegiatan/Hasil Pembangunan.',
+                'Kolom gambar tidak tersedia lewat impor Excel — tambahkan manual lewat form jika perlu.',
+            ],
+        ])
+    @endif
 @endsection
 
 @push('scripts')

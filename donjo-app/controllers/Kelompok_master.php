@@ -36,20 +36,114 @@
  */
 
 use App\Models\KelompokMaster;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Facades\View;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
 class Kelompok_master extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'kependudukan';
     public $sub_modul_ini = 'kelompok';
     protected $tipe       = 'kelompok';
+    private array $kolomImpor = ['kelompok', 'deskripsi'];
+    // Sementara dinonaktifkan (akses admin terkunci lisensi premium) khusus untuk Lembaga_master.php
+    // (di-override true di sana) — Kelompok_master.php sendiri tetap insert seperti biasa.
+    protected bool $dryRunImpor = false;
 
     public function __construct()
     {
         parent::__construct();
         isCan('b');
+    }
+
+    public function format_impor(): void
+    {
+        isCan('u');
+        $this->unduhTemplateImpor($this->kolomImpor, "format-impor-{$this->tipe}-master.xlsx");
+    }
+
+    public function proses_impor(): void
+    {
+        isCan('u');
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), $this->tipe . '_master');
+        }
+
+        $sukses        = 0;
+        $gagal         = 0;
+        $ganda         = 0;
+        $pesan         = '';
+        $barisKe       = 0;
+        $sudahDiproses = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    if ($error = $this->validasiHeaderExcel($sel, $this->kolomImpor)) {
+                        $reader->close();
+                        redirect_with('error', $error, $this->tipe . '_master');
+                    }
+
+                    continue;
+                }
+
+                [$kelompok, $deskripsi] = array_pad($sel, 2, null);
+                $kelompok = trim((string) $kelompok);
+
+                if ($kelompok === '') {
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Kolom kelompok wajib diisi.<br>";
+
+                    continue;
+                }
+
+                $kunci = strtolower($kelompok);
+                if (isset($sudahDiproses[$kunci]) || KelompokMaster::tipe($this->tipe)->where('kelompok', $kelompok)->exists()) {
+                    $ganda++;
+                    $pesan .= "{$barisKe}) Kategori '{$kelompok}' sudah ada.<br>";
+
+                    continue;
+                }
+                $sudahDiproses[$kunci] = $barisKe;
+
+                $dataSimpan = [
+                    'config_id' => identitas('id'),
+                    'kelompok'  => nama_terbatas($kelompok),
+                    'deskripsi' => htmlentities((string) $deskripsi),
+                    'tipe'      => $this->tipe,
+                ];
+
+                try {
+                    if ($this->dryRunImpor) {
+                        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
+                        log_message('debug', json_encode($dataSimpan));
+                    } else {
+                        (new KelompokMaster($dataSimpan))->save();
+                    }
+
+                    $sukses++;
+                } catch (Exception $e) {
+                    log_message('error', $e->getMessage());
+                    $gagal++;
+                    $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        $this->flashRingkasanImpor('pesan_impor', $sukses, $gagal, $ganda, $pesan);
+        redirect($this->tipe . '_master');
     }
 
     public function clear(): void

@@ -20,6 +20,9 @@
             <div class="box box-info">
                 <div class="box-header with-border">
                     <x-tambah-button :url="'dokumen/form'" />
+                    @if (can('u'))
+                        <a href="#modal-impor-dokumen" data-toggle="modal" data-target="#modal-impor-dokumen" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"><i class="fa fa-upload"></i> Impor</a>
+                    @endif
                     <x-hapus-button :url="'dokumen/delete'" :confirmDelete="true" :selectData="true" />
                     @php
                     $listCetakUnduh = [
@@ -67,6 +70,22 @@
     </div>
     {!! form_close() !!}
     @include('admin.layouts.components.konfirmasi_hapus')
+
+    @if (can('u'))
+        @include('admin.components.modal_impor', [
+            'modalId' => 'modal-impor-dokumen',
+            'judul' => 'Impor Dokumen Informasi Publik',
+            'formAction' => ci_route('dokumen.proses_impor'),
+            'formatImpor' => ci_route('dokumen.format_impor'),
+            'petunjuk' => [
+                'Kolom: <b>nama, tahun, kategori_info_publik, url</b> (urutan tidak boleh diubah).',
+                'Impor ini hanya untuk dokumen berupa <b>tautan/URL</b> (mis. tautan Google Drive) — dokumen berupa berkas unggahan (PDF/gambar) tidak bisa dibawa lewat Excel, tambahkan manual lewat form.',
+                'Kolom <b>kategori_info_publik</b> diisi salah satu: Informasi Berkala, Informasi Serta-merta, Informasi Setiap Saat, Informasi Dikecualikan.',
+                'Kolom <b>url</b> wajib berupa tautan yang valid (diawali http:// atau https://).',
+                'Baris dengan <b>nama</b> dan <b>tahun</b> yang sama seperti data yang sudah ada akan dilewati (dianggap duplikat).',
+            ],
+        ])
+    @endif
 @endsection
 @push('scripts')
     <script>
