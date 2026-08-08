@@ -59,6 +59,7 @@ use App\Enums\StatusPendudukEnum;
 use App\Enums\StatusRekamEnum;
 use App\Enums\SukuEnum;
 use App\Enums\WargaNegaraEnum;
+use App\Libraries\Import;
 use App\Models\Bantuan;
 use App\Models\KelasSosial;
 use App\Models\Keluarga as KeluargaModel;
@@ -110,9 +111,8 @@ class Keluarga extends Admin_Controller
             redirect('keluarga');
         }
         isCan('u');
-        $this->load->model(['impor_model']);
         // Sementara dinonaktifkan (akses admin terkunci lisensi premium): dryRun=true supaya hasil parse dicatat ke log, tidak ditulis ke DB.
-        $this->impor_model->impor_excel(false, true);
+        (new Import())->imporExcel(false, true);
         redirect(ci_route('keluarga.impor'));
     }
 
