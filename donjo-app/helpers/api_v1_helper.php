@@ -317,7 +317,11 @@ if (! function_exists('lapak_produk_api')) {
         return Produk::where('status', 1)
             ->whereHas('kategori', static fn ($q) => $q->where('status', 1))
             ->whereHas('pelapak', static fn ($q) => $q->where('status', 1))
-            ->with(['kategori:id,kategori', 'pelapak:id,nama,telepon'])
+            // Tabel `pelapak` TIDAK punya kolom `nama` — hanya id_pend, telepon,
+            // lat/lng, status. Nama pelapak ada di tweb_penduduk lewat relasi
+            // Pelapak::penduduk(). `id_pend` wajib ikut di-select, kalau tidak
+            // relasi bersarangnya tidak bisa di-resolve.
+            ->with(['kategori:id,kategori', 'pelapak:id,id_pend,telepon', 'pelapak.penduduk:id,nama'])
             ->orderBy('updated_at', 'desc')
             ->get()
             ->map(static fn ($p) => (object) [
@@ -328,7 +332,7 @@ if (! function_exists('lapak_produk_api')) {
                 'satuan'    => $p->satuan,
                 'deskripsi' => $p->deskripsi,
                 'foto'      => $p->getRawOriginal('foto'),
-                'pelapak'   => $p->pelapak->nama ?? 'Pelapak',
+                'pelapak'   => $p->pelapak->penduduk->nama ?? 'Pelapak',
                 'telepon'   => $p->pelapak->telepon ?? null,
             ])
             ->all();

@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/pengaduan",
     "/dokumen",
     "/buku-tamu",
+    "/peta",
   ].map((path) => ({ url: `${base}${path}`, changeFrequency: "weekly", priority: 0.7 }));
 
   const { items } = await getArtikel(1);

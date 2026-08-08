@@ -24,6 +24,8 @@ const PETA_RUTE: Record<string, string> = {
   UMKM: "/lapak-umkm",
   Pengaduan: "/pengaduan",
   "Buku Tamu": "/buku-tamu",
+  Peta: "/peta",
+  "Peta Wilayah": "/peta",
   Profil: "/profil",
   "Profil Desa": "/profil",
   "Profil Nagari": "/profil",
