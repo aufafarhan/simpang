@@ -57,11 +57,13 @@ use App\Enums\StatusPendudukEnum;
 use App\Enums\StatusRekamEnum;
 use App\Enums\SukuEnum;
 use App\Enums\WargaNegaraEnum;
+use App\Libraries\Import;
 use App\Models\BantuanPeserta;
 use App\Models\Keluarga as KeluargaModel;
 use App\Models\Penduduk;
 use App\Models\PendudukHidup;
 use App\Models\Wilayah;
+use App\Traits\ImporExcel;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -69,6 +71,8 @@ defined('BASEPATH') || exit('No direct script access allowed');
 
 class AnggotaKeluarga extends Admin_Controller
 {
+    use ImporExcel;
+
     public $modul_ini     = 'kependudukan';
     public $sub_modul_ini = 'keluarga';
     public $akses_modul   = 'keluarga';
@@ -77,6 +81,81 @@ class AnggotaKeluarga extends Admin_Controller
     {
         parent::__construct();
         isCan('b');
+    }
+
+    // Impor Excel anggota baru untuk KK yang sudah ada (memakai mesin impor yang sama dengan
+    // Penduduk/Keluarga), dibatasi hanya boleh menambah anggota ke KK ini (no_kk pada berkas
+    // harus sama dengan KK ini).
+    public function impor($id = 0): void
+    {
+        if (config_item('demo_mode') || data_lengkap()) {
+            redirect_with('error', 'Tidak dapat melakukan impor pada mode demo atau data sudah dinyatakan lengkap', "keluarga/anggota/{$id}");
+        }
+        isCan('u');
+        $kk = KeluargaModel::findOrFail($id);
+
+        $data = [
+            'kk'          => $kk,
+            'form_action' => ci_route('keluarga.proses_impor_anggota', $id),
+            'formatImpor' => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+        ];
+        view('admin.penduduk.keluarga.anggota.impor', $data);
+    }
+
+    public function proses_impor($id = 0): void
+    {
+        if (config_item('demo_mode') || data_lengkap()) {
+            redirect("keluarga/anggota/{$id}");
+        }
+        isCan('u');
+        $kk = KeluargaModel::findOrFail($id);
+
+        try {
+            $reader = $this->bukaReaderExcel();
+        } catch (Exception $e) {
+            redirect_with('error', $e->getMessage(), "keluarga/anggota/{$id}");
+        }
+
+        // Pastikan tidak ada baris yang menyasar KK lain sebelum diproses oleh mesin impor Penduduk,
+        // karena imporExcel() bisa membuat KK baru apabila menemukan no_kk yang belum terdaftar.
+        $barisSalah = [];
+
+        foreach ($reader->getSheetIterator() as $sheet) {
+            $barisKe    = 0;
+            $indeksNoKk = null;
+
+            foreach ($sheet->getRowIterator() as $row) {
+                $barisKe++;
+                $sel = $this->nilaiBaris($row);
+
+                if ($barisKe === 1) {
+                    $header     = array_map(static fn ($h) => strtolower(trim((string) $h)), $sel);
+                    $indeksNoKk = array_search('no_kk', $header, true);
+
+                    continue;
+                }
+
+                if ($indeksNoKk === false || $indeksNoKk === null) {
+                    continue;
+                }
+
+                $noKk = preg_replace('/[^0-9]/', '', (string) ($sel[$indeksNoKk] ?? ''));
+                if ($noKk !== '' && $noKk !== $kk->no_kk) {
+                    $barisSalah[] = "{$barisKe}) No KK '{$noKk}' bukan milik KK ini ({$kk->no_kk}).";
+                }
+            }
+
+            break;
+        }
+        $reader->close();
+
+        if ($barisSalah !== []) {
+            redirect_with('error', 'Impor dibatalkan, berkas berisi baris dengan No KK yang berbeda dari KK ini:<br>' . implode('<br>', $barisSalah), "keluarga/anggota/{$id}");
+        }
+
+        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): dryRun=true supaya hasil parse dicatat ke log, tidak ditulis ke DB.
+        (new Import())->imporExcel(false, true);
+        redirect("keluarga/anggota/{$id}");
     }
 
     public function index($id): void
