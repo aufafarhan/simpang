@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KATEGORI_STATISTIK } from "@/lib/statistik-menu";
 import type { MenuAtas, ProfilDesa } from "@/lib/types";
 
 /**
@@ -67,6 +68,26 @@ function ringkasMenu(items: MenuAtas[]): MenuAtas[] {
 
     return hasil;
   }, []);
+}
+
+/**
+ * Menu "Data Statistik" bawaan OpenSID memuat 15 entri datar yang membingungkan.
+ * Diganti dengan 4 kategori utama; pemilihan sub-kategori dipindah ke dalam
+ * halaman /statistik. Sumber daftarnya satu tempat: lib/statistik-menu.ts.
+ */
+function gantiSubmenuStatistik(items: MenuAtas[]): MenuAtas[] {
+  return items.map((m) => {
+    if (!/statistik/i.test(m.nama)) return m;
+
+    return {
+      ...m,
+      submenu: KATEGORI_STATISTIK.map((k) => ({
+        id: `stat-${k.slug}`,
+        nama: k.label,
+        link: `/statistik?kategori=${k.slug}`,
+      })),
+    };
+  });
 }
 
 function hrefMenu(m: MenuAtas): string {
@@ -155,7 +176,7 @@ export default function Header({ profil }: { profil: ProfilDesa }) {
     : profil.menu.map((m, i) => ({ id: String(i), nama: m.judul, link: m.url }));
 
   // Ringkas entri berulang (mis. Status IDM 2021–2024 -> satu "Status IDM").
-  const menu = ringkasMenu(menuAsli);
+  const menu = gantiSubmenuStatistik(ringkasMenu(menuAsli));
 
   return (
     <header className="sticky top-0 z-50 border-b border-outline-variant bg-background">
