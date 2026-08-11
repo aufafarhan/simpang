@@ -61,7 +61,10 @@ class Beranda extends Web_Controller
 
             'menu_atas'     => menu_atas_api(),
             'teks_berjalan' => $data['teks_berjalan'] ?? [],
-            'latar_website' => ! empty($data['latar_website']) ? base_url($data['latar_website']) : null,
+            // viewShare() 2607 sudah memanggil default_file() yang mengembalikan
+            // URL ABSOLUT. Membungkusnya dengan base_url() lagi membuat host
+            // tertulis dua kali, jadi hanya path relatif yang perlu dilengkapi.
+            'latar_website' => $this->urlAbsolut($data['latar_website'] ?? null),
 
             'widgets' => [
                 'jam_kerja'            => $data['jam_kerja'] ?? [],
@@ -152,6 +155,16 @@ class Beranda extends Web_Controller
      * prefiks ukuran wajib ditambahkan. Nama berkas juga bisa mengandung spasi,
      * jadi harus di-encode agar tautannya tidak rusak.
      */
+    /** Lengkapi jadi URL absolut hanya bila belum absolut. */
+    private function urlAbsolut(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        return preg_match('#^https?://#i', $url) ? $url : base_url($url);
+    }
+
     private function urlBerkas(string $folder, ?string $namaBerkas, string $ukuran = 'sedang_'): ?string
     {
         if (empty($namaBerkas)) {

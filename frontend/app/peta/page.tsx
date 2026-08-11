@@ -62,22 +62,31 @@ export default async function PetaPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="lg:col-span-2">
             <div className="songket-border overflow-hidden rounded-2xl border border-outline-variant shadow-level1">
+              {/*
+                Embed Google Maps yang menunjuk tempat terdaftar "Kantor Wali
+                Nagari Simpang" — penanda dan namanya sudah benar, tidak sekadar
+                titik koordinat.
+
+                Parameter `pb` mengunci lokasi di dalam URL, jadi peta ini TIDAK
+                mengikuti lat/lng di tabel `config`. Kalau kantor nagari pindah,
+                URL ini harus diambil ulang dari Google Maps (Bagikan → Sematkan
+                peta). Koordinat dari database tetap dipakai untuk tombol
+                Petunjuk Arah dan yang ditampilkan di kartu samping.
+              */}
               <iframe
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${[
-                  lng - 0.02,
-                  lat - 0.02,
-                  lng + 0.02,
-                  lat + 0.02,
-                ].join("%2C")}&layer=mapnik&marker=${lat}%2C${lng}`}
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1051.7040016173466!2d100.15603636022733!3d0.00585424423984973!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x302a9df123ed085b%3A0xa753c8bb0f306f0b!2sKantor%20wali%20nagari%20simpang!5e0!3m2!1sid!2sid!4v1786421798321!5m2!1sid!2sid"
                 title={`Peta lokasi Kantor Wali ${profil.nama_desa}`}
                 className="h-[420px] w-full md:h-[560px]"
+                style={{ border: 0 }}
+                allowFullScreen
                 loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
               />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">
               <a
-                href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`}
+                href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-on-primary transition hover:opacity-90"

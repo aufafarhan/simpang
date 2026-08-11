@@ -9,21 +9,53 @@ import type { Aparatur, ProfilDesa } from "@/lib/types";
 export default function Hero({
   profil,
   kepala,
+  latar,
 }: {
   profil: ProfilDesa;
   kepala: Aparatur | null;
+  /** Latar website dari pengaturan OpenSID; null bila belum diunggah. */
+  latar?: string | null;
 }) {
   const wilayah = [profil.kecamatan, profil.kabupaten, profil.provinsi]
     .filter((x) => x && x !== "-")
     .join(", ");
 
   return (
-    <section className="relative w-full overflow-hidden border-b border-outline-variant bg-surface-container-low pb-20 pt-12">
-      {/* Elemen dekoratif */}
-      <div
-        aria-hidden
-        className="absolute right-0 top-0 -z-10 h-full w-1/2 rounded-bl-[100px] bg-primary/5"
-      />
+    <section
+      className={`relative w-full overflow-hidden border-b border-outline-variant pb-20 pt-12 ${
+        latar ? "" : "bg-surface-container-low"
+      }`}
+    >
+      {latar && (
+        <>
+          {/*
+            Latar dipasang sebagai div ber-background, bukan <Image>, karena
+            fungsinya dekoratif dan ukurannya mengikuti tinggi section.
+            Dipakai <img> tersembunyi? Tidak perlu — aria-hidden sudah cukup.
+          */}
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-20 bg-cover bg-center"
+            style={{ backgroundImage: `url("${latar}")` }}
+          />
+          {/*
+            Lapisan peneduh: tanpa ini teks hijau tua di atas foto berwarna
+            jadi tidak terbaca. Gradien ke kanan agar sisi potret tetap terang.
+          */}
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-gradient-to-r from-background via-background/90 to-background/60"
+          />
+        </>
+      )}
+
+      {/* Elemen dekoratif — hanya bila tidak ada latar, agar tidak bertumpuk */}
+      {!latar && (
+        <div
+          aria-hidden
+          className="absolute right-0 top-0 -z-10 h-full w-1/2 rounded-bl-[100px] bg-primary/5"
+        />
+      )}
 
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-6 px-4 md:px-6 lg:grid-cols-12 lg:px-8">
         {/* --- Kolom narasi --- */}

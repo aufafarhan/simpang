@@ -27,7 +27,7 @@ export default async function Beranda() {
     <>
       <AnnouncementBar items={beranda?.teks_berjalan ?? []} />
 
-      <Hero profil={profil} kepala={kepala} />
+      <Hero profil={profil} kepala={kepala} latar={beranda?.latar_website ?? null} />
 
       <VideoProfilVisi
       videoUrl="" />
