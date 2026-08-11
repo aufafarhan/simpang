@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Breadcrumb from "@/components/ui/Breadcrumb";
 import Icon from "@/components/ui/Icon";
 import { getProfilDesa } from "@/lib/api";
+import { EMBED_PETA_KANTOR, urlPetaBesar, urlPetunjukArah } from "@/lib/peta";
 
 export const metadata: Metadata = {
   // Nama nagari ditambahkan otomatis oleh template judul di app/layout.tsx.
@@ -11,8 +12,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Peta memakai embed OpenStreetMap — tanpa Leaflet/MapLibre, karena data yang
- * tersedia hanya SATU titik (koordinat kantor nagari di tabel `config`).
+ * Peta memakai embed Google Maps (lihat lib/peta.ts) — tanpa Leaflet/MapLibre,
+ * karena data yang tersedia hanya SATU titik: kantor nagari.
  *
  * Design Stitch (design/stitch/peta_wilayah_nagari_simpang_desktop) menampilkan
  * lapisan Batas Jorong, Fasilitas Umum, dan legenda sekolah/puskesmas/masjid.
@@ -62,19 +63,8 @@ export default async function PetaPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="lg:col-span-2">
             <div className="songket-border overflow-hidden rounded-2xl border border-outline-variant shadow-level1">
-              {/*
-                Embed Google Maps yang menunjuk tempat terdaftar "Kantor Wali
-                Nagari Simpang" — penanda dan namanya sudah benar, tidak sekadar
-                titik koordinat.
-
-                Parameter `pb` mengunci lokasi di dalam URL, jadi peta ini TIDAK
-                mengikuti lat/lng di tabel `config`. Kalau kantor nagari pindah,
-                URL ini harus diambil ulang dari Google Maps (Bagikan → Sematkan
-                peta). Koordinat dari database tetap dipakai untuk tombol
-                Petunjuk Arah dan yang ditampilkan di kartu samping.
-              */}
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1051.7040016173466!2d100.15603636022733!3d0.00585424423984973!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x302a9df123ed085b%3A0xa753c8bb0f306f0b!2sKantor%20wali%20nagari%20simpang!5e0!3m2!1sid!2sid!4v1786421798321!5m2!1sid!2sid"
+                src={EMBED_PETA_KANTOR}
                 title={`Peta lokasi Kantor Wali ${profil.nama_desa}`}
                 className="h-[420px] w-full md:h-[560px]"
                 style={{ border: 0 }}
@@ -86,7 +76,7 @@ export default async function PetaPage() {
 
             <div className="mt-4 flex flex-wrap gap-3">
               <a
-                href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+                href={urlPetaBesar(lat, lng)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-on-primary transition hover:opacity-90"
@@ -95,7 +85,7 @@ export default async function PetaPage() {
                 Buka peta besar
               </a>
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`}
+                href={urlPetunjukArah(lat, lng)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2.5 text-sm font-medium text-on-surface transition hover:bg-surface-container"

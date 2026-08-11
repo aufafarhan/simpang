@@ -1,9 +1,10 @@
 import { SidebarCard } from "@/components/beranda/SidebarWidgets";
+import { EMBED_PETA_KANTOR, urlPetaBesar } from "@/lib/peta";
 import type { PetaKoordinat } from "@/lib/types";
 
 /**
- * Peta lokasi kantor desa memakai embed OpenStreetMap (tanpa library tambahan).
- * Bisa diganti Leaflet/MapLibre bila nanti butuh layer & marker kustom.
+ * Peta lokasi kantor nagari — embed Google Maps, sumbernya satu di lib/peta.ts
+ * agar sama persis dengan halaman /peta. Tanpa library tambahan.
  */
 export default function Peta({
   peta,
@@ -15,22 +16,22 @@ export default function Peta({
   if (!peta?.lat || !peta?.lng) return null;
 
   const { lat, lng } = peta;
-  const d = 0.01; // luas area yang ditampilkan
-  const bbox = [lng - d, lat - d, lng + d, lat + d].join("%2C");
-  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lng}`;
 
   return (
     <SidebarCard icon="location_on" judul="Peta Lokasi Kantor">
       <div className="overflow-hidden rounded-lg border border-outline-variant">
         <iframe
-          src={src}
+          src={EMBED_PETA_KANTOR}
           title={`Peta lokasi kantor ${namaDesa}`}
           className="h-56 w-full"
+          style={{ border: 0 }}
+          allowFullScreen
           loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
         />
       </div>
       <a
-        href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`}
+        href={urlPetaBesar(lat, lng)}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
