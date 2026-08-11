@@ -68,7 +68,28 @@
                                     di bawah ini :
                                     <div class="timeline-footer col-sm-12">
                                         <a href="{{ $formatImpor }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block margin" wrap><i class="fa fa-download"></i> Aturan dan Contoh Format Data</a>
+                                        <a href="{{ $templateImpor }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block margin" wrap><i class="fa fa-file-excel-o"></i> Unduh Template Impor (.xlsx)</a>
                                     </div>
+                                </li>
+                                <li>Template <b>.xlsx</b> di atas berisi baris judul siap isi pada sheet
+                                    <b>Data Penduduk</b> (nama sheet ini tidak boleh diubah). Judul kolomnya memakai
+                                    istilah yang sama dengan tabel Data Penduduk.
+                                    <ul>
+                                        <li>Wajib diisi: <b>NIK, NAMA, NO KK, NAMA AYAH, NAMA IBU, JENIS KELAMIN,
+                                                TANGGAL LAHIR, PENDIDIKAN DALAM KK, PEKERJAAN, KAWIN,
+                                                HUBUNGAN DALAM KELUARGA, AGAMA, GOLONGAN DARAH, KEWARGANEGARAAN</b>.
+                                        </li>
+                                        <li>Diabaikan saat impor (hanya agar sesuai tampilan tabel):
+                                            <b>FOTO, NO RUMAH TANGGA, UMUR, TANGGAL PERISTIWA,
+                                                TGL TERDAFTAR</b>. UMUR dihitung otomatis dari TANGGAL LAHIR,
+                                            dan FOTO diunggah lewat formulir penduduk.
+                                        </li>
+                                        <li>Empat kolom terakhir (<b>HUBUNGAN DALAM KELUARGA, AGAMA,
+                                                GOLONGAN DARAH, KEWARGANEGARAAN</b>) beserta <b>TANGGAL LAHIR</b>
+                                            tidak tampil di tabel Data Penduduk, tetapi wajib diisi karena sama
+                                            dengan yang diminta formulir penduduk.
+                                        </li>
+                                    </ul>
                                 </li>
                             </ol>
                         </div>

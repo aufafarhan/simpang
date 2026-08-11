@@ -237,6 +237,7 @@ Route::group('penduduk', static function (): void {
     Route::post('program_bantuan_proses', 'Penduduk@program_bantuan_proses')->name('penduduk.program_bantuan_proses');
     Route::get('unduh_berkas/{id_dokumen?}/{tampil?}', 'Penduduk@unduh_berkas')->name('penduduk.unduh_berkas');
     Route::get('impor', 'Penduduk@impor')->name('penduduk.impor');
+    Route::get('template_impor', 'Penduduk@template_impor')->name('penduduk.template_impor');
     Route::post('proses_impor', 'Penduduk@proses_impor')->name('penduduk.proses_impor');
     Route::get('impor_bip', 'Penduduk@impor_bip')->name('penduduk.impor_bip');
     Route::post('proses_impor_bip', 'Penduduk@proses_impor_bip')->name('penduduk.proses_impor_bip');

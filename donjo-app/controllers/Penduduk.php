@@ -81,6 +81,9 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\CellAlignment;
+use OpenSpout\Common\Entity\Style\CellVerticalAlignment;
+use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Writer;
 
 defined('BASEPATH') || exit('No direct script access allowed');
@@ -1355,6 +1358,45 @@ class Penduduk extends Admin_Controller
         ambilBerkas($data['satuan'], $this->controller . '/dokumen/' . $data['id_pend'], null, LOKASI_DOKUMEN, $tampil);
     }
 
+    /**
+     * Judul kolom template impor penduduk, memakai istilah yang sama dengan tampilan
+     * tabel Data Penduduk (bukan nama kolom basis data).
+     *
+     * Import::imporExcel() menerjemahkan judul ini ke nama kolom basis data lewat
+     * Import::ALIAS_KOLOM, dan mengabaikan kolom pada Import::KOLOM_DIABAIKAN.
+     *
+     * Lima kolom terakhir tidak ditampilkan pada tabel Data Penduduk, tetapi tetap
+     * disertakan karena kolomnya NOT NULL di tabel tweb_penduduk dan bertanda wajib
+     * pada formulir penduduk. Tanpa kolom tersebut setiap baris akan ditolak.
+     */
+    public const KOLOM_TEMPLATE_IMPOR = [
+        'FOTO',
+        'NIK',
+        'TAG ID CARD',
+        'NAMA',
+        'NO KK',
+        'NAMA AYAH',
+        'NAMA IBU',
+        'NO RUMAH TANGGA',
+        'JENIS KELAMIN',
+        'ALAMAT',
+        'JORONG',
+        'RW',
+        'RT',
+        'PENDIDIKAN DALAM KK',
+        'UMUR',
+        'PEKERJAAN',
+        'KAWIN',
+        'TANGGAL PERISTIWA',
+        'TGL TERDAFTAR',
+        // Wajib diisi, tidak ditampilkan pada tabel Data Penduduk
+        'TANGGAL LAHIR',
+        'HUBUNGAN DALAM KELUARGA',
+        'AGAMA',
+        'GOLONGAN DARAH',
+        'KEWARGANEGARAAN',
+    ];
+
     public function impor()
     {
         if (config_item('demo_mode')) {
@@ -1371,9 +1413,45 @@ class Penduduk extends Admin_Controller
             'form_action'          => ci_route('penduduk.proses_impor'),
             'boleh_hapus_penduduk' => PendudukSaja::bolehHapusPenduduk(),
             'formatImpor'          => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+            'templateImpor'        => ci_route('penduduk.template_impor'),
         ];
 
         return view('admin.penduduk.impor', $data);
+    }
+
+    /**
+     * Unduh template impor penduduk: berkas .xlsx berisi baris header saja.
+     *
+     * Nama sheet WAJIB "Data Penduduk" karena Import::imporExcel() hanya memproses
+     * sheet dengan nama tersebut. Karena itu template ini tidak memakai helper
+     * ImporExcel::unduhTemplateImpor() yang tidak menyetel nama sheet.
+     */
+    public function template_impor(): void
+    {
+        isCan('u');
+
+        $header = self::KOLOM_TEMPLATE_IMPOR;
+
+        $gaya = (new Style())
+            ->setFontBold()
+            ->setCellAlignment(CellAlignment::CENTER)
+            ->setCellVerticalAlignment(CellVerticalAlignment::CENTER);
+
+        $writer = new Writer();
+        $writer->openToBrowser(namafile('format-impor-penduduk') . '.xlsx');
+
+        $sheet = $writer->getCurrentSheet();
+        $sheet->setName('Data Penduduk');
+
+        // Lebarkan tiap kolom mengikuti panjang judulnya agar tidak terpotong.
+        // +4 sebagai ruang bagi ikon filter/urut Excel; minimal 10 agar tidak terlalu sempit.
+        foreach ($header as $i => $judul) {
+            $sheet->setColumnWidth(max(10, mb_strlen($judul) + 4), $i + 1);
+        }
+
+        $writer->addRow(Row::fromValues($header, $gaya));
+        $writer->close();
+        exit;
     }
 
     public function proses_impor(): void

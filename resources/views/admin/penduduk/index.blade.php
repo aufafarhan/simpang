@@ -171,7 +171,15 @@
                         'modal' => false,
                         'target' => false
                     ];
-                    
+
+                    $listImporEkspor[] = [
+                        'url' => 'penduduk/template_impor',
+                        'judul' => 'Unduh Template Impor',
+                        'icon' => 'fa fa-file-excel-o',
+                        'modal' => false,
+                        'target' => true
+                    ];
+
                     if (!setting('multi_desa')) {
                         $listImporEkspor[] = [
                             'url' => 'penduduk/impor_bip',

@@ -121,6 +121,53 @@ class Import
         'ket',
     ];
 
+    /**
+     * Padanan judul kolom yang mudah dibaca (seperti pada tampilan tabel Data Penduduk)
+     * ke nama kolom basis data pada DAFTAR_KOLOM. Kunci ditulis huruf kecil karena judul
+     * kolom dinormalkan lebih dulu, sehingga "JENIS KELAMIN" maupun "Jenis Kelamin" cocok.
+     */
+    public const ALIAS_KOLOM = [
+        'tag id card'             => 'tag_id_card',
+        'no kk'                   => 'no_kk',
+        'nomor kk'                => 'no_kk',
+        'nama ayah'               => 'nama_ayah',
+        'nama ibu'                => 'nama_ibu',
+        'jenis kelamin'           => 'sex',
+        'jorong'                  => 'dusun',
+        'pendidikan dalam kk'     => 'pendidikan_kk_id',
+        'pendidikan sedang'       => 'pendidikan_sedang_id',
+        'pekerjaan'               => 'pekerjaan_id',
+        'kawin'                   => 'status_kawin',
+        'status kawin'            => 'status_kawin',
+        'tanggal lahir'           => 'tanggallahir',
+        'tempat lahir'            => 'tempatlahir',
+        'hubungan dalam keluarga' => 'kk_level',
+        'agama'                   => 'agama_id',
+        'golongan darah'          => 'golongan_darah_id',
+        'kewarganegaraan'         => 'warganegara_id',
+        'nik ayah'                => 'ayah_nik',
+        'nik ibu'                 => 'ibu_nik',
+        'golongan darah id'       => 'golongan_darah_id',
+    ];
+
+    /**
+     * Judul kolom yang boleh ada di berkas tetapi tidak diimpor: kolom tampilan tabel
+     * (nomor urut, tombol aksi, gambar), nilai turunan (umur dihitung dari tanggal lahir),
+     * serta kolom yang belum didukung importer.
+     */
+    public const KOLOM_DIABAIKAN = [
+        'nomor',
+        'no',
+        'aksi',
+        'foto',
+        'umur',
+        'no rumah tangga',
+        'nomor rumah tangga',
+        'tanggal peristiwa',
+        'tgl terdaftar',
+        'tanggal terdaftar',
+    ];
+
     protected array $kodeSex;
     protected array $kodeHubungan;
     protected array $kodeAgama;
@@ -246,9 +293,24 @@ class Import
                             // Baris pertama diabaikan, berisi nama kolom
                             if (! $barisPertama) {
                                 $barisPertama = true;
-                                $daftarKolom  = $rowData;
+                                // Judul kolom dinormalkan (huruf kecil, tanpa spasi berlebih) lalu
+                                // diterjemahkan lewat ALIAS_KOLOM, sehingga judul yang mudah dibaca
+                                // seperti "JENIS KELAMIN" atau "JORONG" tetap dikenali. Jumlah dan
+                                // urutan elemen dijaga tetap sama agar tetap sejajar dengan $rowData
+                                // saat dipakai getIsiBaris().
+                                $daftarKolom = array_map(static function ($k): string {
+                                    $k = strtolower(trim((string) $k));
+                                    $k = preg_replace('/\s+/', ' ', $k);
+
+                                    return self::ALIAS_KOLOM[$k] ?? $k;
+                                }, $rowData);
 
                                 foreach ($daftarKolom as $kolom) {
+                                    // Kolom kosong dan kolom tampilan/turunan dilewati, bukan ditolak
+                                    if ($kolom === '' || in_array($kolom, self::KOLOM_DIABAIKAN, true)) {
+                                        continue;
+                                    }
+
                                     if (! in_array($kolom, self::DAFTAR_KOLOM)) {
                                         return set_session('error', 'Data penduduk gagal diimpor, nama kolom ' . $kolom . ' tidak sesuai.');
                                     }
