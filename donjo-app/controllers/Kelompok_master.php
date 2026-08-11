@@ -49,9 +49,6 @@ class Kelompok_master extends Admin_Controller
     public $sub_modul_ini = 'kelompok';
     protected $tipe       = 'kelompok';
     private array $kolomImpor = ['kelompok', 'deskripsi'];
-    // Sementara dinonaktifkan (akses admin terkunci lisensi premium) khusus untuk Lembaga_master.php
-    // (di-override true di sana) — Kelompok_master.php sendiri tetap insert seperti biasa.
-    protected bool $dryRunImpor = false;
 
     public function __construct()
     {
@@ -123,12 +120,7 @@ class Kelompok_master extends Admin_Controller
                 ];
 
                 try {
-                    if ($this->dryRunImpor) {
-                        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                        log_message('debug', json_encode($dataSimpan));
-                    } else {
-                        (new KelompokMaster($dataSimpan))->save();
-                    }
+                    (new KelompokMaster($dataSimpan))->save();
 
                     $sukses++;
                 } catch (Exception $e) {

@@ -59,9 +59,6 @@ class Kelompok extends Admin_Controller
     protected $kelompokObj;
     private array $_list_session = ['penerima_bantuan', 'sex', 'status_dasar'];
     private array $kolomImpor    = ['kategori', 'nama', 'kode', 'no_sk_pendirian', 'nik_ketua', 'keterangan'];
-    // Sementara dinonaktifkan (akses admin terkunci lisensi premium) khusus untuk Lembaga.php
-    // (di-override true di sana) — Kelompok.php sendiri tetap insert seperti biasa.
-    protected bool $dryRunImpor  = false;
 
     public function __construct()
     {
@@ -330,31 +327,18 @@ class Kelompok extends Admin_Controller
                 ];
 
                 try {
-                    if ($this->dryRunImpor) {
-                        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                        log_message('debug', json_encode(array_merge($dataKelompok, [
-                            'anggota_ketua' => [
-                                'id_penduduk' => $idKetua,
-                                'no_anggota'  => 1,
-                                'jabatan'     => 1,
-                                'keterangan'  => "Ketua {$this->tipe}",
-                                'tipe'        => $this->tipe,
-                            ],
-                        ])));
-                    } else {
-                        $kelompok = new KelompokModel($dataKelompok);
-                        $kelompok->save();
+                    $kelompok = new KelompokModel($dataKelompok);
+                    $kelompok->save();
 
-                        (new KelompokAnggota([
-                            'id_kelompok' => $kelompok->id,
-                            'config_id'   => identitas('id'),
-                            'id_penduduk' => $idKetua,
-                            'no_anggota'  => 1,
-                            'jabatan'     => 1,
-                            'keterangan'  => "Ketua {$this->tipe}",
-                            'tipe'        => $this->tipe,
-                        ]))->save();
-                    }
+                    (new KelompokAnggota([
+                        'id_kelompok' => $kelompok->id,
+                        'config_id'   => identitas('id'),
+                        'id_penduduk' => $idKetua,
+                        'no_anggota'  => 1,
+                        'jabatan'     => 1,
+                        'keterangan'  => "Ketua {$this->tipe}",
+                        'tipe'        => $this->tipe,
+                    ]))->save();
 
                     $sukses++;
                 } catch (Exception $e) {

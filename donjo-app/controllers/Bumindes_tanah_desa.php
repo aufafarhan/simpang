@@ -167,9 +167,7 @@ class Bumindes_tanah_desa extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // TanahDesa::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    TanahDesa::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

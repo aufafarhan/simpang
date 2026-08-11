@@ -807,9 +807,7 @@ class Stunting extends Admin_Controller
                         'kepemilikan_jamban'    => $this->boolDariTeks($kepemilikanJamban),
                         'jaminan_kesehatan'     => $this->boolDariTeks($jaminanKesehatan),
                     ]);
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // IbuHamil::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    IbuHamil::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());
@@ -1166,9 +1164,7 @@ class Stunting extends Admin_Controller
                         'jaminan_kesehatan'           => $this->boolDariTeks($jaminanKesehatan),
                         'pengasuhan_paud'             => $this->boolDariTeks($pengasuhanPaud),
                     ]);
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // Anak::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    Anak::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());
@@ -1471,10 +1467,7 @@ class Stunting extends Admin_Controller
                 }
 
                 try {
-                    $dataSimpanPaud = static::validatePaud($dataSimpan);
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // Paud::create($dataSimpanPaud);
-                    log_message('debug', json_encode($dataSimpanPaud));
+                    Paud::create(static::validatePaud($dataSimpan));
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

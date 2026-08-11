@@ -135,9 +135,7 @@ class Inventaris_kontruksi extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // InventarisKontruksi::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    InventarisKontruksi::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

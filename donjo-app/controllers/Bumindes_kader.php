@@ -138,9 +138,7 @@ class Bumindes_kader extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // KaderMasyarakat::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    KaderMasyarakat::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

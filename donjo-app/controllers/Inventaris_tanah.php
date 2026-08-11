@@ -145,9 +145,7 @@ class Inventaris_tanah extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // InventarisTanah::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    InventarisTanah::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

@@ -200,7 +200,7 @@ class Import
         $this->kodeAsuransi         = array_change_key_case(array_combine(AsuransiEnum::values(), AsuransiEnum::keys()));
     }
 
-    public function imporExcel($hapus = false, $dryRun = false)
+    public function imporExcel($hapus = false)
     {
         try {
             if ($this->fileImportValid() == false) {
@@ -213,7 +213,7 @@ class Import
 
             // Pengguna bisa menentukan apakah data penduduk yang ada dihapus dulu
             // atau tidak sebelum melakukan impor
-            if ($hapus && ! $dryRun && PendudukSaja::bolehHapusPenduduk()) {
+            if ($hapus && PendudukSaja::bolehHapusPenduduk()) {
                 $this->hapusDataPenduduk();
             }
 
@@ -260,30 +260,21 @@ class Import
                             $isiBaris      = $this->getIsiBaris($daftarKolom, $rowData);
                             $errorValidasi = $this->dataImportValid($isiBaris);
                             if (empty($errorValidasi)) {
-                                if ($dryRun) {
-                                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                                    // $this->tulisWilayah($isiBaris);
-                                    // $this->tulisKeluarga($isiBaris);
-                                    log_message('debug', json_encode($isiBaris));
-                                } else {
-                                    $this->tulisWilayah($isiBaris);
-                                    $this->tulisKeluarga($isiBaris);
-                                }
+                                $this->tulisWilayah($isiBaris);
+                                $this->tulisKeluarga($isiBaris);
                                 // Untuk pesan jika data yang sama akan diganti
                                 if ($index = array_search($isiBaris['nik'], $dataPenduduk) && $isiBaris['nik'] != '0') {
                                     $ganda++;
                                     $pesan .= $barisData . ') NIK ' . $isiBaris['nik'] . ' sama dengan baris ' . ($index + 2) . '<br>';
                                 }
                                 $dataPenduduk[] = $isiBaris['nik'];
-                                if (! $dryRun) {
-                                    $this->tulisPenduduk($isiBaris);
-                                    if ($error = $this->errorTulisPenduduk) {
-                                        $gagal++;
-                                        $pesan .= $barisData . ') ' . $error['message'] . '<br>';
-                                    }
-                                    if ($this->infoTulisPenduduk) {
-                                        $pesan .= $barisData . ') ' . $this->infoTulisPenduduk['message'] . '<br>';
-                                    }
+                                $this->tulisPenduduk($isiBaris);
+                                if ($error = $this->errorTulisPenduduk) {
+                                    $gagal++;
+                                    $pesan .= $barisData . ') ' . $error['message'] . '<br>';
+                                }
+                                if ($this->infoTulisPenduduk) {
+                                    $pesan .= $barisData . ') ' . $this->infoTulisPenduduk['message'] . '<br>';
                                 }
                             } else {
                                 $gagal++;
@@ -292,9 +283,7 @@ class Import
                         }
                     }
                     // Hapus data lat dan lng yang null
-                    if (! $dryRun) {
-                        DB::table('tweb_penduduk_map')->orWhereNull(['id', 'lat', 'lng'])->delete();
-                    }
+                    DB::table('tweb_penduduk_map')->orWhereNull(['id', 'lat', 'lng'])->delete();
 
                     if (($barisData - 1) <= 0) {
                         return set_session('error', 'Data penduduk gagal diimpor');

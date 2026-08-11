@@ -56,9 +56,6 @@ class Kelompok_anggota extends Admin_Controller
     public $sub_modul_ini   = 'kelompok';
     public $tipe            = 'kelompok';
     public $aliasController = 'kelompok';
-    // Sementara dinonaktifkan (akses admin terkunci lisensi premium) khusus untuk Lembaga_anggota.php
-    // (di-override true di sana) — Kelompok_anggota.php sendiri tetap insert seperti biasa.
-    protected bool $dryRunImpor = false;
 
     private function kolomImpor(): array
     {
@@ -312,13 +309,8 @@ class Kelompok_anggota extends Admin_Controller
                 }
 
                 try {
-                    if ($this->dryRunImpor) {
-                        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                        log_message('debug', json_encode($dataAnggota));
-                    } else {
-                        KelompokAnggotaModel::UbahJabatan($idKelompok, $idPenduduk, $jabatan, null);
-                        (new KelompokAnggotaModel($dataAnggota))->save();
-                    }
+                    KelompokAnggotaModel::UbahJabatan($idKelompok, $idPenduduk, $jabatan, null);
+                    (new KelompokAnggotaModel($dataAnggota))->save();
 
                     $sukses++;
                 } catch (Exception $e) {

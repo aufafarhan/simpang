@@ -153,8 +153,8 @@ class AnggotaKeluarga extends Admin_Controller
             redirect_with('error', 'Impor dibatalkan, berkas berisi baris dengan No KK yang berbeda dari KK ini:<br>' . implode('<br>', $barisSalah), "keluarga/anggota/{$id}");
         }
 
-        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): dryRun=true supaya hasil parse dicatat ke log, tidak ditulis ke DB.
-        (new Import())->imporExcel(false, true);
+        // hapus=false: data penduduk/keluarga yang sudah ada tidak dihapus sebelum impor.
+        (new Import())->imporExcel(false);
         redirect("keluarga/anggota/{$id}");
     }
 

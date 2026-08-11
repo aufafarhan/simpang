@@ -165,12 +165,10 @@ class Cdesa extends Admin_Controller
                 $dataPenduduk = $jenisPemilik === 1 ? ['id_pend' => $idPenduduk] : null;
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // $cdesa = CdesaModel::create($dataSimpan);
-                    // if ($dataPenduduk) {
-                    //     $cdesa->cdesaPenduduk()->create($dataPenduduk);
-                    // }
-                    log_message('debug', json_encode(array_merge($dataSimpan, ['id_pend' => $idPenduduk])));
+                    $cdesa = CdesaModel::create($dataSimpan);
+                    if ($dataPenduduk) {
+                        $cdesa->cdesaPenduduk()->create($dataPenduduk);
+                    }
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

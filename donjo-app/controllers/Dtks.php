@@ -227,25 +227,24 @@ class Dtks extends Admin_Controller
                 }
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert/update DB dilewati, hasil parse dicatat ke log.
-                    // DB::beginTransaction();
-                    // $dtks = ModelDtks::where(['id_rtm' => $rtm->id, 'versi_kuisioner' => DtksEnum::VERSION_CODE])->first();
-                    // if (! $dtks) {
-                    //     $dtks = ModelDtks::create([
-                    //         'versi_kuisioner' => DtksEnum::VERSION_CODE,
-                    //         'id_rtm'          => $rtm->id,
-                    //         'is_draft'        => StatusEnum::YA,
-                    //     ]);
-                    //     (new DTKSRegsosEk2022k())->syncronizeWithOpenSid($dtks);
-                    // }
-                    //
-                    // $this->isiBagian123($dtks, $data);
-                    // $this->isiBagian56($dtks, $data);
-                    // $dtks->save();
-                    // DB::commit();
-                    log_message('debug', json_encode(array_merge(['no_kk' => $noKk, 'id_rtm' => $rtm->id], $data)));
+                    DB::beginTransaction();
+                    $dtks = ModelDtks::where(['id_rtm' => $rtm->id, 'versi_kuisioner' => DtksEnum::VERSION_CODE])->first();
+                    if (! $dtks) {
+                        $dtks = ModelDtks::create([
+                            'versi_kuisioner' => DtksEnum::VERSION_CODE,
+                            'id_rtm'          => $rtm->id,
+                            'is_draft'        => StatusEnum::YA,
+                        ]);
+                        (new DTKSRegsosEk2022k())->syncronizeWithOpenSid($dtks);
+                    }
+
+                    $this->isiBagian123($dtks, $data);
+                    $this->isiBagian56($dtks, $data);
+                    $dtks->save();
+                    DB::commit();
                     $sukses++;
                 } catch (Exception $e) {
+                    DB::rollBack();
                     log_message('error', $e->getMessage());
                     $gagal++;
                     $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";

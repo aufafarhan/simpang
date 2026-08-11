@@ -143,9 +143,7 @@ class Inventaris_peralatan extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // InventarisPeralatan::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    InventarisPeralatan::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

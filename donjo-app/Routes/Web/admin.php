@@ -392,7 +392,7 @@ foreach (['lembaga' => 'Lembaga', 'kelompok' => 'Kelompok'] as $key => $value) {
 }
 
 // Impor Excel modul Kelompok & Lembaga (Lembaga memakai method yang sama via pewarisan class,
-// dengan jalur DB dipotong lewat guard $dryRunImpor)
+// dibedakan lewat properti $tipe pada masing-masing controller)
 foreach (['kelompok', 'lembaga'] as $key) {
     Route::group($key, static function () use ($key): void {
         Route::get('/format_impor', ucfirst($key) . '@format_impor')->name("{$key}.format_impor");

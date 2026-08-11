@@ -149,9 +149,7 @@ class Inventaris_gedung extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // InventarisGedung::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    InventarisGedung::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

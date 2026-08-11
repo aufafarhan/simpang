@@ -111,8 +111,8 @@ class Keluarga extends Admin_Controller
             redirect('keluarga');
         }
         isCan('u');
-        // Sementara dinonaktifkan (akses admin terkunci lisensi premium): dryRun=true supaya hasil parse dicatat ke log, tidak ditulis ke DB.
-        (new Import())->imporExcel(false, true);
+        // hapus=false: data penduduk/keluarga yang sudah ada tidak dihapus sebelum impor.
+        (new Import())->imporExcel(false);
         redirect(ci_route('keluarga.impor'));
     }
 

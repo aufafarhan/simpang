@@ -143,10 +143,10 @@ class Pembangunan_dokumentasi extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // PembangunanDokumentasi::create($dataSimpan);
-                    // $this->perubahan_anggaran($pembangunan->id, $dataSimpan['persentase'], 0);
-                    log_message('debug', json_encode($dataSimpan));
+                    PembangunanDokumentasi::create($dataSimpan);
+                    // Sengaja TIDAK memanggil perubahan_anggaran(): impor tidak menyediakan kolom
+                    // perubahan_anggaran, dan memanggilnya dengan 0 akan menimpa nilai anggaran
+                    // yang sudah ada saat persentase 100%. Ubah lewat formulir bila diperlukan.
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

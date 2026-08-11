@@ -164,14 +164,16 @@ class Data_persil extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // DB::beginTransaction();
-                    // $persil = Persil::create($dataSimpan);
-                    // $persil->mutasi()->create($this->dataMutasi($dataSimpan));
-                    // DB::commit();
-                    log_message('debug', json_encode($dataSimpan));
+                    DB::beginTransaction();
+                    $persil = Persil::create($dataSimpan);
+                    // area_tanah bukan kolom tabel persil, jadi tidak boleh masuk ke create() di
+                    // atas; hanya dibutuhkan dataMutasi() untuk menentukan id_peta. Impor tidak
+                    // mendukung poligon peta, jadi nilainya null.
+                    $persil->mutasi()->create($this->dataMutasi($dataSimpan + ['area_tanah' => null]));
+                    DB::commit();
                     $sukses++;
                 } catch (Exception $e) {
+                    DB::rollBack();
                     log_message('error', $e->getMessage());
                     $gagal++;
                     $pesan .= "{$barisKe}) Baris gagal disimpan ke basis data.<br>";

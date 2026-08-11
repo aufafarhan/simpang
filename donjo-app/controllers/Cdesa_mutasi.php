@@ -186,9 +186,7 @@ class Cdesa_mutasi extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // MutasiCdesa::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    MutasiCdesa::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());

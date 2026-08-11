@@ -149,9 +149,7 @@ class Inventaris_asset extends Admin_Controller
                 ];
 
                 try {
-                    // Sementara dinonaktifkan (akses admin terkunci lisensi premium): insert DB dilewati, hasil parse dicatat ke log.
-                    // InventarisAsset::create($dataSimpan);
-                    log_message('debug', json_encode($dataSimpan));
+                    InventarisAsset::create($dataSimpan);
                     $sukses++;
                 } catch (Exception $e) {
                     log_message('error', $e->getMessage());
