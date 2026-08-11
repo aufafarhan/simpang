@@ -37,7 +37,7 @@
                             </div>
                         </li>
                     </ol>
-                    <p>Batas maksimal pengunggahan berkas <strong>{{ max_upload() }} MB.</strong></p>
+                    <p>Batas maksimal pengunggahan berkas <strong>{{ $maksUkuranMb }} MB.</strong></p>
                     <table class="table table-bordered">
                         <tbody>
                             <tr>

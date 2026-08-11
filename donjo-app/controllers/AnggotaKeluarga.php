@@ -83,6 +83,15 @@ class AnggotaKeluarga extends Admin_Controller
         isCan('b');
     }
 
+    /**
+     * Batas ukuran unggahan yang berlaku: yang terkecil antara batas modul Keluarga
+     * (MAKS_UKURAN_IMPOR_KELUARGA, 512 MB) dan batas konfigurasi PHP.
+     */
+    private function batasUkuranImpor(): int
+    {
+        return min(MAKS_UKURAN_IMPOR_KELUARGA, max_upload());
+    }
+
     // Impor Excel anggota baru untuk KK yang sudah ada (memakai mesin impor yang sama dengan
     // Penduduk/Keluarga), dibatasi hanya boleh menambah anggota ke KK ini (no_kk pada berkas
     // harus sama dengan KK ini).
@@ -95,9 +104,10 @@ class AnggotaKeluarga extends Admin_Controller
         $kk = KeluargaModel::findOrFail($id);
 
         $data = [
-            'kk'          => $kk,
-            'form_action' => ci_route('keluarga.proses_impor_anggota', $id),
-            'formatImpor' => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+            'kk'           => $kk,
+            'form_action'  => ci_route('keluarga.proses_impor_anggota', $id),
+            'formatImpor'  => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+            'maksUkuranMb' => (int) round($this->batasUkuranImpor() / 1024 / 1024),
         ];
         view('admin.penduduk.keluarga.anggota.impor', $data);
     }
@@ -109,6 +119,16 @@ class AnggotaKeluarga extends Admin_Controller
         }
         isCan('u');
         $kk = KeluargaModel::findOrFail($id);
+
+        $batas  = $this->batasUkuranImpor();
+        $ukuran = (int) ($_FILES['userfile']['size'] ?? 0);
+        if ($ukuran > $batas) {
+            redirect_with(
+                'error',
+                'Ukuran berkas ' . round($ukuran / 1024 / 1024, 1) . ' MB melebihi batas ' . (int) round($batas / 1024 / 1024) . ' MB',
+                "keluarga/anggota/{$id}"
+            );
+        }
 
         try {
             $reader = $this->bukaReaderExcel();

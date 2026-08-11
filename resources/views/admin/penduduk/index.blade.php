@@ -172,13 +172,6 @@
                         'target' => false
                     ];
 
-                    $listImporEkspor[] = [
-                        'url' => 'penduduk/template_impor',
-                        'judul' => 'Unduh Template Impor',
-                        'icon' => 'fa fa-file-excel-o',
-                        'modal' => false,
-                        'target' => true
-                    ];
 
                     if (!setting('multi_desa')) {
                         $listImporEkspor[] = [
@@ -221,6 +214,16 @@
                 icon="fa fa-arrow-circle-down"
                 type="bg-navy"
             />
+            @if (ci_auth()->id_grup == $akses)
+                <x-btn-button
+                    url="penduduk/template_impor"
+                    judul="Template Impor"
+                    icon="fa fa-file-excel-o"
+                    type="bg-purple"
+                    tooltip="Unduh Template Impor Penduduk (.xlsx)"
+                    :blank="true"
+                />
+            @endif
             @if ($disableFilter)
                 <x-btn-button
                     url="penduduk"

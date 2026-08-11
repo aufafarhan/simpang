@@ -181,6 +181,11 @@ define('DEFAULT_LOKASI_LAMPIRAN_SURAT_DINAS', 'storage/app/template/surat-dinas/
 define('DEFAULT_LOKASI_EKSPOR', 'storage/app/template/ekspor/');
 define('DEFAULT_LOKASI_IMPOR', 'storage/app/template/impor/');
 
+// Batas ukuran berkas impor Excel modul Keluarga (Keluarga & Anggota Keluarga), dalam byte.
+// Batas yang benar-benar berlaku adalah nilai terkecil antara ini dan konfigurasi PHP
+// (upload_max_filesize, post_max_size, memory_limit) — lihat max_upload().
+define('MAKS_UKURAN_IMPOR_KELUARGA', 512 * 1024 * 1024);
+
 // File
 define('DEFAULT_LATAR_SITEMAN', 'assets/css/images/latar_login.jpg');
 define('DEFAULT_LATAR_KEHADIRAN', 'assets/css/images/latar_login_mandiri.jpg');

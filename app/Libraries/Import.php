@@ -148,6 +148,10 @@ class Import
         'nik ayah'                => 'ayah_nik',
         'nik ibu'                 => 'ibu_nik',
         'golongan darah id'       => 'golongan_darah_id',
+        // Impor keluarga: satu baris = satu KK beserta kepala keluarganya, sehingga
+        // nama kepala keluarga mengisi kolom nama penduduk.
+        'kepala keluarga'         => 'nama',
+        'nama kepala keluarga'    => 'nama',
     ];
 
     /**
@@ -166,6 +170,11 @@ class Import
         'tanggal peristiwa',
         'tgl terdaftar',
         'tanggal terdaftar',
+        // Kolom tabel Data Keluarga yang belum didukung importer: jumlah anggota dihitung
+        // dari jumlah penduduk pada KK, dan tulisKeluarga() tidak mengisi tanggal cetak KK.
+        'jumlah anggota',
+        'tanggal cetak kk',
+        'tgl cetak kk',
     ];
 
     protected array $kodeSex;

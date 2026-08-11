@@ -222,6 +222,14 @@
                     class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block"
                     title="Impor Data Keluarga"
                 ><i class="fa fa-upload"></i> Impor</a>
+                <x-btn-button
+                    url="keluarga/template_impor"
+                    judul="Template Impor"
+                    icon="fa fa-file-excel-o"
+                    type="bg-purple"
+                    tooltip="Unduh Template Impor Keluarga (.xlsx)"
+                    :blank="true"
+                />
             @endif
         </div>
         <div class="box-body">

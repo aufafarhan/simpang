@@ -70,6 +70,11 @@ use App\Models\Wilayah;
 use App\Traits\GenerateRtf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\CellAlignment;
+use OpenSpout\Common\Entity\Style\CellVerticalAlignment;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Writer;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -92,6 +97,88 @@ class Keluarga extends Admin_Controller
     }
 
     // Impor Excel KK baru (kepala keluarga + rumah tangga), memakai mesin impor yang sama dengan Penduduk
+    /**
+     * Judul kolom template impor keluarga, memakai istilah yang sama dengan tampilan
+     * tabel Data Keluarga (bukan nama kolom basis data).
+     *
+     * Impor keluarga memakai mesin yang sama dengan penduduk (Import::imporExcel()),
+     * yang menambah KK baru beserta KEPALA KELUARGA-nya. Judul diterjemahkan lewat
+     * Import::ALIAS_KOLOM dan kolom tampilan dilewati lewat Import::KOLOM_DIABAIKAN.
+     *
+     * Sepuluh kolom terakhir tidak ditampilkan pada tabel Data Keluarga, tetapi tetap
+     * disertakan karena kolomnya NOT NULL di tabel tweb_penduduk dan diwajibkan
+     * Import::dataImportValid() — semuanya menjelaskan data kepala keluarga.
+     */
+    public const KOLOM_TEMPLATE_IMPOR = [
+        'FOTO',
+        'NO KK',
+        'KEPALA KELUARGA',
+        'NIK',
+        'TAG ID CARD',
+        'JUMLAH ANGGOTA',
+        'JENIS KELAMIN',
+        'ALAMAT',
+        'JORONG',
+        'RW',
+        'RT',
+        'TANGGAL TERDAFTAR',
+        'TANGGAL CETAK KK',
+        // Wajib diisi (data kepala keluarga), tidak ditampilkan pada tabel Data Keluarga
+        'TANGGAL LAHIR',
+        'NAMA AYAH',
+        'NAMA IBU',
+        'HUBUNGAN DALAM KELUARGA',
+        'PENDIDIKAN DALAM KK',
+        'PEKERJAAN',
+        'KAWIN',
+        'AGAMA',
+        'GOLONGAN DARAH',
+        'KEWARGANEGARAAN',
+    ];
+
+    /**
+     * Batas ukuran unggahan yang benar-benar berlaku: yang terkecil antara batas modul
+     * ini (MAKS_UKURAN_IMPOR_KELUARGA, 512 MB) dan batas konfigurasi PHP
+     * (upload_max_filesize/post_max_size/memory_limit).
+     */
+    private function batasUkuranImpor(): int
+    {
+        return min(MAKS_UKURAN_IMPOR_KELUARGA, max_upload());
+    }
+
+    /**
+     * Unduh template impor keluarga: berkas .xlsx berisi baris judul saja.
+     *
+     * Nama sheet WAJIB "Data Penduduk" karena Import::imporExcel() hanya memproses
+     * sheet dengan nama tersebut, termasuk saat dipakai modul Keluarga.
+     */
+    public function template_impor(): void
+    {
+        isCan('u');
+
+        $header = self::KOLOM_TEMPLATE_IMPOR;
+
+        $gaya = (new Style())
+            ->setFontBold()
+            ->setCellAlignment(CellAlignment::CENTER)
+            ->setCellVerticalAlignment(CellVerticalAlignment::CENTER);
+
+        $writer = new Writer();
+        $writer->openToBrowser(namafile('format-impor-keluarga') . '.xlsx');
+
+        $sheet = $writer->getCurrentSheet();
+        $sheet->setName('Data Penduduk');
+
+        // Lebarkan tiap kolom mengikuti panjang judulnya agar tidak terpotong.
+        foreach ($header as $i => $judul) {
+            $sheet->setColumnWidth(max(10, mb_strlen($judul) + 4), $i + 1);
+        }
+
+        $writer->addRow(Row::fromValues($header, $gaya));
+        $writer->close();
+        exit;
+    }
+
     public function impor(): void
     {
         if (config_item('demo_mode') || data_lengkap()) {
@@ -100,7 +187,9 @@ class Keluarga extends Admin_Controller
         isCan('u');
         $data = [
             'form_action' => ci_route('keluarga.proses_impor'),
-            'formatImpor' => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+            'formatImpor'   => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-excel.xlsm')),
+            'templateImpor' => ci_route('keluarga.template_impor'),
+            'maksUkuranMb'  => (int) round($this->batasUkuranImpor() / 1024 / 1024),
         ];
         view('admin.penduduk.keluarga.impor', $data);
     }
@@ -111,6 +200,17 @@ class Keluarga extends Admin_Controller
             redirect('keluarga');
         }
         isCan('u');
+
+        $batas  = $this->batasUkuranImpor();
+        $ukuran = (int) ($_FILES['userfile']['size'] ?? 0);
+        if ($ukuran > $batas) {
+            redirect_with(
+                'error',
+                'Ukuran berkas ' . round($ukuran / 1024 / 1024, 1) . ' MB melebihi batas ' . (int) round($batas / 1024 / 1024) . ' MB',
+                ci_route('keluarga.impor')
+            );
+        }
+
         // hapus=false: data penduduk/keluarga yang sudah ada tidak dihapus sebelum impor.
         (new Import())->imporExcel(false);
         redirect(ci_route('keluarga.impor'));

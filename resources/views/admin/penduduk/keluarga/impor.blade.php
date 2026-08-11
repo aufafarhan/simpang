@@ -33,10 +33,11 @@
                             Data yang dibutuhkan untuk impor mengikuti urutan format dan aturan data pada tautan di bawah ini:
                             <div class="timeline-footer col-sm-12">
                                 <a href="{{ $formatImpor }}" class="btn btn-social btn-info btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block margin"><i class="fa fa-download"></i> Aturan dan Contoh Format Data</a>
+                                <a href="{{ $templateImpor }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block margin"><i class="fa fa-file-excel-o"></i> Unduh Template Impor (.xlsx)</a>
                             </div>
                         </li>
                     </ol>
-                    <p>Batas maksimal pengunggahan berkas <strong>{{ max_upload() }} MB.</strong></p>
+                    <p>Batas maksimal pengunggahan berkas <strong>{{ $maksUkuranMb }} MB.</strong></p>
                     <table class="table table-bordered">
                         <tbody>
                             <tr>

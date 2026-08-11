@@ -274,6 +274,7 @@ Route::group('keluarga', static function (): void {
     Route::post('cetak/{aksi?}/{privasi_kk?}', 'Keluarga@cetak')->name('keluarga.cetak');
     Route::get('form', 'Keluarga@form')->name('keluarga.form');
     Route::get('impor', 'Keluarga@impor')->name('keluarga.impor');
+    Route::get('template_impor', 'Keluarga@template_impor')->name('keluarga.template_impor');
     Route::post('proses_impor', 'Keluarga@proses_impor')->name('keluarga.proses_impor');
     Route::get('form_peristiwa/{peristiwa}/{id?}', 'AnggotaKeluarga@form')->name('keluarga.form_peristiwa');
     Route::get('edit_nokk/{id?}', 'Keluarga@edit_nokk')->name('keluarga.edit_nokk');
