@@ -18,6 +18,16 @@
             <x-tambah-button :url="'rtm/form'" modal="true" />
             <x-hapus-button confirmDelete="true" selectData="true" :url="'rtm/delete'" />
             <x-impor-button modal="true" :url="'suplemen/impor'" />
+            @if (can('u'))
+                <x-btn-button
+                    url="rtm/template_impor"
+                    judul="Template Impor"
+                    icon="fa fa-file-excel-o"
+                    type="bg-purple"
+                    tooltip="Unduh Template Impor Rumah Tangga (.xlsx)"
+                    :blank="true"
+                />
+            @endif
             @php
                 $listCetakUnduh = [
                     [

@@ -52,7 +52,12 @@ use App\Services\DtksService;
 use App\Traits\Upload;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\CellAlignment;
+use OpenSpout\Common\Entity\Style\CellVerticalAlignment;
+use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Reader\XLSX\Reader;
+use OpenSpout\Writer\XLSX\Writer;
 
 defined('BASEPATH') || exit('No direct script access allowed');
 
@@ -96,6 +101,7 @@ class Rtm extends Admin_Controller
             'judul_statistik' => $this->judulStatistik,
             'filterColumn'    => $this->filterColumn,
             'formatImpor'     => ci_route('unduh', encrypt(DEFAULT_LOKASI_IMPOR . 'format-impor-rtm.xlsx')),
+            'templateImpor'   => ci_route('rtm.template_impor'),
         ];
         view('admin.penduduk.rtm.index', $data);
     }
@@ -471,6 +477,111 @@ class Rtm extends Admin_Controller
     }
 
     /**
+     * Judul kolom template impor rumah tangga, memakai istilah yang sama dengan
+     * tampilan tabel Data Rumah Tangga.
+     *
+     * Urutan kolom bebas karena Rtm::impor() menentukan posisi kolom dari judulnya
+     * lewat posisiKolomImpor(). Yang wajib terisi hanya NIK, NO RUMAH TANGGA, dan
+     * STATUS HUBUNGAN DALAM RUMAH TANGGA; kolom lain hanya pelengkap agar template
+     * menyerupai tampilan tabel dan tidak dibaca importer.
+     */
+    public const KOLOM_TEMPLATE_IMPOR = [
+        'FOTO',
+        'NO RUMAH TANGGA',
+        'KEPALA RUMAH TANGGA',
+        'NIK',
+        'DTKS',
+        'JUMLAH KK',
+        'JUMLAH ANGGOTA',
+        'ALAMAT',
+        'JORONG',
+        'RW',
+        'RT',
+        'TANGGAL TERDAFTAR',
+        // Wajib diisi, tidak ada di tabel Data Rumah Tangga
+        'STATUS HUBUNGAN DALAM RUMAH TANGGA',
+    ];
+
+    /**
+     * Unduh template impor rumah tangga: berkas .xlsx berisi baris judul saja,
+     * ditambah sheet "Kode Data" sebagai rujukan kode status hubungan.
+     *
+     * Nama sheet data WAJIB "RTM" karena Rtm::impor() hanya memproses sheet itu.
+     */
+    /**
+     * Tentukan posisi kolom yang dibutuhkan impor berdasarkan judul kolom pada baris
+     * pertama, sehingga urutan kolom pada berkas boleh bebas.
+     *
+     * Judul dinormalkan (huruf kecil, spasi tunggal) lalu dicocokkan dengan beberapa
+     * variasi penulisan. Kolom yang judulnya tidak dikenali mempertahankan posisi
+     * cadangan ($cadangan) agar berkas lama yang mengandalkan urutan tetap terbaca.
+     *
+     * @param array $cells    sel baris judul
+     * @param array $cadangan posisi awal: ['nik' => 0, 'id_rtm' => 1, 'level' => 2]
+     */
+    private function posisiKolomImpor(array $cells, array $cadangan): array
+    {
+        $padanan = [
+            'nik'                                => 'nik',
+            'no rumah tangga'                    => 'id_rtm',
+            'nomor rumah tangga'                 => 'id_rtm',
+            'no ruta'                            => 'id_rtm',
+            'id rtm'                             => 'id_rtm',
+            'status hubungan dalam rumah tangga' => 'level',
+            'hubungan dalam rumah tangga'        => 'level',
+            'status hubungan'                    => 'level',
+            'hubungan'                           => 'level',
+        ];
+
+        $ketemu = [];
+
+        foreach ($cells as $i => $cell) {
+            $judul = strtolower(trim((string) $cell->getValue()));
+            $judul = preg_replace('/\s+/', ' ', $judul);
+
+            if (isset($padanan[$judul]) && ! isset($ketemu[$padanan[$judul]])) {
+                $ketemu[$padanan[$judul]] = $i;
+            }
+        }
+
+        return array_merge($cadangan, $ketemu);
+    }
+
+    public function template_impor(): void
+    {
+        isCan('u');
+
+        $gaya = (new Style())
+            ->setFontBold()
+            ->setCellAlignment(CellAlignment::CENTER)
+            ->setCellVerticalAlignment(CellVerticalAlignment::CENTER);
+
+        $writer = new Writer();
+        $writer->openToBrowser(namafile('format-impor-rumah-tangga') . '.xlsx');
+
+        $sheet = $writer->getCurrentSheet();
+        $sheet->setName('RTM');
+        foreach (self::KOLOM_TEMPLATE_IMPOR as $i => $judul) {
+            $sheet->setColumnWidth(max(10, mb_strlen($judul) + 4), $i + 1);
+        }
+        $writer->addRow(Row::fromValues(self::KOLOM_TEMPLATE_IMPOR, $gaya));
+
+        // Sheet rujukan kode, meniru template lama agar operator tahu isi kolom status
+        $kode = $writer->addNewSheetAndMakeItCurrent();
+        $kode->setName('Kode Data');
+        $kode->setColumnWidth(10, 1);
+        $kode->setColumnWidth(40, 2);
+        $writer->addRow(Row::fromValues(['ID', 'STATUS HUBUNGAN DALAM RUMAH TANGGA'], $gaya));
+
+        foreach (HubunganRTMEnum::all() as $id => $nama) {
+            $writer->addRow(Row::fromValues([$id, strtoupper((string) $nama)]));
+        }
+
+        $writer->close();
+        exit;
+    }
+
+    /**
      * Impor Pengelompokan Data Rumah Tangga
      * Alur :
      * Cek apakah NIK ada atau tidak.
@@ -496,12 +607,18 @@ class Rtm extends Admin_Controller
             $baris_pertama = false;
             $gagal         = 0;
             $nomor_baris   = 0;
+            // Posisi kolom yang dibaca. Nilai awal mengikuti urutan template lama
+            // (NIK, NOMOR RUMAH TANGGA, STATUS HUBUNGAN) sebagai cadangan apabila judul
+            // kolom tidak dikenali, sehingga berkas lama tetap bisa diimpor.
+            $indeks = ['nik' => 0, 'id_rtm' => 1, 'level' => 2];
 
             if ($sheet->getName() === 'RTM') {
                 foreach ($sheet->getRowIterator() as $row) {
-                    // Abaikan baris pertama yg berisi nama kolom
+                    // Baris pertama berisi judul kolom: dipakai menentukan posisi kolom
+                    // agar urutan kolom pada berkas bebas.
                     if (! $baris_pertama) {
                         $baris_pertama = true;
+                        $indeks        = $this->posisiKolomImpor($row->getCells(), $indeks);
 
                         continue;
                     }
@@ -515,7 +632,7 @@ class Rtm extends Admin_Controller
                         $rowData[] = $cell->getValue();
                     }
                     //ID RuTa
-                    $id_rtm = $rowData[1];
+                    $id_rtm = $rowData[$indeks['id_rtm']] ?? null;
 
                     if (empty($id_rtm)) {
                         $pesan .= "Pesan Gagal : Baris {$nomor_baris} Nomer Rumah Tannga Tidak Boleh Kosong</br>";
@@ -525,7 +642,7 @@ class Rtm extends Admin_Controller
                     }
 
                     //Level
-                    $rtm_level = (int) $rowData[2];
+                    $rtm_level = (int) ($rowData[$indeks['level']] ?? 0);
 
                     if ($rtm_level === 0) {
                         $pesan .= "Pesan Gagal : Baris {$nomor_baris} Kode Hubungan Rumah Tangga Tidak Diketahui</br>";
@@ -540,7 +657,7 @@ class Rtm extends Admin_Controller
                     }
 
                     //NIK
-                    $nik = $rowData[0];
+                    $nik = $rowData[$indeks['nik']] ?? null;
 
                     if (empty($nik)) {
                         $pesan .= "Pesan Gagal : Baris {$nomor_baris} NIK tidak boleh kosong.</br>";

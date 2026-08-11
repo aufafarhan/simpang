@@ -36,6 +36,13 @@
                             <br />
                             <br />
                             <a href="{{ $formatImpor }}" class="btn btn-social bg-purple btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block text-center"><i class="fa fa-file-excel-o"></i> Contoh Format Impor Data Rumah Tangga</a>
+                            <a href="{{ $templateImpor }}" target="_blank" class="btn btn-social bg-navy btn-sm visible-xs-block visible-sm-inline-block visible-md-inline-block visible-lg-inline-block text-center"><i class="fa fa-download"></i> Unduh Template Impor (.xlsx)</a>
+                            <p class="text-muted" style="margin-top:8px;">
+                                Kolom yang wajib diisi: <b>NIK</b>, <b>NO RUMAH TANGGA</b>, dan
+                                <b>STATUS HUBUNGAN DALAM RUMAH TANGGA</b> — lihat sheet
+                                <b>Kode Data</b> untuk kode statusnya. Judul kolom tidak boleh diubah,
+                                tetapi urutannya bebas. Kolom lain hanya pelengkap dan tidak diimpor.
+                            </p>
                         </div>
                     </div>
                     <div class="modal-footer">

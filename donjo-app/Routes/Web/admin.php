@@ -341,6 +341,7 @@ Route::group('rtm', static function (): void {
     Route::get('delete_anggota/{kk?}/{id?}', 'Rtm@delete_anggota')->name('rtm.delete_anggota');
     Route::post('delete_all_anggota/{kk?}', 'Rtm@delete_all_anggota')->name('rtm.delete_all_anggota');
     Route::get('statistik/{tipe?}/{no?}/{sex?}', 'Rtm@statistik')->name('rtm.statistik');
+    Route::get('template_impor', 'Rtm@template_impor')->name('rtm.template_impor');
     Route::post('impor', 'Rtm@impor')->name('rtm.impor');
     Route::get('list_anggota_kk/{id?}', 'Rtm@list_anggota_kk')->name('rtm.list_anggota_kk');
 });
