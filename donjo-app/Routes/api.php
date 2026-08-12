@@ -81,6 +81,9 @@ Route::group('api/v1', ['namespace' => 'api'], static function (): void {
     // Status Desa (IDM & SDGs) — data dari API Kemendesa, di-cache OpenSID
     Route::get('status/idm', 'Status@idm');
     Route::get('status/sdgs', 'Status@sdgs');
+
+    // Regulasi: Produk Hukum & Informasi Publik (tabel `dokumen`)
+    Route::get('regulasi', 'Regulasi@index');
 });
 
 // Internal API

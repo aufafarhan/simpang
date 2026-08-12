@@ -357,3 +357,17 @@ export interface StatusSdgs {
   jumlah_tujuan: number;
   tujuan: TujuanSdgs[];
 }
+
+// ---- Regulasi: Produk Hukum & Informasi Publik (tabel `dokumen`) ----
+
+export interface DokumenRegulasi {
+  id: number;
+  nama: string;
+  kategori: string | null;
+  /** Hanya terisi untuk Informasi Publik (Berkala, Serta-merta, dst.). */
+  klasifikasi: string | null;
+  tahun: number | null;
+  tanggal: string | null;
+  keterangan: string | null;
+  berkas_url: string | null;
+}

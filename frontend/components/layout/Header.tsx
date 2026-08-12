@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Icon from "@/components/ui/Icon";
+import { urlPanelAdmin } from "@/lib/admin";
 import { KATEGORI_STATISTIK } from "@/lib/statistik-menu";
 import type { MenuAtas, ProfilDesa } from "@/lib/types";
 
@@ -25,6 +27,9 @@ const PETA_RUTE: Record<string, string> = {
   UMKM: "/lapak-umkm",
   Pengaduan: "/pengaduan",
   "Buku Tamu": "/buku-tamu",
+  Regulasi: "/regulasi",
+  "Produk Hukum": "/regulasi?jenis=produk-hukum",
+  "Informasi Publik": "/regulasi?jenis=informasi-publik",
   Peta: "/peta",
   "Peta Wilayah": "/peta",
   Profil: "/profil",
@@ -177,10 +182,17 @@ export default function Header({ profil }: { profil: ProfilDesa }) {
 
   // Ringkas entri berulang (mis. Status IDM 2021–2024 -> satu "Status IDM").
   const menu = gantiSubmenuStatistik(ringkasMenu(menuAsli));
+  const adminUrl = urlPanelAdmin();
 
   return (
     <header className="sticky top-0 z-50 border-b border-outline-variant bg-background">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+      {/*
+        Sengaja TANPA max-w-6xl: bilah header dibuat selebar layar agar logo
+        menempel di tepi kiri dan tombol Login Admin benar-benar di ujung kanan.
+        Konsekuensinya header tidak lagi sebaris dengan konten halaman yang
+        memakai max-w-6xl — itu lazim untuk header sticky.
+      */}
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-3 md:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3">
           {profil.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -204,13 +216,31 @@ export default function Header({ profil }: { profil: ProfilDesa }) {
           </span>
         </Link>
 
-        <nav aria-label="Menu utama" className="hidden lg:block">
+        {/* ml-auto mendorong menu + tombol ke kanan; tombol jadi elemen paling ujung. */}
+        <nav aria-label="Menu utama" className="ml-auto hidden lg:block">
           <ul className="flex items-center gap-0.5">
             {menu.map((m) => (
               <ItemMenu key={m.id} m={m} />
             ))}
           </ul>
         </nav>
+
+        {/*
+          Tautan panel admin OpenSID. Disembunyikan bila NEXT_PUBLIC_API_URL
+          belum diisi, agar tidak ada tautan menggantung di lingkungan yang
+          backend-nya belum tersambung.
+        */}
+        {adminUrl && (
+          <a
+            href={adminUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-on-primary transition hover:opacity-90 lg:ml-2"
+          >
+            <Icon name="lock" size={16} />
+            <span className="hidden sm:inline">Login Admin</span>
+          </a>
+        )}
       </div>
 
       {/* Menu ringkas untuk layar kecil */}

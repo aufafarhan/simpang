@@ -18,6 +18,7 @@ import {
   mockStatistik,
 } from "./mock";
 import type {
+  DokumenRegulasi,
   AlbumDetail,
   AlbumRingkas,
   ApiResponse,
@@ -306,4 +307,36 @@ export async function getStatusSdgs(): Promise<HasilStatus<StatusSdgs>> {
   } catch {
     return { data: null, pesan: "Tidak dapat menghubungi server data SDGs." };
   }
+}
+
+/**
+ * Regulasi — Produk Hukum atau Informasi Publik.
+ *
+ * SENGAJA tanpa fallback mock: daftar regulasi adalah dokumen hukum resmi.
+ * Menampilkan contoh karangan di halaman ini berisiko menyesatkan warga, jadi
+ * bila API gagal atau datanya kosong, yang dikembalikan array kosong dan
+ * halaman menampilkan tabel kosong apa adanya.
+ */
+export async function getRegulasi(
+  jenis: "produk-hukum" | "informasi-publik" = "produk-hukum",
+  filter: { tahun?: string; kategori?: string } = {},
+): Promise<{
+  items: DokumenRegulasi[];
+  tahunTersedia: number[];
+  jenisPeraturan: { id: number; nama: string }[];
+}> {
+  const q = new URLSearchParams({ jenis });
+  if (filter.tahun) q.set("tahun", filter.tahun);
+  if (filter.kategori) q.set("kategori", filter.kategori);
+
+  const r = await apiGet<DokumenRegulasi[]>(`/regulasi?${q}`, { revalidate: 300 });
+  const meta = r?.meta as unknown as
+    | { tahun_tersedia?: number[]; jenis_peraturan?: { id: number; nama: string }[] }
+    | undefined;
+
+  return {
+    items: r?.data ?? [],
+    tahunTersedia: meta?.tahun_tersedia ?? [],
+    jenisPeraturan: meta?.jenis_peraturan ?? [],
+  };
 }

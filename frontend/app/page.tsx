@@ -38,7 +38,16 @@ export default async function Beranda() {
         <div className="flex flex-col gap-16 lg:col-span-8">
           <QuickShortcuts />
 
-          {headline && <FeaturedNews artikel={headline} />}
+          {/*
+            Sorotan bisa digeser: headline didahulukan, lalu artikel terbaru.
+            Dibatasi 5 agar tidak terlalu panjang, dan di-dedupe supaya
+            headline tidak muncul dua kali.
+          */}
+          <FeaturedNews
+            artikel={[...(headline ? [headline] : []), ...artikel]
+              .filter((a, idx, arr) => arr.findIndex((x) => x.id === a.id) === idx)
+              .slice(0, 5)}
+          />
 
           {/* Berita terbaru */}
           <section>
